@@ -17,7 +17,12 @@ const schema = z.object({
   POSTHOG_API_KEY: z.string().optional(),
   POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
 
-  FIREHOSE_API_KEY: z.string().optional(),
+  // Firehose uses two keys: `fhm_...` management key (one-off tap creation
+  // via scripts/firehose-bootstrap-tap.ts) and `fh_...` tap token (daily
+  // rule sync + stream consumption). The token implicitly identifies the
+  // tap — no separate tap_id is needed in subsequent calls.
+  FIREHOSE_MANAGEMENT_KEY: z.string().optional(),
+  FIREHOSE_TAP_TOKEN: z.string().optional(),
   FIRECRAWL_API_KEY: z.string().optional(),
   PRODUCT_HUNT_TOKEN: z.string().optional(),
 

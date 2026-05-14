@@ -32,7 +32,7 @@ Wrap a feed parser. Input: competitor + `rss_url`. Output: normalized `raw_item`
 ### #3 Product Hunt source adapter — ✅
 Use the PH public GraphQL API. Query recent posts; filter by competitor name/slug/domain. Normalize to `raw_items`. Token from env.
 
-### #6 Firehose source adapter — ☐
+### #6 Firehose source adapter — ✅
 Per https://firehose.com/api-docs — query per competitor (name + homepage domain). Normalize to `raw_items`. Centralize quota tracking; log items/competitor/day.
 
 ### #4 Firecrawl pricing-page scraper — ✅
