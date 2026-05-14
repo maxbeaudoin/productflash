@@ -47,7 +47,7 @@ Follow-up to #6. The initial probe ran minutes after `firehose-sync-rules.ts --a
 ### #4 Firecrawl pricing-page scraper — ✅
 Daily scrape of competitor `pricing_url` via Firecrawl (https://docs.firecrawl.dev/api-reference/introduction). Store latest snapshot; on change emit a `raw_item` with a unified diff in the body. Skip competitors without a `pricing_url`.
 
-### #7 Ingestion orchestrator job — ☐
+### #7 Ingestion orchestrator job — ✅
 pg-boss scheduled job (04:00 UTC) that fans out per competitor: invoke all 4 source adapters in parallel, write `raw_items` with dedupe (on conflict do nothing). Emit per-source metrics via Pino + a PostHog server event (`ingestion_run` with counts per source). Retries via pg-boss config.
 
 ### #8 Seed competitors + validate end-to-end ingestion — ☐
