@@ -60,7 +60,7 @@ Seed 5 real competitors (mix of analytics/CRM/devtools SaaS). Run ingestion loca
 ### #9 Anthropic SDK + classify-and-score job (Haiku) — ✅
 Wire `@anthropic-ai/sdk` with `claude-haiku-4-5-20251001`. Prompt: given a `raw_item` (title + body excerpt), output JSON `{ category: launch|pricing|feature|positioning|noise, score: 0-100, why: string }`. Batched per user (only items for that user's competitors, last 24h). Persist scores.
 
-### #10 Synthesis job (Sonnet) → digest_items + digests — ☐
+### #10 Synthesis job (Sonnet) → digest_items + digests — ✅
 Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at ~5). Output: per-item headline + snippet + impact_note in Product Flash editorial tone (see `executive-summary.html` digest sample). Persist `digest_items` + `digests`. If fewer than 1 item qualifies, persist an empty-digest record so the send job emits the "nothing notable" template.
 
 ### #11 Resend integration + email template — ☐
