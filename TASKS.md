@@ -50,7 +50,7 @@ Daily scrape of competitor `pricing_url` via Firecrawl (https://docs.firecrawl.d
 ### #7 Ingestion orchestrator job — ✅
 pg-boss scheduled job (04:00 UTC) that fans out per competitor: invoke all 4 source adapters in parallel, write `raw_items` with dedupe (on conflict do nothing). Emit per-source metrics via Pino + a PostHog server event (`ingestion_run` with counts per source). Retries via pg-boss config.
 
-### #8 Seed competitors + validate end-to-end ingestion — ☐
+### #8 Seed competitors + validate end-to-end ingestion — ✅
 Seed 5 real competitors (mix of analytics/CRM/devtools SaaS). Run ingestion locally end-to-end. Eyeball `raw_items` — confirm signal is real and dedupe holds across 2 consecutive runs.
 
 ---

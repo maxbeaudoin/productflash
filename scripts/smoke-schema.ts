@@ -75,6 +75,9 @@ async function main() {
     throw new Error('user select did not return expected row')
   }
 
+  // raw_items.competitor_id, not user_id — so user cascade doesn't reach it.
+  // Delete the row we inserted explicitly to keep the table clean for #8.
+  await db.delete(rawItems).where(eq(rawItems.id, item.id))
   await db.delete(users).where(eq(users.id, user.id))
 
   const remaining = await db.select().from(users).where(eq(users.id, user.id))
