@@ -126,6 +126,30 @@ export const competitorPricingSnapshots = pgTable('competitor_pricing_snapshots'
   scrapedAt: timestamp('scraped_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Per-user classification of a raw_item. The score job (Haiku) writes one row
+// per (user, item) pair so synthesis can pick top-N without re-classifying.
+// PK on (user_id, raw_item_id) means re-running the job for a given day is
+// idempotent — we just overwrite on conflict.
+export const itemScores = pgTable(
+  'item_scores',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    rawItemId: uuid('raw_item_id')
+      .notNull()
+      .references(() => rawItems.id, { onDelete: 'cascade' }),
+    category: itemCategory('category').notNull(),
+    score: integer('score').notNull(),
+    why: text('why').notNull(),
+    scoredAt: timestamp('scored_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.rawItemId] }),
+    index('item_scores_user_score_idx').on(t.userId, t.score),
+  ],
+)
+
 export const feedback = pgTable(
   'feedback',
   {
@@ -156,3 +180,5 @@ export type Feedback = typeof feedback.$inferSelect
 export type NewFeedback = typeof feedback.$inferInsert
 export type CompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferSelect
 export type NewCompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferInsert
+export type ItemScore = typeof itemScores.$inferSelect
+export type NewItemScore = typeof itemScores.$inferInsert

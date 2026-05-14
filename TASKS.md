@@ -57,7 +57,7 @@ Seed 5 real competitors (mix of analytics/CRM/devtools SaaS). Run ingestion loca
 
 ## Week 2 — Synthesis + delivery
 
-### #9 Anthropic SDK + classify-and-score job (Haiku) — ☐
+### #9 Anthropic SDK + classify-and-score job (Haiku) — ⏳
 Wire `@anthropic-ai/sdk` with `claude-haiku-4-5-20251001`. Prompt: given a `raw_item` (title + body excerpt), output JSON `{ category: launch|pricing|feature|positioning|noise, score: 0-100, why: string }`. Batched per user (only items for that user's competitors, last 24h). Persist scores.
 
 ### #10 Synthesis job (Sonnet) → digest_items + digests — ☐
