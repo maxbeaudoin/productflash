@@ -9,6 +9,7 @@
 
 [build]
 builder = "nixpacks"
+buildCommand = "npm install -g tsx"
 
 [deploy]
 startCommand = "pnpm worker:start"
