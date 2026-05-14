@@ -31,13 +31,15 @@ const schema = z.object({
   ADMIN_USER: z.string().default('admin'),
   ADMIN_PASSWORD: z.string().optional(),
 
-  // Opt-in switch for the daily ingestion cron. Off by default so a deploy
-  // never auto-fires real API calls — flip to "1" only when dogfooding /
-  // real users are ready. Manual triggers (`pnpm ingest:run` or
-  // `boss.send`) work regardless.
+  // Opt-in switch for the daily ingestion + score crons. Off by default so a
+  // deploy never auto-fires real API calls — flip to "1" only when dogfooding
+  // / real users are ready. Manual triggers (`pnpm ingest:run` or
+  // `boss.send`) work regardless. Accepts the obvious on/off spellings so the
+  // Railway UI can carry a visible toggle.
   INGEST_SCHEDULE_ENABLED: z
-    .union([z.literal('1'), z.literal('true')])
-    .optional(),
+    .enum(['0', '1', 'true', 'false', ''])
+    .optional()
+    .transform((v) => v === '1' || v === 'true'),
 })
 
 const parsed = schema.safeParse(process.env)
