@@ -76,7 +76,7 @@ Fast-iteration escape hatch so we don't have to wait for the daily email loop to
 The template used here is a minimal v0 — just structure (greeting, item list with tag/headline/snippet/impact). Brand styling against design tokens is #11's job; this route will pick up the polished template automatically once #11 lands. No auth, no email send, no feedback URLs needed for the debug path.
 **Blocked by:** #9, #10
 
-### #12 Feedback redirect endpoint — ☐
+### #12 Feedback redirect endpoint — ✅
 `GET /r/:digest_item_id/:rating` — records feedback row (upsert on user+item), then redirects to a static thanks page. Validate rating in `{up, down}`. Use a signed token to prevent third-party tampering.
 
 ### #13 Dogfood: send 3 days of digests to one hand-onboarded user — ☐
