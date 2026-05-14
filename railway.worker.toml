@@ -1,0 +1,16 @@
+# Railway config for the "worker" service (pg-boss: cron + retries + fan-out).
+#
+# Selected by setting RAILWAY_CONFIG_FILE=railway.worker.toml on the worker
+# service in the Railway dashboard. The web service uses railway.web.toml.
+#
+# No healthcheck: the worker is a long-running background process with no
+# HTTP listener. Railway considers it healthy as long as the process stays
+# up; on_failure restart handles crashes.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "pnpm worker:start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

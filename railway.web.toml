@@ -1,0 +1,19 @@
+# Railway config for the "web" service (TanStack Start app).
+#
+# Product Flash runs TWO services from this repo, each selected by setting
+# RAILWAY_CONFIG_FILE on the service in the Railway dashboard:
+#
+#   web    → RAILWAY_CONFIG_FILE=railway.web.toml    (this file)
+#   worker → RAILWAY_CONFIG_FILE=railway.worker.toml
+#
+# Both services share env (DATABASE_URL, ANTHROPIC_API_KEY, etc).
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "pnpm start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
