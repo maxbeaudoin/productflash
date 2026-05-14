@@ -117,6 +117,15 @@ export const digestItems = pgTable(
   (t) => [index('digest_items_digest_idx').on(t.digestId)],
 )
 
+export const competitorPricingSnapshots = pgTable('competitor_pricing_snapshots', {
+  competitorId: uuid('competitor_id')
+    .primaryKey()
+    .references(() => competitors.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  contentHash: text('content_hash').notNull(),
+  scrapedAt: timestamp('scraped_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const feedback = pgTable(
   'feedback',
   {
@@ -145,3 +154,5 @@ export type Digest = typeof digests.$inferSelect
 export type NewDigest = typeof digests.$inferInsert
 export type Feedback = typeof feedback.$inferSelect
 export type NewFeedback = typeof feedback.$inferInsert
+export type CompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferSelect
+export type NewCompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferInsert

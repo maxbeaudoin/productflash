@@ -35,7 +35,7 @@ Use the PH public GraphQL API. Query recent posts; filter by competitor name/slu
 ### #6 Firehose source adapter — ☐
 Per https://firehose.com/api-docs — query per competitor (name + homepage domain). Normalize to `raw_items`. Centralize quota tracking; log items/competitor/day.
 
-### #4 Firecrawl pricing-page scraper — ☐
+### #4 Firecrawl pricing-page scraper — ✅
 Daily scrape of competitor `pricing_url` via Firecrawl (https://docs.firecrawl.dev/api-reference/introduction). Store latest snapshot; on change emit a `raw_item` with a unified diff in the body. Skip competitors without a `pricing_url`.
 
 ### #7 Ingestion orchestrator job — ☐
