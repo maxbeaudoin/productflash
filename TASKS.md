@@ -24,7 +24,7 @@ Bootstrap TanStack Start (pnpm). Install Drizzle + drizzle-kit, pg-boss, Pino, p
 ### #2 Define schema + Drizzle migrations — ✅
 Implement schema per `SCOPE.md` §5: `users`, `competitors`, `user_competitors`, `raw_items` (unique on `source+source_id`), `digest_items`, `digests`, `feedback`. Write initial migration, seed script for a handful of known competitors.
 
-### #21 Design system foundations (tokens + Tailwind v4 + shadcn + fonts) — ☐
+### #21 Design system foundations (tokens + Tailwind v4 + shadcn + fonts) — ✅
 Create `src/design/tokens.ts` mirroring `executive-summary.html` CSS variables (ink/paper/accent/coral palette, font families, radii). Configure Tailwind v4 `@theme` to consume tokens. Run `npx shadcn@latest init` with Base UI primitives. Install components: button, input, label, form, combobox, dialog, toast, select. Add Lucide. Self-host Inter + JetBrains Mono via `@fontsource`. Prereq for all UI work and email template.
 **Blocked by:** #1 · **Blocks:** #11, #14, #15, #16
 

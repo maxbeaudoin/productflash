@@ -1,8 +1,108 @@
 @import "tailwindcss";
 
-/* Brand tokens (palette + fonts) ship in task #21 via src/design/tokens.ts. */
-html,
-body {
-  margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
+@import "@fontsource/inter/900.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Brand tokens — single source of truth lives in src/design/tokens.ts.
+ * Values below MUST stay in sync; React Email components read tokens.ts
+ * directly (inline styles), web utilities are generated from this @theme.
+ */
+@theme {
+  --color-ink: #0a0a0f;
+  --color-ink-soft: #15151c;
+  --color-ink-line: #1f1f2a;
+  --color-paper: #fafaf7;
+  --color-paper-warm: #f4f3ee;
+  --color-text: #1a1a22;
+  --color-text-muted: #5a5a6a;
+  --color-accent: #d9ff3a;
+  --color-accent-warm: #ffd60a;
+  --color-coral: #ff5b3a;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-card: 16px;
+  --radius-card-lg: 20px;
+  --radius-pill: 999px;
+}
+
+/*
+ * shadcn semantic tokens → brand mapping.
+ * shadcn components reference --primary, --background, etc.; we point those
+ * at brand values so every CLI-installed component picks up the brand
+ * automatically without touching component source.
+ */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: var(--color-paper);
+  --foreground: var(--color-text);
+  --card: #ffffff;
+  --card-foreground: var(--color-text);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-ink);
+  --primary-foreground: var(--color-paper);
+  --secondary: var(--color-paper-warm);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-paper-warm);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-coral);
+  --border: #e9e8e1;
+  --input: #e9e8e1;
+  --ring: var(--color-accent);
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
 }
