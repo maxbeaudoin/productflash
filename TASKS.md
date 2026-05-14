@@ -29,7 +29,7 @@ Create `src/design/tokens.ts` mirroring `executive-summary.html` CSS variables (
 ### #5 RSS source adapter — ☐
 Wrap a feed parser. Input: competitor + `rss_url`. Output: normalized `raw_item` rows. Handle malformed feeds, missing `pubDate`, dedupe via guid/link. Includes an autodetect helper that tries `/feed`, `/rss`, `/changelog.rss`, `/blog/feed` for a given homepage URL — used by signup.
 
-### #3 Product Hunt source adapter — ☐
+### #3 Product Hunt source adapter — ✅
 Use the PH public GraphQL API. Query recent posts; filter by competitor name/slug/domain. Normalize to `raw_items`. Token from env.
 
 ### #6 Firehose source adapter — ☐

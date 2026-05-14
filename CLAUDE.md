@@ -7,6 +7,7 @@ Daily AI-curated competitive intelligence digest for SaaS product leaders. Curre
 - **`SCOPE.md`** — full PoC plan: goal, in/out of scope, sources, architecture, design system, daily pipeline, milestones, success criteria, risks. Source of truth for *what we're building*.
 - **`TASKS.md`** — 22 work items with descriptions, dependencies, and statuses. Source of truth for *what's left to do*.
 - **`executive-summary.html`** — marketing landing page, will be ported to React in task #14. Keep at repo root as the pixel-identical visual reference. Don't edit.
+- **`docs/`** — vendor API knowledge base (PH, Firehose, Firecrawl, RSS). Read the relevant file BEFORE writing or modifying that source adapter — captures verified schema, rate limits, working/broken query patterns. Not auto-loaded; consult on demand.
 - **`MEMORY.md`** index in `~/.claude/...` — pointers to locked decisions (scope, stack, ingestion principle).
 
 ## Workflow
