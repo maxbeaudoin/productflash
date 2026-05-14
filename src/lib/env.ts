@@ -30,6 +30,14 @@ const schema = z.object({
 
   ADMIN_USER: z.string().default('admin'),
   ADMIN_PASSWORD: z.string().optional(),
+
+  // Opt-in switch for the daily ingestion cron. Off by default so a deploy
+  // never auto-fires real API calls — flip to "1" only when dogfooding /
+  // real users are ready. Manual triggers (`pnpm ingest:run` or
+  // `boss.send`) work regardless.
+  INGEST_SCHEDULE_ENABLED: z
+    .union([z.literal('1'), z.literal('true')])
+    .optional(),
 })
 
 const parsed = schema.safeParse(process.env)

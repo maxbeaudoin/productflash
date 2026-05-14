@@ -1,12 +1,16 @@
 import PgBoss from 'pg-boss'
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from '~/jobs/ingest'
-import { requireEnv } from '~/lib/env'
+import { env, requireEnv } from '~/lib/env'
 import { logger } from '~/lib/logger'
 import { shutdownPosthog } from '~/lib/posthog'
 
 // Long-running pg-boss host. Hosts the daily ingestion cron + worker today;
 // score/synthesize/send queues from #9, #10, #17 register here too as they
 // land.
+//
+// The cron schedule is gated by INGEST_SCHEDULE_ENABLED so deploys don't
+// auto-burn API quota before we're ready to dogfood. Queue + worker are
+// always registered so manual triggers (boss.send / pnpm ingest:run) work.
 
 async function main() {
   const boss = new PgBoss({ connectionString: requireEnv('DATABASE_URL') })
@@ -23,7 +27,18 @@ async function main() {
     retryBackoff: true,
   })
 
-  await boss.schedule(INGEST_QUEUE, INGEST_CRON, {}, { tz: 'UTC' })
+  if (env.INGEST_SCHEDULE_ENABLED) {
+    await boss.schedule(INGEST_QUEUE, INGEST_CRON, {}, { tz: 'UTC' })
+    logger.info({ queue: INGEST_QUEUE, cron: INGEST_CRON }, 'ingest: cron schedule armed')
+  } else {
+    await boss.unschedule(INGEST_QUEUE).catch(() => {
+      // No prior schedule registered — nothing to remove. Safe to ignore.
+    })
+    logger.warn(
+      { queue: INGEST_QUEUE },
+      'ingest: cron disabled (INGEST_SCHEDULE_ENABLED unset) — manual triggers only',
+    )
+  }
 
   await boss.work(INGEST_QUEUE, async ([job]) => {
     if (!job) return
@@ -31,8 +46,6 @@ async function main() {
     const metrics = await runIngestion()
     return metrics
   })
-
-  logger.info({ queue: INGEST_QUEUE, cron: INGEST_CRON }, 'ingest: queue + schedule registered')
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down worker')
