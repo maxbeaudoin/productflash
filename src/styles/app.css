@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Brand tokens (palette + fonts) ship in task #21 via src/design/tokens.ts. */
+html,
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

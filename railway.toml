@@ -1,0 +1,26 @@
+# Railway service config. Product Flash runs as TWO services from this repo:
+#
+#   1. "web"    — TanStack Start app
+#                 Build: pnpm install && pnpm build
+#                 Start: pnpm start
+#
+#   2. "worker" — pg-boss host (cron + retries + per-user fan-out)
+#                 Build: pnpm install
+#                 Start: pnpm worker:start
+#
+# Both services share the same env (DATABASE_URL, ANTHROPIC_API_KEY, etc).
+# Configure each service in the Railway dashboard:
+#   New project > Deploy from GitHub repo > add this repo > duplicate service > override start command for worker.
+#
+# The file below is the default ("web") and only kicks in if Railway is not
+# told otherwise. The worker service is configured per-service in the UI.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "pnpm start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
