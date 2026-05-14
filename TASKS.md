@@ -11,7 +11,7 @@ _Generated 2026-05-13 from in-conversation task list. Source of truth for the 22
 
 The default pickup rule is "lowest ID among unblocked tasks". When this section has entries, take them in the order listed instead — they reflect explicit owner priorities that override numeric ordering.
 
-1. **#24** — Serve `executive-summary.html` via a web route (need a shareable URL now, before #14's full React port lands).
+_None currently._
 
 ---
 
@@ -86,7 +86,7 @@ Hand-create one user (yourself or a willing tester), 5 competitors. Run the full
 
 ## Week 3 — Onboarding + launch
 
-### #24 Serve executive-summary.html via web route — ☐ ⚡ priority
+### #24 Serve executive-summary.html via web route — ✅
 Quick share path while the full React port (#14) is blocked. Mount `executive-summary.html` as a TanStack Start route at `/executive-summary` (literal, matches filename, no collision risk with future SaaS surfaces; `/` stays free for #14). Implementation: raw-string import via Vite's `?raw` suffix (e.g. `import html from '../../executive-summary.html?raw'`) returned from a server route with `Content-Type: text/html` — keeps the URL clean and bundles the file into the build so Railway deploys carry it. The HTML stays at repo root unchanged (still the QA reference for #14). No componentization, no design-token wiring — that's #14's job. Verify by loading the route in `pnpm dev` and visually comparing to opening `executive-summary.html` directly: must look identical.
 
 ### #14 Port executive-summary.html to public landing route (1:1 visual) — ☐
