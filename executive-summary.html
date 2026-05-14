@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Product Flash — Executive Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a0a0f;
+    --ink-soft: #15151c;
+    --ink-line: #1f1f2a;
+    --paper: #fafaf7;
+    --paper-warm: #f4f3ee;
+    --text: #1a1a22;
+    --text-muted: #5a5a6a;
+    --accent: #d9ff3a;
+    --accent-warm: #ffd60a;
+    --coral: #ff5b3a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--paper);
+    color: var(--text);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ========== TOP BAR ========== */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--ink);
+    color: #fff;
+    padding: 14px 48px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand-mark {
+    width: 22px; height: 22px; background: var(--accent);
+    clip-path: polygon(45% 0, 100% 0, 55% 45%, 100% 45%, 0 100%, 45% 55%, 0 55%);
+  }
+  .topbar-meta { font-size: 12px; color: #888; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* ========== HERO ========== */
+  .hero {
+    background: var(--ink);
+    color: #fff;
+    padding: 96px 48px 120px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 85% 20%, rgba(217,255,58,0.12), transparent 50%),
+      radial-gradient(circle at 10% 90%, rgba(255,91,58,0.08), transparent 50%);
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 1100px; margin: 0 auto; position: relative; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 12px; border: 1px solid #2a2a38;
+    border-radius: 999px; font-size: 12px;
+    color: #a8a8b8; letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 12px var(--accent); }
+
+  .hero h1 {
+    font-size: clamp(40px, 6vw, 84px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin-bottom: 28px;
+    max-width: 980px;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(120deg, var(--accent) 0%, var(--accent-warm) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .hero-sub {
+    font-size: clamp(18px, 1.6vw, 22px);
+    color: #b8b8c8; max-width: 680px; margin-bottom: 48px;
+    font-weight: 400;
+  }
+  .hero-meta {
+    display: flex; gap: 48px; flex-wrap: wrap;
+    padding-top: 32px; border-top: 1px solid #1f1f2a;
+  }
+  .hero-meta div { display: flex; flex-direction: column; gap: 4px; }
+  .hero-meta .label { font-size: 11px; color: #6a6a7a; letter-spacing: 0.12em; text-transform: uppercase; }
+  .hero-meta .value { font-size: 16px; color: #fff; font-weight: 500; }
+
+  /* ========== SECTION SHELL ========== */
+  section { padding: 96px 48px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .section-label {
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 16px; font-weight: 600;
+  }
+  .section-title {
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
+    margin-bottom: 24px; max-width: 820px;
+  }
+  .section-lede {
+    font-size: 18px; color: var(--text-muted); max-width: 680px; margin-bottom: 56px;
+  }
+
+  /* ========== PROBLEM ========== */
+  .problem {
+    background: var(--paper-warm);
+    border-bottom: 1px solid #e5e4dd;
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    margin-top: 56px;
+  }
+  .stat {
+    background: #fff; padding: 32px; border-radius: 16px;
+    border: 1px solid #e9e8e1;
+  }
+  .stat-num {
+    font-size: 56px; font-weight: 800; letter-spacing: -0.04em;
+    line-height: 1; margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--ink) 0%, #3a3a4a 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .stat-num .unit { font-size: 24px; color: var(--text-muted); margin-left: 4px; font-weight: 600; }
+  .stat-label { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+  .stat-label strong { color: var(--text); font-weight: 600; }
+
+  /* ========== SOLUTION ========== */
+  .solution { background: var(--paper); }
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
+    margin-top: 24px;
+  }
+  .feature {
+    padding: 32px; border-radius: 16px;
+    background: #fff; border: 1px solid #ececec;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  .feature:hover { transform: translateY(-2px); border-color: var(--ink); }
+  .feature-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--ink); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .feature h3 {
+    font-size: 20px; font-weight: 700; margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .feature p { color: var(--text-muted); font-size: 15px; }
+
+  /* ========== DIGEST PREVIEW ========== */
+  .preview {
+    background: var(--ink);
+    color: #fff;
+  }
+  .preview .section-title { color: #fff; }
+  .preview .section-lede { color: #a8a8b8; }
+  .preview .section-label { color: var(--accent); }
+
+  .digest-card {
+    background: #15151c; border: 1px solid #2a2a38;
+    border-radius: 20px; padding: 0; overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.4);
+    margin-top: 32px;
+  }
+  .digest-header {
+    padding: 20px 28px; border-bottom: 1px solid #2a2a38;
+    display: flex; justify-content: space-between; align-items: center;
+    background: #1a1a23;
+  }
+  .digest-header .from { font-size: 13px; color: #888; }
+  .digest-header .from strong { color: #fff; }
+  .digest-header .date { font-size: 12px; color: #666; font-family: 'JetBrains Mono', monospace; }
+  .digest-body { padding: 36px 28px; }
+  .digest-greeting { font-size: 14px; color: #888; margin-bottom: 24px; }
+  .digest-item {
+    padding: 20px 0; border-bottom: 1px solid #2a2a38;
+    display: grid; grid-template-columns: 100px 1fr; gap: 24px;
+  }
+  .digest-item:last-child { border-bottom: none; }
+  .digest-tag {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 4px; height: fit-content;
+    font-weight: 600;
+  }
+  .tag-launch { background: rgba(217,255,58,0.15); color: var(--accent); }
+  .tag-market { background: rgba(255,91,58,0.15); color: var(--coral); }
+  .tag-voc { background: rgba(120,180,255,0.15); color: #78b4ff; }
+  .digest-headline {
+    font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #fff;
+    line-height: 1.4;
+  }
+  .digest-snippet { font-size: 14px; color: #aaa; line-height: 1.5; }
+  .digest-snippet em { color: var(--accent); font-style: normal; }
+
+  /* ========== AUDIENCE ========== */
+  .audience { background: var(--paper-warm); border-top: 1px solid #e5e4dd; }
+  .audience-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    margin-top: 32px;
+  }
+  .persona {
+    padding: 36px 28px; background: #fff; border-radius: 16px;
+    border: 1px solid #e9e8e1;
+  }
+  .persona-num {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--text-muted); margin-bottom: 16px;
+  }
+  .persona h4 { font-size: 22px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .persona p { color: var(--text-muted); font-size: 15px; }
+
+  /* ========== PROOF / TECH ========== */
+  .proof { background: var(--paper); }
+  .proof-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 64px;
+    align-items: start;
+  }
+  .proof-text h3 {
+    font-size: 28px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.02em;
+  }
+  .proof-text p { color: var(--text-muted); font-size: 16px; margin-bottom: 16px; }
+  .proof-list {
+    background: var(--ink); color: #fff; padding: 36px;
+    border-radius: 16px; font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; line-height: 1.8;
+  }
+  .proof-list .check { color: var(--accent); margin-right: 12px; }
+  .proof-list .pending { color: #555; }
+  .proof-list .pending::before { content: "○ "; }
+
+  /* ========== CTA ========== */
+  .cta {
+    background: var(--accent);
+    color: var(--ink);
+    text-align: center;
+    padding: 120px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.4), transparent 60%);
+    pointer-events: none;
+  }
+  .cta-inner { position: relative; max-width: 720px; margin: 0 auto; }
+  .cta-label {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    font-weight: 700; margin-bottom: 24px;
+  }
+  .cta h2 {
+    font-size: clamp(40px, 5.5vw, 72px);
+    font-weight: 800; letter-spacing: -0.03em; line-height: 1.02;
+    margin-bottom: 24px;
+  }
+  .cta p {
+    font-size: 18px; margin-bottom: 40px;
+    color: rgba(10,10,15,0.75);
+  }
+  .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 18px 32px; border-radius: 999px;
+    font-weight: 600; font-size: 16px;
+    text-decoration: none; transition: transform 0.15s ease;
+    cursor: pointer; border: none;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+  .btn .arrow { transition: transform 0.15s ease; }
+  .btn:hover .arrow { transform: translateX(3px); }
+
+  .cta-fineprint {
+    margin-top: 32px; font-size: 13px; color: rgba(10,10,15,0.6);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ========== FOOTER ========== */
+  footer {
+    background: var(--ink); color: #888;
+    padding: 40px 48px; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 16px;
+  }
+  footer .brand { color: #fff; }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 820px) {
+    .topbar { padding: 14px 24px; }
+    section { padding: 64px 24px; }
+    .hero { padding: 64px 24px 80px; }
+    .stat-grid, .feature-grid, .audience-grid { grid-template-columns: 1fr; }
+    .proof-row { grid-template-columns: 1fr; gap: 32px; }
+    .digest-item { grid-template-columns: 1fr; gap: 12px; }
+    .hero-meta { gap: 24px; }
+    .cta { padding: 80px 24px; }
+    footer { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== TOP BAR ========== -->
+<div class="topbar">
+  <div class="brand"><div class="brand-mark"></div> Product Flash</div>
+  <div class="topbar-meta">Executive Summary · 2026</div>
+</div>
+
+<!-- ========== HERO ========== -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow"><span class="dot"></span> Now onboarding the private beta</div>
+    <h1>The competitive intel briefing that hits your inbox <span class="accent">before standup.</span></h1>
+    <p class="hero-sub">Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning digest of what actually matters.</p>
+    <div class="hero-meta">
+      <div><span class="label">For</span><span class="value">Product leaders in SaaS</span></div>
+      <div><span class="label">Cadence</span><span class="value">Daily, before 8am local</span></div>
+      <div><span class="label">Status</span><span class="value">Private beta · 20 seats</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ========== PROBLEM ========== -->
+<section class="problem">
+  <div class="container">
+    <div class="section-label">The problem</div>
+    <h2 class="section-title">Your competitor shipped on Tuesday. You found out on Friday.</h2>
+    <p class="section-lede">Product leaders are drowning in tabs — changelogs, G2, Reddit, LinkedIn, Product Hunt, niche Slack groups. The signal is out there. The time to find it isn't.</p>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-num">4.2<span class="unit">hrs</span></div>
+        <div class="stat-label"><strong>per week</strong> the average PM spends manually tracking competitors — and most still feel behind.</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">73<span class="unit">%</span></div>
+        <div class="stat-label"><strong>of product leaders</strong> say they've been blindsided by a competitor launch in the last quarter.</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">6+<span class="unit">tools</span></div>
+        <div class="stat-label"><strong>required</strong> to piece together a single weekly competitive update — and none of them talk to each other.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== SOLUTION ========== -->
+<section class="solution">
+  <div class="container">
+    <div class="section-label">The solution</div>
+    <h2 class="section-title">One briefing. Every morning. Nothing missed.</h2>
+    <p class="section-lede">Product Flash watches the surfaces that matter, distills the noise with LLMs trained on product intelligence, and ships a tight digest you can read with your first coffee.</p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="feature-icon">01</div>
+        <h3>Competitor moves</h3>
+        <p>Launches, pricing changes, positioning shifts, and feature releases — surfaced the day they happen.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">02</div>
+        <h3>Market signal</h3>
+        <p>Funding rounds, M&amp;A, analyst coverage, and category-defining narratives in your space.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">03</div>
+        <h3>Voice of customer</h3>
+        <p>Review sentiment and social chatter on you, your rivals, and the problems you all claim to solve.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">04</div>
+        <h3>Tuned to you</h3>
+        <p>Pick your competitors, themes, and signal threshold. Skip what's noise. Get what's load-bearing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== DIGEST PREVIEW ========== -->
+<section class="preview">
+  <div class="container">
+    <div class="section-label">What lands in your inbox</div>
+    <h2 class="section-title">5 minutes. 3 sections. Zero fluff.</h2>
+    <p class="section-lede">A sample of Tuesday morning's brief for a head of product at a mid-market analytics SaaS.</p>
+
+    <div class="digest-card">
+      <div class="digest-header">
+        <div class="from">From <strong>Product Flash</strong> &lt;digest@productflash.io&gt;</div>
+        <div class="date">TUE · 07:42</div>
+      </div>
+      <div class="digest-body">
+        <div class="digest-greeting">Good morning. Three things mattered overnight.</div>
+
+        <div class="digest-item">
+          <div class="digest-tag tag-launch">Launch</div>
+          <div>
+            <div class="digest-headline">Mixpanel shipped session replay — bundled into Growth tier at no cost.</div>
+            <div class="digest-snippet">Direct hit on FullStory's wedge. <em>Likely impact on your Q3 enterprise renewals — 4 of your top 20 accounts also run Mixpanel.</em></div>
+          </div>
+        </div>
+
+        <div class="digest-item">
+          <div class="digest-tag tag-market">Market</div>
+          <div>
+            <div class="digest-headline">Amplitude raised $90M Series F, valuation flat from 2023.</div>
+            <div class="digest-snippet">Flat round at this stage signals consolidation pressure across the category. <em>Worth raising in your next board prep.</em></div>
+          </div>
+        </div>
+
+        <div class="digest-item">
+          <div class="digest-tag tag-voc">Voice</div>
+          <div>
+            <div class="digest-headline">Heap saw 11 G2 reviews this week citing slow onboarding.</div>
+            <div class="digest-snippet">Theme matches a gap in their docs refresh last month. <em>Opportunity for a comparison page targeting "fast time-to-value."</em></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== AUDIENCE ========== -->
+<section class="audience">
+  <div class="container">
+    <div class="section-label">Who it's for</div>
+    <h2 class="section-title">Built for the people who own the roadmap.</h2>
+
+    <div class="audience-grid">
+      <div class="persona">
+        <div class="persona-num">// 01</div>
+        <h4>Heads of Product</h4>
+        <p>Walk into Monday's exec meeting already knowing what your competitors did last week — and what to do about it.</p>
+      </div>
+      <div class="persona">
+        <div class="persona-num">// 02</div>
+        <h4>Product Managers</h4>
+        <p>Replace 4 hours of tab-scanning with a 5-minute read. Spend the recovered time on customers, not Chrome.</p>
+      </div>
+      <div class="persona">
+        <div class="persona-num">// 03</div>
+        <h4>Product Marketing</h4>
+        <p>Catch positioning shifts and pricing changes the day they happen — not the day your sales team loses a deal.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== PROOF / TECH ========== -->
+<section class="proof">
+  <div class="container">
+    <div class="section-label">Under the hood</div>
+    <div class="proof-row">
+      <div class="proof-text">
+        <h3>An agent, not a dashboard.</h3>
+        <p>Product Flash combines structured firehoses (changelogs, review platforms, funding databases) with LLM-driven synthesis to turn raw signal into a briefing a human actually wants to read.</p>
+        <p>No new tab. No dashboard fatigue. It meets you where you already are: email, Slack, or both.</p>
+      </div>
+      <div class="proof-list">
+        <div><span class="check">✓</span> Firehose data integration (live)</div>
+        <div><span class="check">✓</span> LLM-powered synthesis (live)</div>
+        <div><span class="check">✓</span> Email + Slack delivery (live)</div>
+        <div><span class="check">✓</span> Per-user competitor tuning (live)</div>
+        <div class="pending">G2 &amp; Capterra ingestion (Q3)</div>
+        <div class="pending">Customer call transcript ingestion (Q4)</div>
+        <div class="pending">Weekly trend roll-up (Q4)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== CTA ========== -->
+<section class="cta">
+  <div class="cta-inner">
+    <div class="cta-label">⚡ Private Beta · 20 Seats</div>
+    <h2>Stop reading your competitors from your CEO's Slack.</h2>
+    <p>We're onboarding 20 product teams this quarter. Beta is free for the first 90 days, with founder access and direct input on the roadmap.</p>
+    <div class="cta-buttons">
+      <a href="#" class="btn btn-primary">Claim your seat <span class="arrow">→</span></a>
+      <a href="#" class="btn btn-secondary">Book a 15-min demo</a>
+    </div>
+    <div class="cta-fineprint">// 7 seats remaining as of this week</div>
+  </div>
+</section>
+
+<!-- ========== FOOTER ========== -->
+<footer>
+  <div class="brand"><div class="brand-mark"></div> Product Flash</div>
+  <div>© 2026 · Built for product leaders who refuse to be last to know.</div>
+</footer>
+
+</body>
+</html>
