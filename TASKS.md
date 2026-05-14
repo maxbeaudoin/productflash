@@ -33,6 +33,10 @@ Wrap a feed parser. Input: competitor + `rss_url`. Output: normalized `raw_item`
 Use the PH public GraphQL API. Query recent posts; filter by competitor name/slug/domain. Normalize to `raw_items`. Token from env.
 
 ### #6 Firehose source adapter — ✅
+
+### #23 Verify Firehose buffer is flowing — ☐
+Follow-up to #6. The initial probe ran minutes after `firehose-sync-rules.ts --apply` created the 7 rules; Firehose's buffer is forward-looking, so zero events was expected and is not a regression signal yet. Re-run `pnpm tsx scripts/test-source-firehose.ts --twice` ≥24h after rule creation (so realistically from 2026-05-15 onwards). Expectations: at least one of the seeded competitors returns ≥1 event; `--twice` shows sourceId overlap across runs. If still zero across all 7, investigate: Lucene query may be too narrow (e.g., common-word names like "Linear" / "Resend" filtered by quality flag), or Firehose simply hasn't crawled matching pages yet. Tune the template in `scripts/firehose-sync-rules.ts:buildLuceneQuery` and re-`--apply`. Block #7 (orchestrator) on this only if zero items persist past 48h.
+**Blocked by:** #6
 Per https://firehose.com/api-docs — query per competitor (name + homepage domain). Normalize to `raw_items`. Centralize quota tracking; log items/competitor/day.
 
 ### #4 Firecrawl pricing-page scraper — ✅
