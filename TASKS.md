@@ -7,6 +7,12 @@ _Generated 2026-05-13 from in-conversation task list. Source of truth for the 22
 - **Blocked by:** task must finish first
 - **Blocks:** other tasks that wait on this one
 
+## Priority overrides
+
+The default pickup rule is "lowest ID among unblocked tasks". When this section has entries, take them in the order listed instead — they reflect explicit owner priorities that override numeric ordering.
+
+1. **#24** — Serve `executive-summary.html` via a web route (need a shareable URL now, before #14's full React port lands).
+
 ---
 
 ## Foundation (do first)
@@ -37,7 +43,6 @@ Use the PH public GraphQL API. Query recent posts; filter by competitor name/slu
 ### #23 Verify Firehose buffer is flowing — ☐
 Follow-up to #6. The initial probe ran minutes after `firehose-sync-rules.ts --apply` created the 7 rules; Firehose's buffer is forward-looking, so zero events was expected and is not a regression signal yet. Re-run `pnpm tsx scripts/test-source-firehose.ts --twice` ≥24h after rule creation (so realistically from 2026-05-15 onwards). Expectations: at least one of the seeded competitors returns ≥1 event; `--twice` shows sourceId overlap across runs. If still zero across all 7, investigate: Lucene query may be too narrow (e.g., common-word names like "Linear" / "Resend" filtered by quality flag), or Firehose simply hasn't crawled matching pages yet. Tune the template in `scripts/firehose-sync-rules.ts:buildLuceneQuery` and re-`--apply`. Block #7 (orchestrator) on this only if zero items persist past 48h.
 **Blocked by:** #6
-Per https://firehose.com/api-docs — query per competitor (name + homepage domain). Normalize to `raw_items`. Centralize quota tracking; log items/competitor/day.
 
 ### #4 Firecrawl pricing-page scraper — ✅
 Daily scrape of competitor `pricing_url` via Firecrawl (https://docs.firecrawl.dev/api-reference/introduction). Store latest snapshot; on change emit a `raw_item` with a unified diff in the body. Skip competitors without a `pricing_url`.
@@ -62,6 +67,15 @@ Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at 
 Resend client + React Email template matching the executive-summary digest mock. Import design tokens (`src/design/tokens.ts`) and apply as inline styles — brand identical to web surfaces. Props: greeting line, items (tag/headline/snippet/impact), tracking pixel, per-item feedback URLs (`/r/:digest_item_id/up` and `/down`). Configure Resend webhook → server function for open/click events.
 **Blocked by:** #21
 
+### #25 Dev digest preview route — ☐
+Fast-iteration escape hatch so we don't have to wait for the daily email loop to tweak prompts or template. Unprotected debug route `GET /debug/digest/:user_id` that:
+1. Loads the most recent `digests` + `digest_items` for the given user (or runs the score→synthesize pipeline on demand for the last 24h of `raw_items` if `?refresh=1` is passed).
+2. Renders the React Email template to HTML server-side and returns it inline with `Content-Type: text/html`.
+3. Gated by `NODE_ENV !== 'production'` — returns 404 in prod so an accidental deploy doesn't leak digest content.
+
+The template used here is a minimal v0 — just structure (greeting, item list with tag/headline/snippet/impact). Brand styling against design tokens is #11's job; this route will pick up the polished template automatically once #11 lands. No auth, no email send, no feedback URLs needed for the debug path.
+**Blocked by:** #9, #10
+
 ### #12 Feedback redirect endpoint — ☐
 `GET /r/:digest_item_id/:rating` — records feedback row (upsert on user+item), then redirects to a static thanks page. Validate rating in `{up, down}`. Use a signed token to prevent third-party tampering.
 
@@ -71,6 +85,9 @@ Hand-create one user (yourself or a willing tester), 5 competitors. Run the full
 ---
 
 ## Week 3 — Onboarding + launch
+
+### #24 Serve executive-summary.html via web route — ☐ ⚡ priority
+Quick share path while the full React port (#14) is blocked. Mount `executive-summary.html` as a TanStack Start route at `/executive-summary` (literal, matches filename, no collision risk with future SaaS surfaces; `/` stays free for #14). Implementation: raw-string import via Vite's `?raw` suffix (e.g. `import html from '../../executive-summary.html?raw'`) returned from a server route with `Content-Type: text/html` — keeps the URL clean and bundles the file into the build so Railway deploys carry it. The HTML stays at repo root unchanged (still the QA reference for #14). No componentization, no design-token wiring — that's #14's job. Verify by loading the route in `pnpm dev` and visually comparing to opening `executive-summary.html` directly: must look identical.
 
 ### #14 Port executive-summary.html to public landing route (1:1 visual) — ☐
 Port `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) extracted to `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. **Must look pixel-identical to the original when compared side-by-side.** Original `executive-summary.html` stays at repo root as the QA reference. CTA buttons are placeholder anchors at this stage — signup form is #22.
@@ -107,14 +124,17 @@ First broadcast day. Track open rate, click rate, feedback ratio, LLM + Firehose
 ```
 #1 (init)
  └── #21 (design system)
-      ├── #11 (email template)
+      ├── #11 (email template) ──── #25 (debug digest preview, also needs #9 #10)
       ├── #14 (landing port) ──┐
       ├── #15 (competitor picker) ──┐
       │                              ├── #22 (signup form)
       └── #16 (admin preview)
+
+#9 + #10 (classify + synthesize) ──── #25 (debug digest preview)
+#6 ──── #23 (verify Firehose buffer)
 ```
 
-Tasks #2–#10, #12–#13, #17–#20 have no inter-task blockers — order is driven by milestone, not strict deps.
+Tasks #2–#10, #12–#13, #17–#20, #24 have no inter-task blockers — order is driven by milestone (or by the priority overrides section above), not strict deps.
 
 ## Editing this file
 
