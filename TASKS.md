@@ -11,7 +11,7 @@ _Generated 2026-05-13 from in-conversation task list. Source of truth for the 22
 
 ## Foundation (do first)
 
-### #1 Init TanStack Start + Railway + Postgres + Pino — ⏳
+### #1 Init TanStack Start + Railway + Postgres + Pino — ✅
 Bootstrap TanStack Start (pnpm). Install Drizzle + drizzle-kit, pg-boss, Pino, posthog-node, `@anthropic-ai/sdk`, resend, react-email. Create Neon project (with a `main` branch for prod and `dev` branch for migrations). Create Railway project with two services: web (TanStack Start) + worker (long-running pg-boss host). Wire env config (Neon `DATABASE_URL`, Anthropic, Firehose, Firecrawl, Resend, Product Hunt, PostHog). Implement `/healthz` that proves DB is reachable. Set up Pino structured logging baseline.
 **Blocks:** #21
 
