@@ -17,8 +17,8 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 2. **#26** — Better Auth + magic-link via Resend ✅
 3. **#33** — waitlist capture + invite-gated landing ✅
 4. **#34** — admin waitlist + invite issuance ✅
-5. **#27** — profile schema expansion
-6. **#31** — app shell + `/app/digests` list + detail
+5. **#27** — profile schema expansion ✅
+6. **#31** — app shell + `/app/digests` list + detail ✅
 7. **#25** — debug digest preview (wraps #31's component)
 8. **#28** — FTE agent backend
 9. **#29** — FTE flow frontend
@@ -151,7 +151,7 @@ Add nullable columns to `users` for the AI-generated profile:
 Drizzle generate + migrate. Drop the seeded `competitors` rows from `db:seed` — agent populates per user. Keep the schema as-is otherwise.
 **Blocked by:** #2 · **Blocks:** #28, #32
 
-### #31 App shell + `/app/digests` list + `/app/digests/:id` detail — ☐
+### #31 App shell + `/app/digests` list + `/app/digests/:id` detail — ✅
 Auth-gated TanStack Start layout under `/app`. Header w/ user menu, sign-out, link to `/app/profile`. Routes:
 - `/app` → redirect to `/app/digests`
 - `/app/digests` — list of past digests, newest first (date, item_count, one-line peek)

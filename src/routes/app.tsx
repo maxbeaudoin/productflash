@@ -1,5 +1,7 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
+import { AppHeader } from '~/components/app/AppHeader'
+import { Toaster } from '~/components/ui/sonner'
 import { requireSession } from '~/lib/auth-server'
 
 // Server fn wrapper so `beforeLoad` can call a server-only helper
@@ -20,5 +22,12 @@ export const Route = createFileRoute('/app')({
 })
 
 function AppLayout() {
-  return <Outlet />
+  const { user } = Route.useRouteContext()
+  return (
+    <div className="min-h-screen bg-ink text-white antialiased">
+      <AppHeader email={user.email} />
+      <Outlet />
+      <Toaster theme="dark" />
+    </div>
+  )
 }
