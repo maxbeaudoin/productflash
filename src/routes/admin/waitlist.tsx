@@ -4,7 +4,7 @@ import { desc, eq } from 'drizzle-orm'
 import { useState } from 'react'
 import { z } from 'zod'
 import { Button } from '~/components/ui/button'
-import { waitlist } from '~/db/schema'
+import { users, waitlist } from '~/db/schema'
 import { requireAdminSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 import { env } from '~/lib/env'
@@ -66,6 +66,15 @@ const issueInvite = createServerFn({ method: 'POST' })
       throw new Error('waitlist row not found')
     }
     const token = signInviteToken({ id: row.id, email: row.email })
+
+    // Pre-create the users row. Better Auth's magic-link plugin runs with
+    // `disableSignUp: true` (no self-serve signup in private beta), so the
+    // user must exist before they verify the link. Insert is idempotent on
+    // email — re-issuing on an already-invited row is a no-op here.
+    await db
+      .insert(users)
+      .values({ email: row.email, status: 'pending' })
+      .onConflictDoNothing({ target: users.email })
 
     let invitedAt = row.invitedAt
     if (!invitedAt) {

@@ -64,6 +64,11 @@ export const auth = betterAuth({
   emailAndPassword: { enabled: false },
   plugins: [
     magicLink({
+      // Private beta: no self-serve signup. Verifying a magic link for an
+      // unknown email is rejected instead of auto-creating a user. The
+      // only path to a `users` row is an admin clicking Invite on the
+      // waitlist (#34), which pre-creates the row.
+      disableSignUp: true,
       sendMagicLink: async ({ email, url }) => {
         await deliverMagicLink({ email, url })
       },
