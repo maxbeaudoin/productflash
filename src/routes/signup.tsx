@@ -1,29 +1,47 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { z } from 'zod'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { signIn } from '~/lib/auth-client'
+import { verifyInviteToken } from '~/lib/invite-token'
 
-// The public funnel is invite-only: visitors land on the waitlist (#33).
-// A bare `/signup` shows the gate; with an `?invite=<token>` param the
-// existing magic-link form is exposed. Cryptographic token verification
-// arrives alongside the admin invite UI (#16 follow-up) — for now any
-// non-empty token unlocks the form so manual invites still work.
+// The public funnel is invite-only (see #33/#34). Admins issue signed
+// `?invite=<token>` URLs from /admin/waitlist; a bare /signup or a tampered
+// token shows the gate. Valid tokens render the magic-link form with the
+// email prefilled and locked — the user can only sign in as the address the
+// invite was issued to.
 const searchSchema = z.object({
   invite: z.string().min(1).optional(),
 })
 
+// HMAC verification runs server-side because INVITE_TOKEN_SECRET must never
+// reach the client. The route loader returns just the verified email (or
+// null) — no raw secrets cross the boundary.
+const verifyInvite = createServerFn({ method: 'GET' })
+  .inputValidator((data: { token?: string }) => data)
+  .handler(({ data }) => {
+    if (!data.token) return { email: null as string | null }
+    const payload = verifyInviteToken(data.token)
+    return { email: payload?.email ?? null }
+  })
+
 export const Route = createFileRoute('/signup')({
   validateSearch: searchSchema,
+  loaderDeps: ({ search: { invite } }) => ({ invite }),
+  loader: async ({ deps }) => {
+    const { email } = await verifyInvite({ data: { token: deps.invite } })
+    return { email }
+  },
   component: SignupPage,
 })
 
 function SignupPage() {
-  const { invite } = Route.useSearch()
-  if (!invite) return <InviteGate />
-  return <MagicLinkForm />
+  const { email } = Route.useLoaderData()
+  if (!email) return <InviteGate />
+  return <MagicLinkForm email={email} />
 }
 
 function InviteGate() {
@@ -59,8 +77,7 @@ function InviteGate() {
   )
 }
 
-function MagicLinkForm() {
-  const [email, setEmail] = useState('')
+function MagicLinkForm({ email }: { email: string }) {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -99,12 +116,10 @@ function MagicLinkForm() {
               <Input
                 id="email"
                 type="email"
-                required
-                autoFocus
-                autoComplete="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
+                readOnly
+                autoComplete="email"
+                className="mt-1 bg-paper-warm"
               />
             </div>
             <Button type="submit" disabled={state === 'sending'} className="w-full">

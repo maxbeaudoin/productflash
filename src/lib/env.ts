@@ -28,6 +28,11 @@ const schema = z.object({
 
   FEEDBACK_SIGNING_SECRET: z.string().min(32).optional(),
 
+  // HMAC secret for `/signup?invite=<token>` links issued by the admin
+  // waitlist UI (#34). Distinct from FEEDBACK_SIGNING_SECRET so a leak of
+  // one doesn't grant invite issuance.
+  INVITE_TOKEN_SECRET: z.string().min(32).optional(),
+
   // Better Auth — secret signs sessions + magic-link tokens; URL is the
   // canonical base for callback links (dev: http://localhost:3000,
   // prod: the Railway-issued domain).

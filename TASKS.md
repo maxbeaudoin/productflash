@@ -16,7 +16,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 1. **#14** — landing port (`/`) ✅
 2. **#26** — Better Auth + magic-link via Resend ✅
 3. **#33** — waitlist capture + invite-gated landing ✅
-4. **#34** — admin waitlist + invite issuance (unblocks real outreach)
+4. **#34** — admin waitlist + invite issuance ✅
 5. **#27** — profile schema expansion
 6. **#31** — app shell + `/app/digests` list + detail
 7. **#25** — debug digest preview (wraps #31's component)
@@ -110,7 +110,7 @@ Validation: real submit lands a `waitlist` row; landing has no public `/signup` 
 
 **Blocks:** #29 (signup form must accept `?invite=<token>`), #16 (admin invite UI), #34 (admin invite issuance).
 
-### #34 Admin waitlist + invite issuance — ☐
+### #34 Admin waitlist + invite issuance — ✅
 The minimum viable admin surface to invite real beta users off the waitlist. Lives at `/admin/waitlist` and ships its own minimal admin scaffold so we don't have to wait on the full users admin (#16) — the two converge later. Required because #33 currently accepts any non-empty `?invite=` value, so there's no auditable record of who was invited and no way to revoke.
 
 Concrete deliverables:
