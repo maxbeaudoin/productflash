@@ -16,20 +16,21 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 1. **#14** — landing port (`/`) ✅
 2. **#26** — Better Auth + magic-link via Resend ✅
 3. **#33** — waitlist capture + invite-gated landing ✅
-4. **#27** — profile schema expansion
-4. **#31** — app shell + `/app/digests` list + detail
-5. **#25** — debug digest preview (wraps #31's component)
-6. **#28** — FTE agent backend
-7. **#29** — FTE flow frontend
-8. **#30** — fast-path time-to-first-digest
-9. **#13** — Maxime full FTE dogfood
-10. **#32** — `/app/profile` view + edit
-11. **#16** — admin app (`/admin/users/*`)
-12. **#11** — Resend email template + send (reactivate after dogfood)
-13. **#17** — per-TZ send scheduling
-14. **#18** — onboard 5–10 betas
-15. **#20** — PostHog wiring
-16. **#19** — launch + monitor
+4. **#34** — admin waitlist + invite issuance (unblocks real outreach)
+5. **#27** — profile schema expansion
+6. **#31** — app shell + `/app/digests` list + detail
+7. **#25** — debug digest preview (wraps #31's component)
+8. **#28** — FTE agent backend
+9. **#29** — FTE flow frontend
+10. **#30** — fast-path time-to-first-digest
+11. **#13** — Maxime full FTE dogfood
+12. **#32** — `/app/profile` view + edit
+13. **#16** — admin app (`/admin/users/*`)
+14. **#11** — Resend email template + send (reactivate after dogfood)
+15. **#17** — per-TZ send scheduling
+16. **#18** — onboard 5–10 betas
+17. **#20** — PostHog wiring
+18. **#19** — launch + monitor
 
 ---
 
@@ -107,7 +108,27 @@ Out of scope (later tasks):
 
 Validation: real submit lands a `waitlist` row; landing has no public `/signup` link in CTAs; `Log in` is visible top-right and routes to `/login`; bare `/signup` shows the invite gate.
 
-**Blocks:** #29 (signup form must accept `?invite=<token>`), #16 (admin invite UI).
+**Blocks:** #29 (signup form must accept `?invite=<token>`), #16 (admin invite UI), #34 (admin invite issuance).
+
+### #34 Admin waitlist + invite issuance — ☐
+The minimum viable admin surface to invite real beta users off the waitlist. Lives at `/admin/waitlist` and ships its own minimal admin scaffold so we don't have to wait on the full users admin (#16) — the two converge later. Required because #33 currently accepts any non-empty `?invite=` value, so there's no auditable record of who was invited and no way to revoke.
+
+Concrete deliverables:
+
+- **Token signing** — new helper `src/lib/invite-token.ts` mirroring the HMAC pattern in `src/lib/feedback-token.ts`. Token payload: `waitlist.id` + `email` + `issuedAt`. `signInviteToken({ id, email })` returns the token, `verifyInviteToken(token)` returns `{ id, email } | null`. Reuse `INVITE_TOKEN_SECRET` (new env var, generate alongside `BETTER_AUTH_SECRET`).
+- **`/signup` cryptographic verification** — replace the "any non-empty `?invite=`" check in `src/routes/signup.tsx` with `verifyInviteToken`. Invalid/expired tokens render the gate, valid tokens prefill the email field from the token payload (read-only) before showing the magic-link form.
+- **Admin route shell** — `/admin/waitlist` gated by `requireAdminSession()` in `src/lib/auth-server.ts` (already exists from #26). Single-page list view: email · joined date · position/company · invited_at status. Sort newest first. No pagination yet — fine until we cross ~500 rows.
+- **Invite action** — per-row "Invite" button calls a TanStack server fn that (1) signs a token via `signInviteToken`, (2) sets `waitlist.invited_at = now()`, (3) returns the full `https://<host>/signup?invite=<token>` URL. Render the URL inline with a "Copy" button; manual outreach (email, Slack, DM) until #11 reactivates and we can auto-send. A second "Send via Resend" button is a follow-up once Resend templates are wired — explicitly out of scope here.
+- **Re-issue / revoke** — re-issuing on a row that already has `invited_at` just re-signs a fresh token (helpful when the user lost the link). No revoke action yet; if needed, manually clear `invited_at` and re-issue.
+
+Out of scope (deferred):
+- Magic-link redemption that flips waitlist row → users row (overlaps with #29 — the FTE signup form has access to the verified invite payload via `Route.useSearch()` and can seed `users.email` from it).
+- Bulk invite ("invite next 10") — fine to add later if manual clicks get tedious.
+- Auto-send via Resend — folds into #11 once the template + send infra is back online.
+
+Validation: bare `/signup` still shows the gate; `/signup?invite=<bogus>` shows the gate; `/signup?invite=<valid-signed-token>` shows the magic-link form with the email prefilled; clicking Invite on the admin row produces a working URL and stamps `invited_at`; second click on the same row re-issues.
+
+**Blocked by:** #26, #33 · **Blocks:** #16 (admin shell can adopt the same nav/layout when it lands), #18.
 
 ---
 
