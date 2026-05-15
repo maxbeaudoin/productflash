@@ -114,12 +114,36 @@ EOF
 
 Never `--amend`, never `--no-verify`. If a pre-commit hook fails, fix and commit anew.
 
-## Step 8 — Report and STOP
+## Step 8 — Capture UI evidence (always try)
 
-Three lines max:
+After commit, screenshot every visible surface the work touched — proof the change actually renders, not just that typecheck passed. Run this step on every task. If the work has no visible surface (schema, source adapter, infra, pipeline internals), note "no UI surface affected" and skip cleanly.
+
+For each affected surface:
+1. Ensure `pnpm dev` is running. Start it in the background if not.
+2. Use the `chrome-devtools` MCP: `new_page` against the URL, then `take_screenshot` with `fullPage: true` saving to `/tmp/task-<N>-<slug>.png`.
+3. `Read` the saved file to embed the image inline in the Step 9 report.
+
+Email templates: render via the React Email preview server and screenshot the preview frame. If the preview server isn't wired up for this task, say so and move on — don't block.
+
+Screenshots live in `/tmp/` only. Never commit them; they exist to prove this turn's work, not as repo artifacts.
+
+## Step 9 — Report (with manual test runbook)
+
+Compose the report in this order:
+
 - ✅ **Task #N done** — one-sentence outcome
+- 📸 **Screenshots** — embed inline from Step 8 (omit this line if no UI surface was affected)
+- 🧪 **How to verify yourself** — a 5–8 step numbered checklist the user can follow locally. Specific: commands to run, URLs to open, what to click, what to look for at each step. Treat it as a runbook, not a vibe check.
 - ➡️ **Next eligible:** #M `<subject>` (or "all blocked on …" / "backlog clear")
-- ⚠️ **User action needed:** anything they must do before the next task can start (env vars, account setup, recruiting calls)
+- ⚠️ **User action needed:** anything they must do before the next task can start (env vars, account setup, recruiting calls). Omit the line if none.
+
+## Step 10 — Ask to push
+
+The commit from Step 7 is local. Always ask before pushing — never auto-push.
+
+Use `AskUserQuestion` with a single question: "Push the commit now?" Options: "Push" / "Hold". On Push: run `git push` with no args (respects the current branch's upstream). On Hold: confirm the commit is left local and stop.
+
+Never `--force` or `--force-with-lease`. If the push is rejected (non-fast-forward, hook failure), surface the error verbatim and ask the user how to proceed — don't reach for a destructive flag to "fix" it.
 
 Then stop. Do not auto-chain into the next task — let the user re-invoke `/next-task` when ready.
 
@@ -133,3 +157,7 @@ Then stop. Do not auto-chain into the next task — let the user re-invoke `/nex
 - Committing `.env`, generated `dist/` / `node_modules/`, or large binaries. Stage explicitly.
 - Running destructive ops (force-push, reset --hard, branch -D) without user authorization.
 - Skipping the side-by-side visual check on task #14 — pixel match is the entire acceptance bar.
+- Auto-pushing without explicit user OK. Step 10 is a gate, not a courtesy.
+- Committing screenshots into the repo. They live in `/tmp/` and ship inline in the report.
+- Shipping UI work without a screenshot when a viewable surface exists.
+- Skipping the manual test runbook because "it's obvious." It's only obvious to whoever just wrote it.
