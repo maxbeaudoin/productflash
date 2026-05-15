@@ -46,7 +46,10 @@ async function main() {
   // FTE agent runs are user-triggered (signup or admin re-trigger), so no
   // cron. Per-user concurrency is enforced via `singletonKey: userId` at
   // send-time (see src/agents/fte/job.ts); the queue policy stays standard
-  // so two different users can run in parallel.
+  // so two different users can run in parallel. `teamSize` on the work()
+  // registration below is what lets multiple users actually execute at
+  // once — without it, pg-boss defaults to a single concurrent job per
+  // queue and new signups would wait in line.
   await boss.createQueue(FTE_QUEUE, {
     name: FTE_QUEUE,
     retryLimit: 1,
@@ -96,14 +99,26 @@ async function main() {
     return metrics
   })
 
-  await boss.work<FteJobData>(FTE_QUEUE, async ([job]) => {
-    if (!job) return
-    logger.info(
-      { jobId: job.id, userId: job.data.userId, runId: job.data.runId },
-      'fte: job started',
-    )
-    await handleFteJob(job)
-  })
+  // batchSize=5 → each poll cycle pulls up to 5 FTE jobs; we run them
+  // concurrently inside the handler so different users don't wait in line.
+  // pg-boss 10 dropped `teamSize`; concurrency now lives in the handler.
+  // singletonKey: userId on the send side still prevents the same user from
+  // double-occupying a slot.
+  await boss.work<FteJobData>(
+    FTE_QUEUE,
+    { batchSize: 5 },
+    async (jobs) => {
+      await Promise.all(
+        jobs.map(async (job) => {
+          logger.info(
+            { jobId: job.id, userId: job.data.userId, runId: job.data.runId },
+            'fte: job started',
+          )
+          await handleFteJob(job)
+        }),
+      )
+    },
+  )
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down worker')
