@@ -1,10 +1,8 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { z } from 'zod'
-import { Button } from '~/components/ui/button'
-import { Input } from '~/components/ui/input'
-import { Label } from '~/components/ui/label'
+import { AuthShell } from '~/components/auth/AuthShell'
 import { signIn } from '~/lib/auth-client'
 import { verifyInviteToken } from '~/lib/invite-token'
 
@@ -46,34 +44,34 @@ function SignupPage() {
 
 function InviteGate() {
   return (
-    <main className="min-h-screen bg-paper text-text antialiased flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-md text-center">
-        <div className="mb-6 inline-flex items-center gap-[10px] rounded-pill border border-ink-line bg-paper-warm px-3 py-[6px] text-xs uppercase tracking-[0.1em] text-text-muted">
-          Invite only
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Product Flash is in private beta.
-        </h1>
-        <p className="mt-4 text-text-muted">
-          New seats open on a rolling basis. Drop your email on the waitlist
-          and we'll be in touch when one frees up.
-        </p>
-        <Link
-          to="/"
-          hash="waitlist"
-          className="mt-8 inline-flex items-center gap-[10px] rounded-pill bg-ink px-6 py-3 text-sm font-semibold text-white transition-transform duration-150 hover:-translate-y-px"
-        >
-          Join the waitlist
-          <span aria-hidden>→</span>
-        </Link>
-        <p className="mt-6 text-xs text-text-muted">
+    <AuthShell
+      eyebrow="Invite only"
+      headlineLead="Private beta,"
+      headlineAccent="by invite."
+      sub="New seats open on a rolling basis. Drop your email on the waitlist and we'll be in touch when one frees up."
+      footnote={
+        <span>
           Already signed in?{' '}
-          <Link to="/login" className="underline">
-            Log in
+          <Link to="/login" className="text-white underline-offset-4 hover:underline">
+            Log in →
           </Link>
-        </p>
-      </div>
-    </main>
+        </span>
+      }
+    >
+      <Link
+        to="/"
+        hash="waitlist"
+        className="group inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px"
+      >
+        Join the waitlist
+        <span
+          aria-hidden
+          className="transition-transform duration-150 group-hover:translate-x-[3px]"
+        >
+          →
+        </span>
+      </Link>
+    </AuthShell>
   )
 }
 
@@ -95,40 +93,88 @@ function MagicLinkForm({ email }: { email: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-paper text-text antialiased flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-md">
-        <h1 className="text-3xl font-semibold tracking-tight">Sign up for Product Flash</h1>
-        <p className="mt-3 text-text-muted">
-          We'll email you a magic link — no password to remember.
-        </p>
+    <AuthShell
+      eyebrow="You're invited"
+      headlineLead="One link"
+      headlineAccent="to sign in."
+      sub="We'll email a one-time sign-in link to your invited address. No password to set up."
+      footnote={
+        <span>
+          Not you?{' '}
+          <Link to="/" hash="waitlist" className="text-white underline-offset-4 hover:underline">
+            Join the waitlist instead →
+          </Link>
+        </span>
+      }
+    >
+      {state === 'sent' ? (
+        <SentCard email={email} />
+      ) : (
+        <form onSubmit={onSubmit} className="grid gap-4">
+          <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
+            <span className="inline-flex items-center gap-2">
+              Email
+              <span className="rounded-pill bg-accent/15 px-2 py-[2px] font-mono text-[10px] normal-case tracking-normal text-accent">
+                locked to invite
+              </span>
+            </span>
+            <input
+              type="email"
+              value={email}
+              readOnly
+              autoComplete="email"
+              className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink/60 px-4 text-base font-normal normal-case tracking-normal text-white outline-none cursor-not-allowed"
+            />
+          </label>
 
-        {state === 'sent' ? (
-          <div className="mt-8 rounded-2xl border border-ink-line bg-paper-warm p-6">
-            <p className="font-medium">Check your inbox.</p>
-            <p className="mt-2 text-sm text-text-muted">
-              We sent a sign-in link to <span className="font-mono">{email}</span>.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="mt-8 space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                readOnly
-                autoComplete="email"
-                className="mt-1 bg-paper-warm"
-              />
-            </div>
-            <Button type="submit" disabled={state === 'sending'} className="w-full">
-              {state === 'sending' ? 'Sending…' : 'Send magic link'}
-            </Button>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={state === 'sending'}
+            className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+          >
+            {state === 'sending' ? 'Sending…' : 'Send magic link'}
+            <span
+              aria-hidden
+              className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
+            >
+              →
+            </span>
+          </button>
+
+          {state === 'error' && error ? (
+            <p className="text-sm font-medium text-coral">{error}</p>
+          ) : null}
+        </form>
+      )}
+    </AuthShell>
+  )
+}
+
+function SentCard({ email }: { email: string }) {
+  return (
+    <div
+      className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
+      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+    >
+      <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-6 py-4">
+        <div className="inline-flex items-center gap-[8px] text-[11px] font-semibold uppercase tracking-[0.15em] text-accent">
+          <span
+            aria-hidden
+            className="h-[6px] w-[6px] rounded-full bg-accent"
+            style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+          />
+          Sent
+        </div>
+        <div className="font-mono text-xs text-[#888]">expires in 5 min</div>
       </div>
-    </main>
+      <div className="px-6 py-7">
+        <p className="text-lg font-semibold text-white">Check your inbox.</p>
+        <p className="mt-2 text-sm text-[#b8b8c8]">
+          We sent a sign-in link to{' '}
+          <span className="font-mono text-white">{email}</span>. Click it from
+          the same browser and you'll land in the app.
+        </p>
+      </div>
+    </div>
   )
 }
