@@ -90,7 +90,7 @@ Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at 
 ### #24 Serve executive-summary.html via web route — ✅
 Quick share path while the full React port (#14) is blocked. Mount `executive-summary.html` as a TanStack Start route at `/executive-summary` (literal, matches filename, no collision risk with future SaaS surfaces; `/` stays free for #14). Implementation: raw-string import via Vite's `?raw` suffix returned from a server route with `Content-Type: text/html`. The HTML stays at repo root unchanged (still the QA reference for #14).
 
-### #14 Port executive-summary.html to public landing route (1:1 visual) — ☐
+### #14 Port executive-summary.html to public landing route (1:1 visual) — ✅
 Port `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) extracted to `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. **Must look pixel-identical to the original when compared side-by-side.** Original `executive-summary.html` stays at repo root as the QA reference. CTA buttons link to `/signup` (entry point to the agentic FTE in #29).
 **Blocked by:** #21
 
