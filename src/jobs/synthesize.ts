@@ -65,6 +65,33 @@ export interface SynthesisOptions {
   now?: Date
 }
 
+// On-demand variant used by the debug preview (#25) and the time-to-first
+// digest fast path (#30). Bypasses the `status='active'` filter and runs
+// for one user only — same idempotency rules as the cron path.
+export async function runSynthesisForUser(
+  userId: string,
+  options: SynthesisOptions = {},
+): Promise<UserSynthesisMetrics> {
+  const db = getDb()
+  const lookbackHours = options.lookbackHours ?? LOOKBACK_HOURS
+  const maxItems = options.maxItemsPerDigest ?? MAX_ITEMS_PER_DIGEST
+  const now = options.now ?? new Date()
+  const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000)
+  const dayStart = startOfUtcDay(now)
+
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1)
+  if (!user) throw new Error(`synthesize: user ${userId} not found`)
+
+  const userName = user.name ?? user.email.split('@')[0]
+  const metrics = await runForUser(db, user.id, userName, cutoff, dayStart, maxItems)
+  logger.info({ ...metrics, email: user.email }, 'synthesize: on-demand user run complete')
+  return metrics
+}
+
 export async function runSynthesis(options: SynthesisOptions = {}): Promise<SynthesisMetrics> {
   const started = Date.now()
   const db = getDb()

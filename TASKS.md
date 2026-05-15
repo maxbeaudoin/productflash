@@ -19,7 +19,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 4. **#34** — admin waitlist + invite issuance ✅
 5. **#27** — profile schema expansion ✅
 6. **#31** — app shell + `/app/digests` list + detail ✅
-7. **#25** — debug digest preview (wraps #31's component)
+7. **#25** — debug digest preview (wraps #31's component) ✅
 8. **#28** — FTE agent backend
 9. **#29** — FTE flow frontend
 10. **#30** — fast-path time-to-first-digest
@@ -160,7 +160,7 @@ Auth-gated TanStack Start layout under `/app`. Header w/ user menu, sign-out, li
 Components: `DigestHeader`, `DigestItem` (matches executive-summary mock), `FeedbackButton` (👍/👎 hits the existing `/r/:digest_item_id/:rating` endpoint). Read-only at this stage — profile edit is #32.
 **Blocked by:** #21, #26 · **Blocks:** #13, #16, #18, #25
 
-### #25 Dev digest preview route — ☐
+### #25 Dev digest preview route — ✅
 Dev-only variant of `/app/digests/:id` that bypasses auth. Same React components as #31, exposed at `GET /debug/digest/:user_id`. Optional `?refresh=1` query param re-runs `score → synthesize` for the most recent 24h of `raw_items` before render — fast-iteration escape hatch for prompt tuning. Gated by `NODE_ENV !== 'production'` (returns 404 in prod).
 **Blocked by:** #31
 

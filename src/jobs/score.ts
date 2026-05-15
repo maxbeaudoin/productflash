@@ -59,6 +59,24 @@ export interface ScoreOptions {
   now?: Date
 }
 
+// On-demand variant used by the debug preview (#25) and the time-to-first
+// digest fast path (#30). Bypasses the `status='active'` filter so an
+// onboarding user's items can be scored before they're flipped to active.
+export async function runScoringForUser(
+  userId: string,
+  options: ScoreOptions = {},
+): Promise<UserScoreMetrics> {
+  const db = getDb()
+  const lookbackHours = options.lookbackHours ?? LOOKBACK_HOURS
+  const maxItemsPerUser = options.maxItemsPerUser ?? MAX_ITEMS_PER_USER
+  const concurrency = options.concurrency ?? CLASSIFY_CONCURRENCY
+  const now = options.now ?? new Date()
+  const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000)
+  const metrics = await runForUser(db, userId, cutoff, maxItemsPerUser, concurrency)
+  logger.info(metrics, 'score: on-demand user run complete')
+  return metrics
+}
+
 export async function runScoring(options: ScoreOptions = {}): Promise<ScoreMetrics> {
   const started = Date.now()
   const db = getDb()
