@@ -34,9 +34,22 @@ export function Hero() {
           </span>
         </h1>
 
-        <p className="mb-12 max-w-[680px] text-[clamp(18px,1.6vw,22px)] font-normal text-[#b8b8c8]">
+        <p className="mb-10 max-w-[680px] text-[clamp(18px,1.6vw,22px)] font-normal text-[#b8b8c8]">
           {HERO.sub}
         </p>
+
+        <a
+          href={HERO.cta.href}
+          className="group mb-12 inline-flex items-center gap-[10px] rounded-pill bg-accent px-8 py-[18px] text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px"
+        >
+          {HERO.cta.label}
+          <span
+            aria-hidden
+            className="transition-transform duration-150 group-hover:translate-x-[3px]"
+          >
+            →
+          </span>
+        </a>
 
         <div className="flex flex-wrap gap-12 border-t border-ink-line pt-8 max-md:gap-6">
           {HERO.meta.map((item) => (

@@ -42,6 +42,7 @@ export const HERO = {
   headlineLead: 'The competitive intel briefing that hits your inbox',
   headlineAccent: 'before standup.',
   sub: 'Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning digest of what actually matters.',
+  cta: { label: 'Join the waitlist', href: '#waitlist' },
   meta: [
     { label: 'For', value: 'Product leaders in SaaS' },
     { label: 'Cadence', value: 'Daily, before 8am local' },
