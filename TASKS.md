@@ -13,8 +13,8 @@ The default pickup rule is "lowest ID among unblocked tasks". When this section 
 
 Current focus is the **agentic SaaS + dogfood loop** — single app for marketing, user app, and admin; magic-link auth; agentic FTE writes a user profile (competitors + position + goal) on signup; first digest visible in-app within ~5 minutes. Email send + per-TZ broadcast are deferred until the in-app dogfood loop is clean.
 
-1. **#14** — landing port (`/`)
-2. **#26** — Better Auth + magic-link via Resend
+1. **#14** — landing port (`/`) ✅
+2. **#26** — Better Auth + magic-link via Resend ✅
 3. **#27** — profile schema expansion
 4. **#31** — app shell + `/app/digests` list + detail
 5. **#25** — debug digest preview (wraps #31's component)
@@ -95,13 +95,8 @@ Ported the original `executive-summary.html` into TanStack Start route `/` as co
 
 ## Agentic SaaS + dogfood loop (current focus)
 
-### #26 Better Auth + magic-link via Resend — ☐
-Install `better-auth` with the Drizzle adapter against Neon. Enable the email magic-link plugin (delivery via the Resend client; reuse the existing API key, do not introduce a separate "auth email" provider) and the admin-role plugin. Better Auth manages its own session/user/account tables — wire its schema generator + drizzle-kit migration; preserve the existing `users` columns by mapping or namespacing. Expose:
-- Server middleware that gates `/app/*` and `/admin/*` routes
-- `auth.getSession(request)` helper for server functions
-- Minimal `/signup`, `/login`, `/logout` routes (UI is intentionally bare — full FTE entry lives at #29's `/signup`)
-
-The admin-role plugin replaces a hand-rolled `users.is_admin` boolean.
+### #26 Better Auth + magic-link via Resend — ✅
+Installed `better-auth` 1.6 with the Drizzle adapter (`usePlural: true`, `generateId: false` so Postgres `defaultRandom()` supplies UUIDs). Magic-link plugin delivers via the existing Resend client (reuses `RESEND_API_KEY` / `RESEND_FROM`); when the key is absent in dev, the link is printed to the Pino log instead. Admin-role plugin replaces a hand-rolled `is_admin` boolean — role lives on `users.role` (default `'user'`). Schema additions: `sessions`, `accounts`, `verifications` plus `email_verified`, `image`, `updated_at`, `role`, `banned`, `ban_reason`, `ban_expires` on `users`. `users.name` and `users.tz` are now nullable since magic-link signup creates a row before the FTE agent (#28) fills those in — the synthesis job (#10) falls back to the email local-part when `name` is null. Auth handler mounted at `/api/auth/$`; `src/lib/auth-server.ts` exposes `getSession()`, `requireSession()`, `requireAdminSession()`. `routes/app.tsx` + `routes/admin.tsx` use these in `beforeLoad` server fns to gate every child route; non-admins hitting `/admin` bounce to `/app`. Minimal `/signup`, `/login`, `/logout` routes shipped (full FTE entry is #29). `BETTER_AUTH_SECRET` + `BETTER_AUTH_URL` added to env schema + `.env.example`. Validated end-to-end: POST `/api/auth/sign-in/magic-link` → verify URL → session cookie → 200 on `/app` → 307 on `/admin` → `/logout` clears cookies and the next get-session returns `null`.
 **Blocked by:** #2 · **Blocks:** #28, #29, #31, #32
 
 ### #27 Profile schema expansion — ☐

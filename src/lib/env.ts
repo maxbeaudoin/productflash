@@ -28,6 +28,12 @@ const schema = z.object({
 
   FEEDBACK_SIGNING_SECRET: z.string().min(32).optional(),
 
+  // Better Auth — secret signs sessions + magic-link tokens; URL is the
+  // canonical base for callback links (dev: http://localhost:3000,
+  // prod: the Railway-issued domain).
+  BETTER_AUTH_SECRET: z.string().min(32).optional(),
+  BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),
+
   ADMIN_USER: z.string().default('admin'),
   ADMIN_PASSWORD: z.string().optional(),
 

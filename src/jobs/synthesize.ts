@@ -93,7 +93,11 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
 
   for (const user of activeUsers) {
     try {
-      const metrics = await runForUser(db, user.id, user.name, cutoff, dayStart, maxItems)
+      // `users.name` is nullable post-Better-Auth (#26) — the magic-link
+      // signup may create a row before the FTE agent fills it in. Fall
+      // back to the email local-part so the greeting is never empty.
+      const userName = user.name ?? user.email.split('@')[0]
+      const metrics = await runForUser(db, user.id, userName, cutoff, dayStart, maxItems)
       perUser.push(metrics)
       logger.info({ ...metrics, email: user.email }, 'synthesize: user complete')
     } catch (err) {
