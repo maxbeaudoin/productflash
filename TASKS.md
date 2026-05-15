@@ -78,7 +78,7 @@ Seed 5 real competitors (mix of analytics/CRM/devtools SaaS). Run ingestion loca
 Wire `@anthropic-ai/sdk` with `claude-haiku-4-5-20251001`. Prompt: given a `raw_item` (title + body excerpt), output JSON `{ category: launch|pricing|feature|positioning|noise, score: 0-100, why: string }`. Batched per user (only items for that user's competitors, last 24h). Persist scores.
 
 ### #10 Synthesis job (Sonnet) → digest_items + digests — ✅
-Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at ~5). Output: per-item headline + snippet + impact_note in Product Flash editorial tone (see `executive-summary.html` digest sample). Persist `digest_items` + `digests`. If fewer than 1 item qualifies, persist an empty-digest record so the send job emits the "nothing notable" template.
+Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at ~5). Output: per-item headline + snippet + impact_note in Product Flash editorial tone (see the digest sample on the landing route `/`, sourced from `src/data/landing.ts`). Persist `digest_items` + `digests`. If fewer than 1 item qualifies, persist an empty-digest record so the send job emits the "nothing notable" template.
 
 ### #12 Feedback redirect endpoint — ✅
 `GET /r/:digest_item_id/:rating` — records feedback row (upsert on user+item), then redirects to a static thanks page. Validate rating in `{up, down}`. Use a signed token to prevent third-party tampering.
@@ -87,11 +87,8 @@ Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at 
 
 ## Landing (public marketing)
 
-### #24 Serve executive-summary.html via web route — ✅
-Quick share path while the full React port (#14) is blocked. Mount `executive-summary.html` as a TanStack Start route at `/executive-summary` (literal, matches filename, no collision risk with future SaaS surfaces; `/` stays free for #14). Implementation: raw-string import via Vite's `?raw` suffix returned from a server route with `Content-Type: text/html`. The HTML stays at repo root unchanged (still the QA reference for #14).
-
 ### #14 Port executive-summary.html to public landing route (1:1 visual) — ✅
-Port `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) extracted to `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. **Must look pixel-identical to the original when compared side-by-side.** Original `executive-summary.html` stays at repo root as the QA reference. CTA buttons link to `/signup` (entry point to the agentic FTE in #29).
+Ported the original `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) lives in `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. After pixel parity was confirmed, the source `executive-summary.html` and the temporary `/executive-summary` route (originally #24) were removed; the React port is the canonical landing. CTA buttons link to `/signup` (entry point to the agentic FTE in #29).
 **Blocked by:** #21
 
 ---
@@ -231,3 +228,4 @@ This is the durable copy. If you import to Linear:
 Retired (deleted from this file, kept in git history):
 - #15 — Competitor picker with RSS autodetect (replaced by FTE agent tool, #28)
 - #22 — Signup form section on landing page (replaced by `/signup` + agentic FTE, #29)
+- #24 — Serve `executive-summary.html` at `/executive-summary` (temporary share path; removed after #14 landed and the React port at `/` became canonical)

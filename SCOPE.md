@@ -59,7 +59,7 @@ This is a **demand-validation PoC**, not a feature-complete MVP. Everything belo
 
 ### 4.1 Frontend & design system
 
-Brand carries through from `executive-summary.html` — same color tokens, same typography, same editorial feel.
+Brand is defined by the design tokens module (§4.1 below) and rendered on the landing route (`/`, task #14) — same color tokens, same typography, same editorial feel across web and email.
 
 - **Tokens module**: `src/design/tokens.ts` exports raw values for colors, spacing, fonts, radii.
   - Colors: `ink: #0a0a0f`, `ink-soft: #15151c`, `ink-line: #1f1f2a`, `paper: #fafaf7`, `paper-warm: #f4f3ee`, `text: #1a1a22`, `text-muted: #5a5a6a`, `accent: #d9ff3a`, `accent-warm: #ffd60a`, `coral: #ff5b3a`.
@@ -75,10 +75,9 @@ Brand carries through from `executive-summary.html` — same color tokens, same 
 
 The marketing page is a real product surface, not throwaway HTML. Plan:
 
-- `executive-summary.html` stays in the repo root untouched as the visual reference for QA comparison.
-- Port to a TanStack Start route (`/`) as componentized React: `<TopBar>`, `<Hero>`, `<ProblemSection>`, `<SolutionSection>`, `<DigestPreview>`, `<AudienceSection>`, `<ProofSection>`, `<CTASection>`, `<Footer>`. Sub-components like `<StatCard>`, `<FeatureCard>`, `<PersonaCard>`, `<DigestItem>` are reusable building blocks.
+- TanStack Start route (`/`) as componentized React: `<TopBar>`, `<Hero>`, `<ProblemSection>`, `<SolutionSection>`, `<DigestPreview>`, `<AudienceSection>`, `<ProofSection>`, `<CTASection>`, `<Footer>`. Sub-components like `<StatCard>`, `<FeatureCard>`, `<PersonaCard>`, `<DigestItem>` are reusable building blocks.
 - Page content (stats, features, personas, sample digest items, proof checklist) lives in `src/data/landing.ts` — editable as data, not markup.
-- Styled exclusively via Tailwind v4 classes backed by design tokens (no per-component CSS files). Must look pixel-identical to the original when opened side-by-side.
+- Styled exclusively via Tailwind v4 classes backed by design tokens (no per-component CSS files).
 - CTA buttons link to `/signup`, which is the entry point to the agentic FTE (§4.4) — there is no separate signup form section on the landing page itself.
 
 ### 4.3 Sitemap
@@ -94,7 +93,6 @@ PUBLIC  (no auth)
   /login                     Magic-link request form (Better Auth)
   /login/verify              Magic-link callback (Better Auth)
   /logout                    Better Auth sign-out
-  /executive-summary         Raw HTML reference (task #24, shipped)
   /r/:digest_item_id/:rating Feedback redirect (task #12, shipped)
   /r/thanks                  Feedback thanks page (shipped)
 
@@ -184,7 +182,7 @@ Two trigger paths into the same jobs: the daily cron, and an on-demand fast path
 Concrete execution order lives in `TASKS.md` under "Priority overrides" — that's the single source of truth and updates as work lands. Phase summary:
 
 1. **Foundation + ingestion + synthesis** (✅ shipped). Repo, schema, all 4 source adapters, per-competitor ingestion, Haiku classify + Sonnet synthesize, feedback redirect.
-2. **Landing port + design system** (#21 ✅, #14 next). Public `/` matches `executive-summary.html` 1:1.
+2. **Landing port + design system** (#21 ✅, #14 ✅). Public `/` matches the original `executive-summary.html` 1:1; the source HTML reference and its `/executive-summary` route have been retired now that the React port is canonical.
 3. **Agentic SaaS + dogfood loop** (current focus). Auth (#26), profile schema (#27), in-app digest views (#31), FTE agent (#28/#29), fast-path TTV (#30), Maxime full dogfood on own company (#13), profile edit (#32), admin app (#16).
 4. **Email + send + launch**. Email template + Resend (#11), per-TZ send (#17), 5–10 real beta users via the FTE flow (#18), PostHog (#20), launch + monitor (#19).
 

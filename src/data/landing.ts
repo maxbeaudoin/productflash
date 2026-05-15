@@ -1,7 +1,6 @@
 /**
- * Landing-page content. Mirrors executive-summary.html section-by-section.
- * Update copy here, not inside components — keeps the marketing surface
- * editable as data.
+ * Landing-page content. Update copy here, not inside components — keeps
+ * the marketing surface editable as data.
  */
 
 export type HeroMeta = { label: string; value: string }

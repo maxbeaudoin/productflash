@@ -5,7 +5,6 @@
  * templates (inline styles) both consume this module so that the digest
  * email and the marketing surfaces are visually identical.
  *
- * Mirrors the CSS custom properties defined in executive-summary.html.
  * Do not introduce per-surface overrides — change values here.
  */
 
