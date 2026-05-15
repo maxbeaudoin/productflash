@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { TOPBAR } from '~/data/landing'
 import { BrandMark } from './BrandMark'
 
@@ -8,9 +9,12 @@ export function TopBar() {
         <BrandMark />
         <span>{TOPBAR.brand}</span>
       </div>
-      <div className="text-xs uppercase tracking-[0.08em] text-[#888]">
-        {TOPBAR.meta}
-      </div>
+      <Link
+        to={TOPBAR.login.href}
+        className="rounded-pill border border-[#2a2a38] px-3 py-[6px] text-xs uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors duration-150 hover:border-accent hover:text-white"
+      >
+        {TOPBAR.login.label}
+      </Link>
     </div>
   )
 }

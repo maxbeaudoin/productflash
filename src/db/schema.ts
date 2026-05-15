@@ -208,6 +208,21 @@ export const itemScores = pgTable(
   ],
 )
 
+// Public waitlist captured from the marketing landing before invite-gated
+// signup. `invited_at` flips once an admin issues a magic-link invite (see
+// task #16 follow-up); until then a row here represents intent only — it
+// does NOT seed `users`.
+export const waitlist = pgTable('waitlist', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  position: text('position'),
+  companyUrl: text('company_url'),
+  source: text('source'),
+  invitedAt: timestamp('invited_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const feedback = pgTable(
   'feedback',
   {
@@ -246,3 +261,5 @@ export type CompetitorPricingSnapshot = typeof competitorPricingSnapshots.$infer
 export type NewCompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferInsert
 export type ItemScore = typeof itemScores.$inferSelect
 export type NewItemScore = typeof itemScores.$inferInsert
+export type Waitlist = typeof waitlist.$inferSelect
+export type NewWaitlist = typeof waitlist.$inferInsert

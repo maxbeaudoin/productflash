@@ -180,8 +180,7 @@ export const CTA = {
   label: '⚡ Private Beta · 20 Seats',
   title: "Stop reading your competitors from your CEO's Slack.",
   body: "We're onboarding 20 product teams this quarter. Beta is free for the first 90 days, with founder access and direct input on the roadmap.",
-  primary: { label: 'Claim your seat', href: '/signup' },
-  secondary: { label: 'Book a 15-min demo', href: '/signup' },
+  primary: { label: 'Join the waitlist', href: '#waitlist' },
   fineprint: '// 7 seats remaining as of this week',
 }
 
@@ -191,5 +190,19 @@ export const FOOTER = {
 
 export const TOPBAR = {
   brand: 'Product Flash',
-  meta: 'Executive Summary · 2026',
+  login: { label: 'Log in', href: '/login' },
+}
+
+export const WAITLIST = {
+  label: 'Join the waitlist',
+  title: 'Get the brief while seats are still open.',
+  body: "We're letting new teams in on a rolling basis. Drop your email and we'll be in touch when a seat opens up.",
+  positions: [
+    'Head of Product',
+    'Product Manager',
+    'Product Marketing',
+    'Founder / CEO',
+    'Other',
+  ],
+  success: "Got it — we'll be in touch.",
 }

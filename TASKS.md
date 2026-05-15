@@ -15,7 +15,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 
 1. **#14** — landing port (`/`) ✅
 2. **#26** — Better Auth + magic-link via Resend ✅
-3. **#33** — waitlist capture + invite-gated landing
+3. **#33** — waitlist capture + invite-gated landing ✅
 4. **#27** — profile schema expansion
 4. **#31** — app shell + `/app/digests` list + detail
 5. **#25** — debug digest preview (wraps #31's component)
@@ -92,7 +92,7 @@ Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at 
 Ported the original `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) lives in `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. After pixel parity was confirmed, the source `executive-summary.html` and the temporary `/executive-summary` route (originally #24) were removed; the React port is the canonical landing. CTA buttons link to `/signup` (entry point to the agentic FTE in #29).
 **Blocked by:** #21
 
-### #33 Waitlist capture + invite-gated landing — ☐
+### #33 Waitlist capture + invite-gated landing — ✅
 Pivot the public funnel from open signup to waitlist + invite. Concrete deliverables:
 
 - **Schema** — new `waitlist` table: `id uuid PK`, `email text NOT NULL UNIQUE`, `name text`, `position text`, `company_url text`, `source text` (e.g. `'hero'`, `'cta-section'`, `'footer'`), `created_at`, `invited_at timestamptz` (NULL until an admin issues an invite later). Drizzle migration + types.

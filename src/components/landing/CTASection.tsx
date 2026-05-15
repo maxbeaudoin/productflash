@@ -1,11 +1,15 @@
 import { CTA } from '~/data/landing'
+import { WaitlistForm } from './WaitlistForm'
 
 const CTA_GRADIENT =
   'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.4), transparent 60%)'
 
 export function CTASection() {
   return (
-    <section className="relative overflow-hidden bg-accent px-12 py-[120px] text-center text-ink max-md:px-6 max-md:py-20">
+    <section
+      id="waitlist"
+      className="relative scroll-mt-20 overflow-hidden bg-accent px-12 py-[120px] text-center text-ink max-md:px-6 max-md:py-20"
+    >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -20,26 +24,7 @@ export function CTASection() {
         </h2>
         <p className="mb-10 text-lg text-ink/75">{CTA.body}</p>
 
-        <div className="flex flex-wrap justify-center gap-4">
-          <a
-            href={CTA.primary.href}
-            className="group inline-flex items-center gap-[10px] rounded-pill bg-ink px-8 py-[18px] text-base font-semibold text-white transition-transform duration-150 hover:-translate-y-px"
-          >
-            {CTA.primary.label}
-            <span
-              aria-hidden
-              className="transition-transform duration-150 group-hover:translate-x-[3px]"
-            >
-              →
-            </span>
-          </a>
-          <a
-            href={CTA.secondary.href}
-            className="inline-flex items-center gap-[10px] rounded-pill border-[1.5px] border-ink bg-transparent px-8 py-[18px] text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px"
-          >
-            {CTA.secondary.label}
-          </a>
-        </div>
+        <WaitlistForm source="cta-section" />
 
         <div className="mt-8 font-mono text-[13px] text-ink/60">
           {CTA.fineprint}
