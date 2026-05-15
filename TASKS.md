@@ -15,7 +15,8 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 
 1. **#14** — landing port (`/`) ✅
 2. **#26** — Better Auth + magic-link via Resend ✅
-3. **#27** — profile schema expansion
+3. **#33** — waitlist capture + invite-gated landing
+4. **#27** — profile schema expansion
 4. **#31** — app shell + `/app/digests` list + detail
 5. **#25** — debug digest preview (wraps #31's component)
 6. **#28** — FTE agent backend
@@ -90,6 +91,23 @@ Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at 
 ### #14 Port executive-summary.html to public landing route (1:1 visual) — ✅
 Ported the original `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) lives in `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. After pixel parity was confirmed, the source `executive-summary.html` and the temporary `/executive-summary` route (originally #24) were removed; the React port is the canonical landing. CTA buttons link to `/signup` (entry point to the agentic FTE in #29).
 **Blocked by:** #21
+
+### #33 Waitlist capture + invite-gated landing — ☐
+Pivot the public funnel from open signup to waitlist + invite. Concrete deliverables:
+
+- **Schema** — new `waitlist` table: `id uuid PK`, `email text NOT NULL UNIQUE`, `name text`, `position text`, `company_url text`, `source text` (e.g. `'hero'`, `'cta-section'`, `'footer'`), `created_at`, `invited_at timestamptz` (NULL until an admin issues an invite later). Drizzle migration + types.
+- **Server endpoint** — POST `/api/waitlist` (or TanStack server fn): validates with Zod, `INSERT … ON CONFLICT (email) DO NOTHING` so re-submits are silent no-ops, emits a Pino info line. PostHog `waitlist_joined` event is wired once #20 lands; for now Pino is enough.
+- **Landing UI** — update `src/data/landing.ts` so the primary CTA is `{ label: 'Join the waitlist', href: '#waitlist' }` everywhere (Hero, CTASection, any embedded `Get the daily brief`-style anchors). Replace `TOPBAR.meta = 'Executive Summary · 2026'` with a real **Log in** link aligned to the top-right of the dark header (links to `/login`, uses the existing brand palette — small pill or text link, not a heavy button). Add a `<WaitlistForm>` section anchored at `#waitlist` (Hero CTA scrolls to it; CTASection embeds it) — minimal: email + optional position dropdown + optional company URL + submit. Render an inline confirmation state ("Got it — we'll be in touch") after submit.
+- **`/signup` gating** — without a `?invite=<token>` search param, render an "invite-only" placeholder pointing back to the waitlist. Don't yet validate the token cryptographically (admin invite issuance is its own work) — for now any non-empty `invite` param shows the magic-link form unchanged, empty/missing param shows the gate.
+
+Out of scope (later tasks):
+- Admin UI for issuing invites — folds into #16 (extend with an "invite" action that signs a token + opens a mail draft / shareable URL with `?invite=<token>`).
+- Cryptographic invite-token validation — reuse the HMAC pattern from `src/lib/feedback-token.ts`; wire in alongside the admin invite UI.
+- Magic-link redemption that flips `waitlist.invited_at` and seeds `users.email` from the waitlist row — overlaps with #29 once admin invite UI exists.
+
+Validation: real submit lands a `waitlist` row; landing has no public `/signup` link in CTAs; `Log in` is visible top-right and routes to `/login`; bare `/signup` shows the invite gate.
+
+**Blocks:** #29 (signup form must accept `?invite=<token>`), #16 (admin invite UI).
 
 ---
 

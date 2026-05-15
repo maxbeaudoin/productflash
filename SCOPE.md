@@ -78,7 +78,7 @@ The marketing page is a real product surface, not throwaway HTML. Plan:
 - TanStack Start route (`/`) as componentized React: `<TopBar>`, `<Hero>`, `<ProblemSection>`, `<SolutionSection>`, `<DigestPreview>`, `<AudienceSection>`, `<ProofSection>`, `<CTASection>`, `<Footer>`. Sub-components like `<StatCard>`, `<FeatureCard>`, `<PersonaCard>`, `<DigestItem>` are reusable building blocks.
 - Page content (stats, features, personas, sample digest items, proof checklist) lives in `src/data/landing.ts` — editable as data, not markup.
 - Styled exclusively via Tailwind v4 classes backed by design tokens (no per-component CSS files).
-- CTA buttons link to `/signup`, which is the entry point to the agentic FTE (§4.4) — there is no separate signup form section on the landing page itself.
+- **Public funnel is waitlist-led, not open signup** (task #33). Every CTA on the landing page points to a `<WaitlistForm>` anchored at `#waitlist`; the top-right of the header carries a `Log in` link for existing users. `/signup` exists but is invite-gated — public visitors hitting it bare get a "we're invite-only" placeholder pointing back to the waitlist; only an `?invite=<token>` URL (issued by an admin, later #16) reveals the magic-link form.
 
 ### 4.3 Sitemap
 
@@ -86,10 +86,15 @@ One TanStack Start app, three route trees. Auth state separates them.
 
 ```
 PUBLIC  (no auth)
-  /                          Landing — executive-summary port (task #14)
-  /signup                    Email + company_url + position + ultimate_goal
+  /                          Landing — executive-summary port (task #14).
+                             CTAs point at the inline waitlist form
+                             (task #33); top-right has a Log in link.
+  /signup?invite=<token>     Email + company_url + position + ultimate_goal
                              Submit → creates user (status='onboarding'),
-                             enqueues FTE agent, sends magic link via Resend
+                             enqueues FTE agent, sends magic link via Resend.
+                             Without a valid invite token, shows an
+                             "invite-only" gate pointing back to the
+                             waitlist (task #33).
   /login                     Magic-link request form (Better Auth)
   /login/verify              Magic-link callback (Better Auth)
   /logout                    Better Auth sign-out
