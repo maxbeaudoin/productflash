@@ -21,7 +21,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 6. **#31** — app shell + `/app/digests` list + detail ✅
 7. **#25** — debug digest preview (wraps #31's component) ✅
 8. **#28** — FTE agent backend ✅
-9. **#29** — FTE flow frontend
+9. **#29** — FTE flow frontend ✅
 10. **#30** — fast-path time-to-first-digest
 11. **#13** — Maxime full FTE dogfood
 12. **#32** — `/app/profile` view + edit
@@ -175,10 +175,14 @@ pg-boss singleton job per user (`fte:${user_id}`). Anthropic SDK tool-use loop w
 Stream every event (model output, tool call, tool result, decision) to a new `fte_events` table keyed by `(user_id, run_id, ts)` with `kind` + `payload jsonb`, so the frontend can replay/tail. Bound the loop by `max_iterations` + `max_tool_calls` to avoid runaways. On exit, flip `users.status` to `'active'` only if `save_profile` was called at least once.
 **Blocked by:** #26, #27 · **Blocks:** #29, #30
 
-### #29 FTE flow frontend — ☐
-Two routes:
-1. **`/signup`** — minimal TanStack Form: `email`, `company_url`, `position`, `ultimate_goal`. Submit → create user (`status='onboarding'`), enqueue #28's job with a fresh `run_id`, send magic link via Better Auth. Redirect to a "check your email" page.
-2. **`/app/onboarding`** — auth-gated, first visit after magic-link click. Streams `fte_events` for the user's active run via pg `LISTEN/NOTIFY` (or a polling fallback). UI: terminal-feel event log in JetBrains Mono (one line per event), followed by a profile preview card that hydrates from `users` + `user_competitors`. "Edit" lets the user adjust fields; "Looks good →" calls a server fn that flips `profile_confirmed_at` + `status='active'` and enqueues #30.
+### #29 FTE flow frontend — ✅
+`/signup` is now an invite-gated TanStack Start route that renders the FTE intake form when `verifyInviteToken(?invite=…)` succeeds (email locked from the signed payload). Submit upserts the `users` row with `status='onboarding'` + the seed profile fields (`company_url`, `position`, `ultimate_goal`), enqueues the FTE agent via a lazy pg-boss web client (`src/lib/boss.ts`), then sends the magic-link via Better Auth's server API — all in one request. The "check your inbox" card replaces the form after submit.
+
+`/app/onboarding` is auth-gated under the existing `/app` shell. The loader replays the latest run's `fte_events` for the user + the current profile + linked competitors; the client opens an SSE stream against `/api/onboarding/stream` and tails NOTIFYs on the per-user `fte_events:<userId>` + `fte_events_delta:<userId>` channels via a dedicated direct-pg listener (`src/lib/notify.ts`, honoring `DATABASE_URL_DIRECT`). The terminal-feel event log renders each event kind (planner_text / tool_use / tool_result / server_tool_use / web_search_tool_result / iteration / run_started / run_finished) in JetBrains Mono with colored prefixes; transient text_delta + block_start deltas drive a typewriter line that flushes when the durable block lands.
+
+Once `run_finished` arrives and a profile is saved, the profile preview card reveals: role / company / goal / focus-area chips / linked competitors with RSS badges. `Edit fields` toggles an inline form (position, company_name, ultimate_goal, focus_areas as comma-separated tags); `Looks good →` calls `confirmProfile` which stamps `profile_confirmed_at = now()` + `status='active'` (idempotent via `WHERE profile_confirmed_at IS NULL`) and navigates to `/app/digests`. `/app/index.tsx` now gates the landing redirect: unconfirmed users → `/app/onboarding`, everyone else → `/app/digests`.
+
+Out of scope here (deferred to #30): on-demand ingest → score → synthesize fast-path. `confirmProfile` will enqueue that chain once #30 lands.
 **Blocked by:** #21, #26, #28 · **Blocks:** #30
 
 ### #30 Time-to-first-digest fast path — ☐
