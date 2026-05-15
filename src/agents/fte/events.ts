@@ -36,7 +36,67 @@ export interface FteEventInput {
   payload?: FteEventPayload
 }
 
+// Durable, block-level events — one row in fte_events per emit. The frontend
+// (#29) reads this for replay-on-reconnect and full-history admin views.
 export const FTE_EVENTS_CHANNEL = 'fte_events'
+
+// Transient, sub-block deltas — pg_notify-only, never persisted. The frontend
+// renders these into the currently-streaming line; when the matching durable
+// block-level event lands on FTE_EVENTS_CHANNEL, the line is committed and the
+// delta buffer flushed. Reconnecting clients miss in-flight deltas but get
+// the final block from FTE_EVENTS_CHANNEL — degraded gracefully, no data loss.
+//
+// IMPORTANT: LISTEN/NOTIFY does not survive PgBouncer in transaction-pooling
+// mode (Neon's `-pooler` endpoint). The SSE handler in #29 must open its
+// LISTEN connection against a direct (non-pooler) Neon URL — see the
+// `DATABASE_URL_DIRECT` env knob added alongside this work. The worker can
+// keep using the pooled URL for INSERT + pg_notify (those are single
+// statements that survive the pooler fine).
+export const FTE_EVENTS_DELTA_CHANNEL = 'fte_events_delta'
+
+export type FteDeltaKind = 'text_delta' | 'tool_input_delta' | 'block_start'
+
+export interface FteDeltaInput {
+  userId: string
+  runId: string
+  kind: FteDeltaKind
+  // `delta` is the new chunk (a few chars for text, a JSON fragment for tool
+  // input). Frontend appends to the current buffer; on `block_start` it
+  // flushes and begins a new buffer with the given hint.
+  delta: string
+  // Optional hint for block_start: 'text' | 'tool_use' | 'server_tool_use'.
+  blockKind?: string
+}
+
+// Compact JSON shape — pg_notify payload caps at 8KB. Field names kept short
+// to keep room for the actual delta text.
+interface DeltaPayload {
+  u: string
+  r: string
+  k: FteDeltaKind
+  d: string
+  b?: string
+}
+
+export async function emitFteDelta(input: FteDeltaInput): Promise<void> {
+  const db = getDb()
+  const payload: DeltaPayload = {
+    u: input.userId,
+    r: input.runId,
+    k: input.kind,
+    d: input.delta,
+  }
+  if (input.blockKind) payload.b = input.blockKind
+
+  try {
+    await db.execute(
+      sql`select pg_notify(${FTE_EVENTS_DELTA_CHANNEL}, ${JSON.stringify(payload)})`,
+    )
+  } catch (err) {
+    // Deltas are best-effort — a NOTIFY failure shouldn't break the agent.
+    logger.warn({ err, userId: input.userId, runId: input.runId }, 'fte: delta notify failed')
+  }
+}
 
 export async function writeFteEvent(input: FteEventInput): Promise<void> {
   const db = getDb()

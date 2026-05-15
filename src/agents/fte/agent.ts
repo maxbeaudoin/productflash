@@ -4,7 +4,7 @@ import { users as usersTable } from '~/db/schema'
 import { getAnthropic, SONNET_MODEL } from '~/lib/anthropic'
 import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
-import { writeFteEvent } from './events'
+import { emitFteDelta, writeFteEvent } from './events'
 import {
   executeTool,
   FTE_TOOLS,
@@ -148,12 +148,47 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
         payload: { n: iterations },
       })
 
-      const response = await client.messages.create({
+      // Streaming mode: durable block-level rows still land in fte_events via
+      // the per-block loop below (driven by finalMessage), but sub-block
+      // deltas — text chars as the model types them, partial tool_input json —
+      // ride the fte_events_delta NOTIFY channel for the live UI. A single
+      // promise chain serializes the deltas so the consumer sees them in
+      // arrival order; deltas are best-effort and never block the agent.
+      const stream = client.messages.stream({
         model: SONNET_MODEL,
         max_tokens: MAX_OUTPUT_TOKENS,
         system: SYSTEM_PROMPT,
         tools,
         messages,
+      })
+
+      let deltaChain: Promise<unknown> = Promise.resolve()
+      const enqueueDelta = (kind: 'text_delta' | 'tool_input_delta', delta: string) => {
+        deltaChain = deltaChain.then(() =>
+          emitFteDelta({ userId, runId, kind, delta }),
+        )
+      }
+
+      stream.on('text', (delta) => {
+        if (delta.length > 0) enqueueDelta('text_delta', delta)
+      })
+      stream.on('inputJson', (partial) => {
+        if (partial.length > 0) enqueueDelta('tool_input_delta', partial)
+      })
+      stream.on('contentBlock', (block) => {
+        const kind = (block as { type: string }).type
+        // Heads-up event so the frontend can open a new line / spinner before
+        // the matching durable event lands. Empty delta carries only the
+        // boundary signal.
+        deltaChain = deltaChain.then(() =>
+          emitFteDelta({ userId, runId, kind: 'block_start', delta: '', blockKind: kind }),
+        )
+      })
+
+      const response = await stream.finalMessage()
+      await deltaChain.catch(() => {
+        // Deltas are best-effort — see emitFteDelta. Any rejection was already
+        // logged by the emitter.
       })
 
       const blocks = response.content as AnyContentBlock[]

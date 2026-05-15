@@ -9,6 +9,13 @@ const schema = z.object({
 
   DATABASE_URL: z.string().url().optional(),
 
+  // Direct (non-pooler) Neon endpoint, used only by the FTE SSE handler
+  // (#29) which needs LISTEN/NOTIFY to survive — that's broken under
+  // PgBouncer transaction pooling. Everything else (worker writes, web reads)
+  // sticks with the pooled DATABASE_URL. If unset, falls back to
+  // DATABASE_URL so dev against a non-Neon Postgres still works.
+  DATABASE_URL_DIRECT: z.string().url().optional(),
+
   ANTHROPIC_API_KEY: z.string().optional(),
 
   RESEND_API_KEY: z.string().optional(),
