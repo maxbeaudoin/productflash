@@ -11,7 +11,12 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-export const userStatus = pgEnum('user_status', ['pending', 'active', 'paused'])
+export const userStatus = pgEnum('user_status', [
+  'pending',
+  'onboarding',
+  'active',
+  'paused',
+])
 export const sourceType = pgEnum('source_type', ['rss', 'ph', 'firehose', 'firecrawl'])
 export const itemCategory = pgEnum('item_category', [
   'launch',
@@ -28,7 +33,11 @@ export const feedbackRating = pgEnum('feedback_rating', ['up', 'down'])
 // existing `users` table so we don't fork identity into two places. `name`
 // and `tz` are nullable: magic-link signup creates a user with only an
 // email; the FTE agent (#28) fills `name` from `company_name` and `tz`
-// from the signup form / browser locale later.
+// from the signup form / browser locale later. The `position`,
+// `companyName`, `companyUrl`, `ultimateGoal`, `focusAreas` columns are
+// the AI-generated profile written by the FTE agent; `profileConfirmedAt`
+// is stamped when the user accepts the profile in #29 and the row
+// transitions from `onboarding` → `active`.
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
@@ -37,6 +46,12 @@ export const users = pgTable('users', {
   image: text('image'),
   tz: text('tz'),
   status: userStatus('status').notNull().default('pending'),
+  position: text('position'),
+  companyName: text('company_name'),
+  companyUrl: text('company_url'),
+  ultimateGoal: text('ultimate_goal'),
+  focusAreas: text('focus_areas').array(),
+  profileConfirmedAt: timestamp('profile_confirmed_at', { withTimezone: true }),
   role: text('role').notNull().default('user'),
   banned: boolean('banned').notNull().default(false),
   banReason: text('ban_reason'),

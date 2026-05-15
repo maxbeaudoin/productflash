@@ -138,7 +138,7 @@ Validation: bare `/signup` still shows the gate; `/signup?invite=<bogus>` shows 
 Installed `better-auth` 1.6 with the Drizzle adapter (`usePlural: true`, `generateId: false` so Postgres `defaultRandom()` supplies UUIDs). Magic-link plugin delivers via the existing Resend client (reuses `RESEND_API_KEY` / `RESEND_FROM`); when the key is absent in dev, the link is printed to the Pino log instead. Admin-role plugin replaces a hand-rolled `is_admin` boolean — role lives on `users.role` (default `'user'`). Schema additions: `sessions`, `accounts`, `verifications` plus `email_verified`, `image`, `updated_at`, `role`, `banned`, `ban_reason`, `ban_expires` on `users`. `users.name` and `users.tz` are now nullable since magic-link signup creates a row before the FTE agent (#28) fills those in — the synthesis job (#10) falls back to the email local-part when `name` is null. Auth handler mounted at `/api/auth/$`; `src/lib/auth-server.ts` exposes `getSession()`, `requireSession()`, `requireAdminSession()`. `routes/app.tsx` + `routes/admin.tsx` use these in `beforeLoad` server fns to gate every child route; non-admins hitting `/admin` bounce to `/app`. Minimal `/signup`, `/login`, `/logout` routes shipped (full FTE entry is #29). `BETTER_AUTH_SECRET` + `BETTER_AUTH_URL` added to env schema + `.env.example`. Validated end-to-end: POST `/api/auth/sign-in/magic-link` → verify URL → session cookie → 200 on `/app` → 307 on `/admin` → `/logout` clears cookies and the next get-session returns `null`.
 **Blocked by:** #2 · **Blocks:** #28, #29, #31, #32
 
-### #27 Profile schema expansion — ☐
+### #27 Profile schema expansion — ✅
 Add nullable columns to `users` for the AI-generated profile:
 - `position` (text) — e.g. "Head of Product"
 - `company_name` (text)
