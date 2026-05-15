@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -238,6 +239,28 @@ export const waitlist = pgTable('waitlist', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Streaming event log for the FTE agent loop (task #28). Each row captures one
+// step the agent took during a single run: model output, client tool_use,
+// tool_result, server-side web_search call, or a run-lifecycle marker
+// (`run_started`, `run_finished`, `error`). `/app/onboarding` (task #29) tails
+// these via pg LISTEN/NOTIFY (or polling) to render a terminal-feel live view.
+// `kind` is a plain text discriminant so we can add event types without an
+// enum migration; `payload` is jsonb so each kind carries its own shape.
+export const fteEvents = pgTable(
+  'fte_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    runId: uuid('run_id').notNull(),
+    kind: text('kind').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('fte_events_user_run_ts_idx').on(t.userId, t.runId, t.ts)],
+)
+
 export const feedback = pgTable(
   'feedback',
   {
@@ -278,3 +301,5 @@ export type ItemScore = typeof itemScores.$inferSelect
 export type NewItemScore = typeof itemScores.$inferInsert
 export type Waitlist = typeof waitlist.$inferSelect
 export type NewWaitlist = typeof waitlist.$inferInsert
+export type FteEvent = typeof fteEvents.$inferSelect
+export type NewFteEvent = typeof fteEvents.$inferInsert

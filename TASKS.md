@@ -20,7 +20,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 5. **#27** — profile schema expansion ✅
 6. **#31** — app shell + `/app/digests` list + detail ✅
 7. **#25** — debug digest preview (wraps #31's component) ✅
-8. **#28** — FTE agent backend
+8. **#28** — FTE agent backend ✅
 9. **#29** — FTE flow frontend
 10. **#30** — fast-path time-to-first-digest
 11. **#13** — Maxime full FTE dogfood
@@ -164,7 +164,7 @@ Components: `DigestHeader`, `DigestItem` (matches executive-summary mock), `Feed
 Dev-only variant of `/app/digests/:id` that bypasses auth. Same React components as #31, exposed at `GET /debug/digest/:user_id`. Optional `?refresh=1` query param re-runs `score → synthesize` for the most recent 24h of `raw_items` before render — fast-iteration escape hatch for prompt tuning. Gated by `NODE_ENV !== 'production'` (returns 404 in prod).
 **Blocked by:** #31
 
-### #28 FTE agent backend — ☐
+### #28 FTE agent backend — ✅
 pg-boss singleton job per user (`fte:${user_id}`). Anthropic SDK tool-use loop with `claude-sonnet-4-6` as the planner. Tools:
 - `web_search_20250305` (Anthropic server tool) — competitor + market research
 - `fetch_url(url)` — plain-text extraction of a URL (reuse Firecrawl scrape if richer content is needed)

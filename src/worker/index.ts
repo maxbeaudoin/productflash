@@ -1,4 +1,5 @@
 import PgBoss from 'pg-boss'
+import { type FteJobData, FTE_QUEUE, handleFteJob } from '~/agents/fte/job'
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from '~/jobs/ingest'
 import { runScoring, SCORE_CRON, SCORE_QUEUE } from '~/jobs/score'
 import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from '~/jobs/synthesize'
@@ -42,6 +43,15 @@ async function main() {
     retryDelay: 300,
     retryBackoff: true,
   })
+  // FTE agent runs are user-triggered (signup or admin re-trigger), so no
+  // cron. Per-user concurrency is enforced via `singletonKey: userId` at
+  // send-time (see src/agents/fte/job.ts); the queue policy stays standard
+  // so two different users can run in parallel.
+  await boss.createQueue(FTE_QUEUE, {
+    name: FTE_QUEUE,
+    retryLimit: 1,
+    retryDelay: 60,
+  })
 
   if (env.INGEST_SCHEDULE_ENABLED) {
     await boss.schedule(INGEST_QUEUE, INGEST_CRON, {}, { tz: 'UTC' })
@@ -84,6 +94,15 @@ async function main() {
     logger.info({ jobId: job.id }, 'synthesize: job started')
     const metrics = await runSynthesis()
     return metrics
+  })
+
+  await boss.work<FteJobData>(FTE_QUEUE, async ([job]) => {
+    if (!job) return
+    logger.info(
+      { jobId: job.id, userId: job.data.userId, runId: job.data.runId },
+      'fte: job started',
+    )
+    await handleFteJob(job)
   })
 
   const shutdown = async (signal: string) => {
