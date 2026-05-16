@@ -7,6 +7,7 @@ import {
 } from '~/jobs/fast-path'
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from '~/jobs/ingest'
 import { runScoring, SCORE_CRON, SCORE_QUEUE } from '~/jobs/score'
+import { runSendForDigest, SEND_QUEUE, type SendJobData } from '~/jobs/send'
 import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from '~/jobs/synthesize'
 import { env, requireEnv } from '~/lib/env'
 import { logger } from '~/lib/logger'
@@ -71,6 +72,18 @@ async function main() {
     name: FAST_PATH_QUEUE,
     retryLimit: 1,
     retryDelay: 60,
+  })
+  // Email send — one job per digest. Callers must pass `singletonKey:
+  // digestId` at send-time to keep replays from double-sending. The retry
+  // policy is conservative because Resend handles its own internal retries
+  // for transient sender failures; we mainly want to recover from worker
+  // crashes mid-send. Per-TZ scheduling (#17) lands as a separate cron that
+  // enqueues this queue per user when their bucket fires.
+  await boss.createQueue(SEND_QUEUE, {
+    name: SEND_QUEUE,
+    retryLimit: 2,
+    retryDelay: 300,
+    retryBackoff: true,
   })
 
   if (env.INGEST_SCHEDULE_ENABLED) {
@@ -148,6 +161,19 @@ async function main() {
             'fast-path: job started',
           )
           await handleFastPathJob(job)
+        }),
+      )
+    },
+  )
+
+  await boss.work<SendJobData>(
+    SEND_QUEUE,
+    { batchSize: 5 },
+    async (jobs) => {
+      await Promise.all(
+        jobs.map(async (job) => {
+          logger.info({ jobId: job.id, digestId: job.data.digestId }, 'send: job started')
+          await runSendForDigest(job.data.digestId)
         }),
       )
     },

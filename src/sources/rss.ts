@@ -23,7 +23,7 @@ import type { CompetitorRef, NormalizedItem } from './types'
 
 const DEFAULT_TIMEOUT_MS = 15_000
 const DEFAULT_UA =
-  'Mozilla/5.0 (compatible; ProductFlashBot/0.1; +https://productflash.dev)'
+  'Mozilla/5.0 (compatible; ProductFlashBot/0.1; +https://productflash.ai)'
 
 const parser = new RSSParser()
 

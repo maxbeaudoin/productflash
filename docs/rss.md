@@ -37,7 +37,7 @@ Capped at `maxProbes=16` so a homepage with many `<link rel>` declarations doesn
 
 ## Known quirks
 
-- **UA matters**: some Cloudflare-fronted changelog hosts return 403 to bare `node-fetch`. Default UA is `Mozilla/5.0 (compatible; ProductFlashBot/0.1; +https://productflash.dev)`.
+- **UA matters**: some Cloudflare-fronted changelog hosts return 403 to bare `node-fetch`. Default UA is `Mozilla/5.0 (compatible; ProductFlashBot/0.1; +https://productflash.ai)`.
 - **Body field preference**: we surface `contentSnippet` (plain text) over `content` (HTML) because Haiku doesn't need markup and snippets cut token cost ~3x.
 - **Missing `pubDate`**: rss-parser leaves `isoDate` undefined; we persist `publishedAt = null` and let the orchestrator fall back to `ingestedAt` when sorting recency.
 - **Atom feeds without `<link rel="alternate">`** declare their own URL in `<id>` — autodetect won't trip on this, but the path probe catches the common `/atom`/`/atom.xml` cases.

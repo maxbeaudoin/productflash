@@ -31,7 +31,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 16. **#40** — catch-up framing + visible date ranges on digests ✅
 17. **#41** — per-item timestamps when truthful, omit when unknown ✅
 18. **#42** — next-digest banner on `/app/digests` listing ✅
-19. **#13** — Maxime full FTE dogfood (iter 3 ran 2026-05-16; surfaced #46/#47/#48 — resume iter 4 after those land)
+19. **#13** — Maxime full FTE dogfood ✅
 19a. **#43** — fix planner_text disappear/reappear flicker (dogfood iter 2) ✅
 19b. **#44** — sticky status header + auto-scroll for streaming (dogfood iter 2) ✅
 19c. **#45** — diversify digest items across competitors (dogfood iter 2) ✅
@@ -42,7 +42,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 19h. **#50** — catch-up digest: 10 items, cap-3, full per-competitor pool (dogfood iter 3, "still all Lattice") ✅
 20. **#32** — `/app/profile` view + edit ✅
 21. **#16** — admin app (`/admin/users/*`) ✅
-22. **#11** — Resend email template + send (reactivate after dogfood)
+22. **#11** — Resend email template + send ✅
 23. **#17** — per-TZ send scheduling
 24. **#18** — onboard 5–10 betas
 25. **#20** — PostHog wiring ✅
@@ -232,7 +232,7 @@ Out of scope:
 
 **Blocked by:** none (all surfaces exist) · **Blocks:** #13 (dogfood is the test of whether personalization lands well), #18 (beta launch).
 
-### #13 Maxime full FTE dogfood — ⏳
+### #13 Maxime full FTE dogfood — ✅
 Sign up at `/signup` against your own company. Watch the FTE agent run end-to-end at `/app/onboarding`. Read the resulting profile critically: did it identify the right competitors? Right framing of your role + goal? Confirm and check the fast-path digest. Repeat for 3 consecutive days: open the daily digest at `/app/digests/:id`, look for quality, missed items, hallucinations. Tune prompts in #28 / #10 / #9 / #35 between runs. **Block real beta launch until 3 clean days in a row.**
 
 Iteration log:
@@ -476,8 +476,32 @@ Out of scope: per-user delivery time customization (folds into #17). Slack/Teams
 
 ## Email + send + launch (later phase)
 
-### #11 Resend email template + send — ☐
-Resend client + a React Email template for the daily digest. **Intentionally distinct from #31's in-app rendering** — the email template is constraint-bound (inline styles, limited CSS, no JS, ~600px width), while the in-app surface uses the full shadcn + Tailwind stack. Both consume `src/design/tokens.ts` so brand stays unified. Props: greeting line, items (tag/headline/snippet/impact), tracking pixel, per-item feedback URLs (`/r/:digest_item_id/up` and `/down`). Configure Resend webhook → server function for open/click events. Reactivate this task after #13 confirms the in-app digest is good — sending bad digests by email is worse than not sending at all.
+### #11 Resend email template + send — ✅
+Resend client + React Email template for the daily digest. Visual layout mirrors `/app/digests/:id` (dark card on dark body, brand mark + wordmark above) but the code path is intentionally distinct from #31's in-app render: inline styles only, ~640px container, table-based row layout, no shadcn/Tailwind. Both surfaces consume `src/design/tokens.ts` (`colors`, `fonts`, `fontWeights`, `digestTags`) so the brand stays unified.
+
+Pipeline:
+- `src/emails/DigestEmail.tsx` — React Email component (`Html`/`Body`/`Container`/`Section`/`Link`/`Img` from `@react-email/components`). Header eyebrow ("daily brief" / "catch-up brief") + date range chip, then per-item rows: tag pill, optional `Mar 17` occurred-at chip, headline (linked when `sourceUrl` present), snippet with italic `impactNote` in accent color, and inline 👍 Useful / 👎 Skip pills carrying signed feedback URLs. Empty-digest variant ships a "nothing notable" block. Inbox `<Preview>` is the top headline.
+- `src/emails/build-email-props.ts` — DB loader: pulls `digests` + `digest_items` + `users`, reuses `deriveDigestPeriod` for catchup/daily framing, signs every feedback URL via `signFeedbackToken` (HMAC from #12), builds absolute URLs against `BETTER_AUTH_URL` (override `EMAIL_PUBLIC_URL` reserved for split-domain prod). Returns the email props + subject + sentAt for the send job to consume.
+- `src/jobs/send.ts` — `runSendForDigest(digestId, { dryRun?, force? })` and `runSendForUnsent()`. Idempotent: bails when `digests.sent_at IS NOT NULL` (unless `force`), skips users where `status != 'active'`. Renders HTML + text via `@react-email/components`'s `render`, sends via Resend, stamps `sent_at = now()`, fires PostHog `digest_sent` with `digest_id` + `item_count` + `resend_id`. Custom header `X-PF-Digest-ID` + Resend `tags` carry the digest id so future webhook plumbing can correlate without URL parsing.
+- `SEND_QUEUE` pg-boss queue registered in `src/worker/index.ts`. One job per digest with `singletonKey: digestId` enforced at send-time (no double-sends on replay). Per-TZ cron lands with #17; today the queue is fed manually via `pnpm send:run`.
+- Open-tracking pixel route at `/api/email/open/$digestId.gif` (`src/routes/api/email/open/$digestId.ts`) returns a 1×1 transparent GIF + idempotently stamps `digests.opened_at` (only on first open) + fires PostHog `digest_opened`. No signed token — the digest UUID is the unguessability boundary; metric noise from a forged hit isn't security-load-bearing. Resend webhook-signed opens stay a follow-up.
+
+Brand-mark rendering: Gmail strips inline `<svg>`, so the web BrandMark's CSS clip-path can't be reused. `scripts/gen-brand-mark.ts` (zero-dep, hand-rolled PNG via `node:zlib`) emits a 44×44 transparent PNG with the same polygon coords as `src/components/landing/BrandMark.tsx` to `src/emails/assets/brand-mark.png`. `src/jobs/send.ts` reads the file once at module load and attaches it as a CID inline image (`inlineContentId: 'brand-mark'`); the template references it via `<Img src="cid:brand-mark" />`. Works identically in dev and prod — no public URL dependency.
+
+Manual triggers:
+- `pnpm send:run` — flushes every unsent digest for active users.
+- `pnpm send:run <digestId>` / `--email <addr>` / `--force` / `--dry`.
+- `pnpm email:preview --email <addr>` — renders the email to `/tmp/digest-<id>.html` + `.txt` for visual check without sending.
+
+Validated end-to-end: 10-item catch-up digest for beaudoin.maxime@gmail.com rendered with brand mark + correct domain copy + clickable feedback URLs. Resend IDs `af81744b-…` (initial), `afb64735-…` (post-header), `0f656a9a-…` (post-CID-PNG), `07ef07c4-…` (post-domain-fix) confirm the iterations landed.
+
+Domain cleanup folded in: `productflash.dev` → `productflash.ai` across `.env.example`, `src/lib/env.ts` default `RESEND_FROM`, `src/sources/rss.ts` user-agent, `docs/rss.md`, and the email footer copy.
+
+Out of scope (deferred):
+- Resend webhook with Svix signature verification for opens / clicks / bounces. Today's open-pixel covers opens at PoC fidelity; click/bounce telemetry waits until volume justifies the verification surface.
+- Per-TZ scheduling — `SEND_QUEUE` is in place but no cron schedules it yet; that's #17.
+- Unsubscribe / preferences link in the footer — beta cohort is small and opt-in via admin invite, so a "reply to opt out" line is acceptable until launch.
+
 **Blocked by:** #13
 
 ### #17 Per-TZ send scheduling — ☐

@@ -23,7 +23,9 @@
     "ingest:run": "tsx scripts/run-ingest.ts",
     "score:run": "tsx scripts/run-score.ts",
     "synthesize:run": "tsx scripts/run-synthesize.ts",
-    "fte:run": "tsx scripts/run-fte.ts"
+    "fte:run": "tsx scripts/run-fte.ts",
+    "send:run": "tsx scripts/run-send.ts",
+    "email:preview": "tsx scripts/preview-email.tsx"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",

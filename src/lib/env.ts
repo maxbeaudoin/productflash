@@ -19,7 +19,7 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
 
   RESEND_API_KEY: z.string().optional(),
-  RESEND_FROM: z.string().default('Product Flash <noreply@productflash.dev>'),
+  RESEND_FROM: z.string().default('Product Flash <noreply@productflash.ai>'),
 
   // PostHog uses one "Project API Key" (called the project token in the
   // dashboard) for both server-side capture (posthog-node) and client-side
