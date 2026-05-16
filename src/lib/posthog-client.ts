@@ -1,13 +1,9 @@
 import posthog from 'posthog-js'
 
-// Client-side PostHog (#20). Init guarded by VITE_POSTHOG_KEY so dev without
-// analytics is a silent no-op — every helper short-circuits when the key is
-// absent. Mirrors the server-side `captureServerEvent` shape so callers don't
-// need to think about which environment they're in.
-//
-// posthog-js uses the same project key as posthog-node; PostHog itself has no
-// "public vs secret" key distinction. VITE_ prefix is the standard Vite
-// convention for client-visible env vars.
+// Client-side PostHog (#20). Reads the same VITE_POSTHOG_KEY the server
+// reads via process.env — PostHog's "project API key" is a single value that
+// drives both posthog-js and posthog-node, so one env var serves both. Dev
+// without analytics leaves it unset and every helper short-circuits.
 
 const KEY: string | undefined = import.meta.env.VITE_POSTHOG_KEY
 const HOST: string = import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com'

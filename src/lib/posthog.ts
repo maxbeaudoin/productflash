@@ -13,13 +13,13 @@ let _client: PostHog | null | undefined
 
 function getClient(): PostHog | null {
   if (_client !== undefined) return _client
-  if (!env.POSTHOG_API_KEY) {
-    logger.debug('posthog: POSTHOG_API_KEY unset, capture is a no-op')
+  if (!env.VITE_POSTHOG_KEY) {
+    logger.debug('posthog: VITE_POSTHOG_KEY unset, capture is a no-op')
     _client = null
     return null
   }
-  _client = new PostHog(env.POSTHOG_API_KEY, {
-    host: env.POSTHOG_HOST,
+  _client = new PostHog(env.VITE_POSTHOG_KEY, {
+    host: env.VITE_POSTHOG_HOST,
     // Worker fires a small number of events per day; flush on every capture
     // so a kill -9 doesn't drop the daily ingestion_run event.
     flushAt: 1,

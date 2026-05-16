@@ -21,8 +21,13 @@ const schema = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().default('Product Flash <noreply@productflash.dev>'),
 
-  POSTHOG_API_KEY: z.string().optional(),
-  POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
+  // PostHog uses one "Project API Key" (called the project token in the
+  // dashboard) for both server-side capture (posthog-node) and client-side
+  // capture (posthog-js). The VITE_ prefix is the price of entry for Vite
+  // to inline the value into the browser bundle; Node reads the same env
+  // var server-side via process.env, so one variable serves both.
+  VITE_POSTHOG_KEY: z.string().optional(),
+  VITE_POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
 
   // Firehose uses two keys: `fhm_...` management key (one-off tap creation
   // via scripts/firehose-bootstrap-tap.ts) and `fh_...` tap token (daily
