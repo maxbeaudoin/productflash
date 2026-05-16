@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import {
   competitors as competitorsTable,
+  itemScores,
   userCompetitors,
   users as usersTable,
 } from '~/db/schema'
@@ -106,6 +107,9 @@ const editProfile = createServerFn({ method: 'POST' })
         updatedAt: new Date(),
       })
       .where(eq(usersTable.id, session.user.id))
+    // Profile fields are baked into Haiku scoring (#35). Drop the stale
+    // cache so the next score run re-classifies under the new context.
+    await db.delete(itemScores).where(eq(itemScores.userId, session.user.id))
     return { ok: true as const }
   })
 

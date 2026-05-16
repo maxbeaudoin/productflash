@@ -15,12 +15,24 @@ import { logger } from './logger'
 
 export type ItemCategory = 'launch' | 'pricing' | 'feature' | 'positioning' | 'noise'
 
+// Reader context lets the same item score differently for two users with
+// different roles/goals/focus areas. Optional — magic-link signup creates a
+// user row before the FTE agent (#28) fills the profile in, so the classifier
+// falls back to a generic scoring rubric when this is absent.
+export interface ReaderProfile {
+  position: string | null
+  companyName: string | null
+  ultimateGoal: string | null
+  focusAreas: string[] | null
+}
+
 export interface ClassificationInput {
   competitorName: string
   source: string
   title: string
   body: string | null
   publishedAt: Date | null
+  reader?: ReaderProfile | null
 }
 
 export interface Classification {
@@ -69,14 +81,16 @@ const SYSTEM_PROMPT = [
   'You are the editorial filter for Product Flash, a daily competitive-intel digest for SaaS product leaders.',
   'Read one news item about a competitor and classify it on two axes:',
   '  1. category: launch | pricing | feature | positioning | noise',
-  '  2. score (0-100): how much a competing PM should care today',
+  '     The category describes the item itself — it is independent of who is reading.',
+  '  2. score (0-100): how much THIS reader should care today',
+  '     The score is reader-relative: tilt up when the item resonates with the reader\'s goal or focus areas, tilt down when it is off-axis even if globally newsworthy. If no reader context is provided, fall back to a generic "competing PM" baseline.',
   '',
   'Calibration:',
-  '- noise items (recaps, year-in-review, "we are hiring", podcast appearances, generic thought-leadership, off-topic) score 0-15.',
-  '- minor feature polish scores 20-40.',
-  '- meaningful shipped feature scores 50-70.',
+  '- noise items (recaps, year-in-review, "we are hiring", podcast appearances, generic thought-leadership, off-topic) score 0-15 — these are always noise regardless of reader.',
+  '- minor feature polish scores 20-40 in the baseline; lift to 50-65 if it directly touches one of the reader\'s focus areas.',
+  '- meaningful shipped feature scores 50-70 in the baseline; lift toward 75-85 when it intersects the reader\'s focus areas or threatens their goal.',
   '- new product / pricing change / repositioning scores 75-95.',
-  '- only score 95+ for a launch that visibly reshapes the category.',
+  '- only score 95+ for a launch that visibly reshapes the category or directly attacks the reader\'s positioning.',
   '',
   'Always call the record_classification tool — never reply in prose.',
 ].join('\n')
@@ -149,7 +163,12 @@ function renderUserPrompt(input: ClassificationInput): string {
   const excerpt =
     body.length > BODY_EXCERPT_CHARS ? `${body.slice(0, BODY_EXCERPT_CHARS)}…` : body
   const published = input.publishedAt ? input.publishedAt.toISOString() : 'unknown'
-  return [
+  const lines: string[] = []
+  const readerBlock = renderReaderBlock(input.reader)
+  if (readerBlock) {
+    lines.push(readerBlock, '')
+  }
+  lines.push(
     `Competitor: ${input.competitorName}`,
     `Source: ${input.source}`,
     `Published: ${published}`,
@@ -157,7 +176,22 @@ function renderUserPrompt(input: ClassificationInput): string {
     '',
     'Body:',
     excerpt || '(no body text)',
-  ].join('\n')
+  )
+  return lines.join('\n')
+}
+
+function renderReaderBlock(reader: ReaderProfile | null | undefined): string | null {
+  if (!reader) return null
+  const position = reader.position?.trim()
+  const company = reader.companyName?.trim()
+  const goal = reader.ultimateGoal?.trim()
+  const focus = (reader.focusAreas ?? []).map((s) => s.trim()).filter((s) => s.length > 0)
+  if (!position && !goal && focus.length === 0) return null
+  const lines = ['Reader context (use to set the score; the category itself stays reader-agnostic):']
+  if (position) lines.push(`- Role: ${position}${company ? ` at ${company}` : ''}`)
+  if (goal) lines.push(`- Goal: ${goal}`)
+  if (focus.length > 0) lines.push(`- Focus areas: ${focus.join(', ')}`)
+  return lines.join('\n')
 }
 
 function isRetriable(err: unknown): boolean {

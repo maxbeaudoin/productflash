@@ -32,8 +32,21 @@ export interface SynthesisInputItem {
   why: string
 }
 
+// Reader context lets the synthesizer ground every impactNote in the reader's
+// own role / goal / focus areas instead of falling back to a generic
+// "competing PM" framing. Optional — magic-link signup creates a user row
+// before the FTE agent (#28) fills the profile in, so synthesis must
+// gracefully degrade when this is absent.
+export interface ReaderProfile {
+  position: string | null
+  companyName: string | null
+  ultimateGoal: string | null
+  focusAreas: string[] | null
+}
+
 export interface SynthesisInput {
   userName: string
+  reader?: ReaderProfile | null
   items: SynthesisInputItem[]
 }
 
@@ -98,13 +111,14 @@ const SYSTEM_PROMPT = [
   'For each input item, produce exactly three fields:',
   '  1. headline — declarative, ≤ 16 words, leads with the competitor + the move (e.g. "Mixpanel shipped session replay — bundled into Growth tier at no cost.").',
   '  2. snippet — one ≤ 30-word sentence with the load-bearing detail. No spin, no analyst-speak.',
-  '  3. impactNote — one ≤ 25-word sentence on why the reader should care. Tie it to category (launch / pricing / feature / positioning) and competitive surface. Be specific, never generic.',
+  '  3. impactNote — one ≤ 25-word sentence on why THIS reader should care. When reader context is provided, name the reader\'s product, role, goal, or a specific focus area in the note — "Pressures your enterprise positioning vs. Asana" beats a generic "Pricing pressure on the category". When reader context is absent, fall back to a generic competing-PM framing.',
   '',
   'Hard rules:',
   '- Preserve every input rawItemId verbatim in your output.',
   '- One output item per input item — never merge, drop, or invent items.',
   '- Never fabricate facts beyond what the input body supports. If something is uncertain, frame it as observed ("Reframes positioning toward…") rather than asserted.',
   '- No emojis, no bullet lists inside fields, no markdown.',
+  '- Never invent a competitor for the reader. If the reader\'s company name is supplied, you may reference it; otherwise stay neutral ("your product", "your positioning").',
   '- Always call the record_digest tool — never reply in prose.',
 ].join('\n')
 
@@ -213,6 +227,10 @@ function parseToolInput(raw: unknown, expectedIds: Set<string>): SynthesizedItem
 function renderUserPrompt(input: SynthesisInput): string {
   const lines: string[] = []
   lines.push(`Reader: ${input.userName}`)
+  const readerBlock = renderReaderBlock(input.reader)
+  if (readerBlock) {
+    lines.push(readerBlock)
+  }
   lines.push(`Items: ${input.items.length}`)
   lines.push('')
   lines.push('Synthesize each item into a digest entry. Preserve rawItemId verbatim.')
@@ -239,6 +257,20 @@ function renderUserPrompt(input: SynthesisInput): string {
     lines.push('')
   })
 
+  return lines.join('\n')
+}
+
+function renderReaderBlock(reader: ReaderProfile | null | undefined): string | null {
+  if (!reader) return null
+  const position = reader.position?.trim()
+  const company = reader.companyName?.trim()
+  const goal = reader.ultimateGoal?.trim()
+  const focus = (reader.focusAreas ?? []).map((s) => s.trim()).filter((s) => s.length > 0)
+  if (!position && !goal && focus.length === 0) return null
+  const lines = ['Reader profile (use these to ground every impactNote):']
+  if (position) lines.push(`- Role: ${position}${company ? ` at ${company}` : ''}`)
+  if (goal) lines.push(`- Goal: ${goal}`)
+  if (focus.length > 0) lines.push(`- Focus areas: ${focus.join(', ')}`)
   return lines.join('\n')
 }
 

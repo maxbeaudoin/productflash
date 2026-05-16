@@ -23,7 +23,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 8. **#28** — FTE agent backend ✅
 9. **#29** — FTE flow frontend ✅
 10. **#30** — fast-path time-to-first-digest ✅
-11. **#35** — personalize classify + synthesize on user profile (must precede dogfood)
+11. **#35** — personalize classify + synthesize on user profile ✅
 12. **#13** — Maxime full FTE dogfood
 13. **#32** — `/app/profile` view + edit ✅
 14. **#16** — admin app (`/admin/users/*`)
@@ -194,7 +194,7 @@ On profile confirmation in `/app/onboarding` (#29), the `confirmProfile` server 
 A failed enqueue is non-fatal — the 05:30 UTC synthesis cron is the safety net, so `confirmProfile` always returns ok and the user lands on the brewing state regardless.
 **Blocked by:** #28 · **Blocks:** #13
 
-### #35 Personalize classify + synthesize on user profile — ☐
+### #35 Personalize classify + synthesize on user profile — ✅
 **Critical for product–market fit.** Today the AI-generated profile (`position`, `company_name`, `ultimate_goal`, `focus_areas`) is UI-only: the FTE agent (#28) writes it, `/app/profile` (#32) and `/app/onboarding` (#29) display/edit it, but neither the Haiku classifier nor the Sonnet synthesizer reads it. Same item ⇒ same category, same score, same headline regardless of reader. The product reduces to a competitor-news aggregator filtered by company list — *not* the personalized brief the landing page promises. If we run #13 dogfood on the current chain, we'll be testing whether universal classification is acceptable, which is the wrong question.
 
 Concrete deliverables:

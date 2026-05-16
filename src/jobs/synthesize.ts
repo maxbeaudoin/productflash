@@ -12,6 +12,7 @@ import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
 import { captureServerEvent } from '~/lib/posthog'
 import {
+  type ReaderProfile,
   type SynthesisInputItem,
   synthesizeDigest,
   type SynthesizedItem,
@@ -80,14 +81,23 @@ export async function runSynthesisForUser(
   const dayStart = startOfUtcDay(now)
 
   const [user] = await db
-    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      position: usersTable.position,
+      companyName: usersTable.companyName,
+      ultimateGoal: usersTable.ultimateGoal,
+      focusAreas: usersTable.focusAreas,
+    })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
     .limit(1)
   if (!user) throw new Error(`synthesize: user ${userId} not found`)
 
   const userName = user.name ?? user.email.split('@')[0]
-  const metrics = await runForUser(db, user.id, userName, cutoff, dayStart, maxItems)
+  const reader = toReaderProfile(user)
+  const metrics = await runForUser(db, user.id, userName, reader, cutoff, dayStart, maxItems)
   logger.info({ ...metrics, email: user.email }, 'synthesize: on-demand user run complete')
   return metrics
 }
@@ -102,7 +112,15 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
   const dayStart = startOfUtcDay(now)
 
   const activeUsers = await db
-    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      position: usersTable.position,
+      companyName: usersTable.companyName,
+      ultimateGoal: usersTable.ultimateGoal,
+      focusAreas: usersTable.focusAreas,
+    })
     .from(usersTable)
     .where(eq(usersTable.status, 'active'))
 
@@ -124,7 +142,16 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
       // signup may create a row before the FTE agent fills it in. Fall
       // back to the email local-part so the greeting is never empty.
       const userName = user.name ?? user.email.split('@')[0]
-      const metrics = await runForUser(db, user.id, userName, cutoff, dayStart, maxItems)
+      const reader = toReaderProfile(user)
+      const metrics = await runForUser(
+        db,
+        user.id,
+        userName,
+        reader,
+        cutoff,
+        dayStart,
+        maxItems,
+      )
       perUser.push(metrics)
       logger.info({ ...metrics, email: user.email }, 'synthesize: user complete')
     } catch (err) {
@@ -161,6 +188,7 @@ async function runForUser(
   db: ReturnType<typeof getDb>,
   userId: string,
   userName: string,
+  reader: ReaderProfile | null,
   cutoff: Date,
   dayStart: Date,
   maxItems: number,
@@ -209,7 +237,7 @@ async function runForUser(
     why: c.why,
   }))
 
-  const synthesized = await synthesizeDigest({ userName, items: synthesisInput })
+  const synthesized = await synthesizeDigest({ userName, reader, items: synthesisInput })
 
   if (synthesized.length === 0) {
     // Sonnet returned an empty array despite non-empty input — treat as
@@ -292,6 +320,23 @@ async function upsertDigest(
       await tx.insert(digestItems).values(itemRows.map((row) => ({ ...row, digestId })))
     }
   })
+}
+
+function toReaderProfile(user: {
+  position: string | null
+  companyName: string | null
+  ultimateGoal: string | null
+  focusAreas: string[] | null
+}): ReaderProfile | null {
+  if (!user.position && !user.ultimateGoal && (user.focusAreas ?? []).length === 0) {
+    return null
+  }
+  return {
+    position: user.position,
+    companyName: user.companyName,
+    ultimateGoal: user.ultimateGoal,
+    focusAreas: user.focusAreas,
+  }
 }
 
 function startOfUtcDay(now: Date): Date {

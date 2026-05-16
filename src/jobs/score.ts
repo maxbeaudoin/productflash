@@ -6,7 +6,7 @@ import {
   users as usersTable,
 } from '~/db/schema'
 import type { NewItemScore } from '~/db/schema'
-import { classifyItem, type Classification } from '~/lib/classify'
+import { classifyItem, type Classification, type ReaderProfile } from '~/lib/classify'
 import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
 import { captureServerEvent } from '~/lib/posthog'
@@ -126,6 +126,8 @@ async function runForUser(
   maxItems: number,
   concurrency: number,
 ): Promise<UserScoreMetrics> {
+  const reader = await fetchReaderProfile(db, userId)
+
   const competitorIds = await db
     .select({ competitorId: userCompetitors.competitorId })
     .from(userCompetitors)
@@ -177,6 +179,7 @@ async function runForUser(
           title: item.title,
           body: item.body,
           publishedAt: item.publishedAt,
+          reader,
         })
         const row: NewItemScore = {
           userId,
@@ -220,6 +223,29 @@ async function runForUser(
     classified: rows.length,
     skipped,
     errored,
+  }
+}
+
+async function fetchReaderProfile(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+): Promise<ReaderProfile | null> {
+  const [row] = await db
+    .select({
+      position: usersTable.position,
+      companyName: usersTable.companyName,
+      ultimateGoal: usersTable.ultimateGoal,
+      focusAreas: usersTable.focusAreas,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1)
+  if (!row) return null
+  return {
+    position: row.position ?? null,
+    companyName: row.companyName ?? null,
+    ultimateGoal: row.ultimateGoal ?? null,
+    focusAreas: row.focusAreas ?? null,
   }
 }
 

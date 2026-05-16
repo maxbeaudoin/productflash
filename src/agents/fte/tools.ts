@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { eq, sql } from 'drizzle-orm'
 import {
   competitors as competitorsTable,
+  itemScores,
   userCompetitors,
   users as usersTable,
 } from '~/db/schema'
@@ -369,6 +370,11 @@ async function runSaveProfile(
     if (updated.length === 0) {
       return errorResult('save_profile: user not found', { userId: ctx.userId })
     }
+
+    // Profile fields are baked into Haiku scoring (#35). Drop any stale
+    // cache from earlier runs so the next score pass re-classifies under
+    // the new context — relevant for FTE re-runs from admin (#16).
+    await db.delete(itemScores).where(eq(itemScores.userId, ctx.userId))
 
     return {
       content: `Profile saved. Position=${position}; focus_areas=${focusAreas.join(', ')}.`,
