@@ -17,6 +17,13 @@ export function AppHeader({ email }: Props) {
           <span>Product Flash</span>
         </Link>
         <div className="flex items-center gap-3 text-xs text-[#a8a8b8]">
+          <Link
+            to="/app/profile"
+            className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-accent hover:text-white"
+            activeProps={{ className: 'border-accent text-white' }}
+          >
+            Profile
+          </Link>
           <span className="hidden font-mono text-[#8a8a98] sm:inline">{email}</span>
           <a
             href="/logout"

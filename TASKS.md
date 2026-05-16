@@ -24,7 +24,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 9. **#29** — FTE flow frontend ✅
 10. **#30** — fast-path time-to-first-digest ✅
 11. **#13** — Maxime full FTE dogfood
-12. **#32** — `/app/profile` view + edit
+12. **#32** — `/app/profile` view + edit ✅
 13. **#16** — admin app (`/admin/users/*`)
 14. **#11** — Resend email template + send (reactivate after dogfood)
 15. **#17** — per-TZ send scheduling
@@ -197,8 +197,13 @@ A failed enqueue is non-fatal — the 05:30 UTC synthesis cron is the safety net
 Sign up at `/signup` against your own company. Watch the FTE agent run end-to-end at `/app/onboarding`. Read the resulting profile critically: did it identify the right competitors? Right framing of your role + goal? Confirm and check the fast-path digest. Repeat for 3 consecutive days: open the daily digest at `/app/digests/:id`, look for quality, missed items, hallucinations. Tune prompts in #28 / #10 / #9 between runs. **Block real beta launch until 3 clean days in a row.**
 **Blocked by:** #30
 
-### #32 `/app/profile` view + edit — ☐
-Read current AI-generated profile + allow inline edits: `position`, `company_url`, `ultimate_goal`, `focus_areas`, competitor list. Adding a competitor calls `discover_rss` as a server fn and shows the detected feed for confirmation. Removing a competitor is a soft delete (`user_competitors.removed_at`, keeps the relation row for digest history). Updating `focus_areas` invalidates cached score weights so the next synthesize run reflects new preferences.
+### #32 `/app/profile` view + edit — ✅
+TanStack Start route at `/app/profile` (auth-gated under the existing `/app` shell) renders an inline view + edit of the AI-generated profile: position, company name, company URL, ultimate goal, and focus_areas chips. "Edit" toggles the card into a form (re-uses the same Zod schema between client validation and the server fn). A second card lists tracked competitors with homepage + RSS badge (links open in new tab), an "Add" button that opens an inline form, and a per-row `×` to remove. `addCompetitor` server fn runs the same RSS autodetect helper the onboarding form uses, so newly added competitors get an RSS badge automatically when one resolves. Toasts confirm save / add / remove. A `Profile` pill link was added to `AppHeader` so the page is reachable from anywhere in `/app`.
+
+Deviations from spec, kept as follow-ups rather than expanding scope:
+- **Soft-delete deferred.** Remove is still a hard delete on `user_competitors`, matching the existing onboarding behavior. Adding `removed_at` would have required touching all four readers (ingest / score / FTE tools / onboarding) and an upsert path so re-adding clears the tombstone — out of scope for a viewer/editor screen.
+- **focus_areas cache invalidation skipped.** `focus_areas` isn't currently read by the classifier or synthesizer, so there's no cached weight to invalidate. The hook lands naturally when scoring starts consuming the profile.
+
 **Blocked by:** #26, #27, #31
 
 ### #16 Admin app (`/admin/users/*`) — ☐
