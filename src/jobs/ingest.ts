@@ -1,4 +1,9 @@
-import { competitors as competitorsTable, rawItems } from '~/db/schema'
+import { eq, inArray } from 'drizzle-orm'
+import {
+  competitors as competitorsTable,
+  rawItems,
+  userCompetitors,
+} from '~/db/schema'
 import type { NewRawItem } from '~/db/schema'
 import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
@@ -46,24 +51,48 @@ export interface IngestionMetrics {
 }
 
 export async function runIngestion(): Promise<IngestionMetrics> {
+  const db = getDb()
+  const rows = await db.select().from(competitorsTable)
+  const refs: CompetitorRef[] = rows.map(rowToRef)
+  return runIngestionForRefs(refs, 'ingest: starting run')
+}
+
+// On-demand variant used by the time-to-first-digest fast path (#30). Scopes
+// adapters to a single user's competitors so we don't pay for the full
+// global crawl when a brand-new user finishes onboarding.
+export async function runIngestionForUser(userId: string): Promise<IngestionMetrics> {
+  const db = getDb()
+  const ids = (
+    await db
+      .select({ id: userCompetitors.competitorId })
+      .from(userCompetitors)
+      .where(eq(userCompetitors.userId, userId))
+  ).map((r) => r.id)
+  if (ids.length === 0) {
+    const metrics = emptyMetrics(0, 0)
+    logger.warn({ userId, ...metrics }, 'ingest: user has no competitors, skipping run')
+    return metrics
+  }
+  const rows = await db
+    .select()
+    .from(competitorsTable)
+    .where(inArray(competitorsTable.id, ids))
+  return runIngestionForRefs(rows.map(rowToRef), 'ingest: starting per-user run', { userId })
+}
+
+async function runIngestionForRefs(
+  refs: CompetitorRef[],
+  startLog: string,
+  context: Record<string, unknown> = {},
+): Promise<IngestionMetrics> {
   const started = Date.now()
   const db = getDb()
 
-  const rows = await db.select().from(competitorsTable)
-  const refs: CompetitorRef[] = rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    homepageUrl: r.homepageUrl,
-    rssUrl: r.rssUrl,
-    phSlug: r.phSlug,
-    pricingUrl: r.pricingUrl,
-  }))
-
-  logger.info({ competitors: refs.length }, 'ingest: starting run')
+  logger.info({ ...context, competitors: refs.length }, startLog)
 
   if (refs.length === 0) {
     const metrics = emptyMetrics(0, Date.now() - started)
-    logger.warn(metrics, 'ingest: no competitors, skipping run')
+    logger.warn({ ...context, ...metrics }, 'ingest: no competitors, skipping run')
     emitPosthog(metrics)
     return metrics
   }
@@ -142,6 +171,17 @@ export async function runIngestion(): Promise<IngestionMetrics> {
   logger.info(metrics, 'ingest: run complete')
   emitPosthog(metrics)
   return metrics
+}
+
+function rowToRef(r: typeof competitorsTable.$inferSelect): CompetitorRef {
+  return {
+    id: r.id,
+    name: r.name,
+    homepageUrl: r.homepageUrl,
+    rssUrl: r.rssUrl,
+    phSlug: r.phSlug,
+    pricingUrl: r.pricingUrl,
+  }
 }
 
 function settleToFanoutMetrics(

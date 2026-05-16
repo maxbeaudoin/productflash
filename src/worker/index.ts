@@ -1,5 +1,10 @@
 import PgBoss from 'pg-boss'
 import { type FteJobData, FTE_QUEUE, handleFteJob } from '~/agents/fte/job'
+import {
+  type FastPathJobData,
+  FAST_PATH_QUEUE,
+  handleFastPathJob,
+} from '~/jobs/fast-path'
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from '~/jobs/ingest'
 import { runScoring, SCORE_CRON, SCORE_QUEUE } from '~/jobs/score'
 import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from '~/jobs/synthesize'
@@ -52,6 +57,15 @@ async function main() {
   // queue and new signups would wait in line.
   await boss.createQueue(FTE_QUEUE, {
     name: FTE_QUEUE,
+    retryLimit: 1,
+    retryDelay: 60,
+  })
+  // Fast-path is user-triggered like FTE (one job per profile-confirm). Per-
+  // user concurrency is enforced via `singletonKey: userId` at send-time
+  // (see src/jobs/fast-path.ts); different users still run in parallel via
+  // the worker's batchSize below.
+  await boss.createQueue(FAST_PATH_QUEUE, {
+    name: FAST_PATH_QUEUE,
     retryLimit: 1,
     retryDelay: 60,
   })
@@ -115,6 +129,22 @@ async function main() {
             'fte: job started',
           )
           await handleFteJob(job)
+        }),
+      )
+    },
+  )
+
+  await boss.work<FastPathJobData>(
+    FAST_PATH_QUEUE,
+    { batchSize: 5 },
+    async (jobs) => {
+      await Promise.all(
+        jobs.map(async (job) => {
+          logger.info(
+            { jobId: job.id, userId: job.data.userId },
+            'fast-path: job started',
+          )
+          await handleFastPathJob(job)
         }),
       )
     },

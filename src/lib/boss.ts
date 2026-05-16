@@ -1,5 +1,6 @@
 import PgBoss from 'pg-boss'
 import { FTE_QUEUE } from '~/agents/fte/job'
+import { FAST_PATH_QUEUE } from '~/jobs/fast-path'
 import { requireEnv } from './env'
 import { logger } from './logger'
 
@@ -24,6 +25,11 @@ export async function getBoss(): Promise<PgBoss> {
     await boss.start()
     await boss.createQueue(FTE_QUEUE, {
       name: FTE_QUEUE,
+      retryLimit: 1,
+      retryDelay: 60,
+    })
+    await boss.createQueue(FAST_PATH_QUEUE, {
+      name: FAST_PATH_QUEUE,
       retryLimit: 1,
       retryDelay: 60,
     })

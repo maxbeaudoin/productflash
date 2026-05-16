@@ -9,8 +9,11 @@ import {
   userCompetitors,
   users as usersTable,
 } from '~/db/schema'
+import { enqueueFastPath } from '~/jobs/fast-path'
 import { requireSession } from '~/lib/auth-server'
+import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
+import { logger } from '~/lib/logger'
 import { autodetectRSSForHomepage } from '~/sources/rss'
 
 // /app/onboarding (#29). First stop after the magic-link click.
@@ -254,7 +257,27 @@ const confirmProfile = createServerFn({ method: 'POST' }).handler(async () => {
       updatedAt: new Date(),
     })
     .where(and(eq(usersTable.id, session.user.id), isNull(usersTable.profileConfirmedAt)))
-  // #30 wires the on-demand ingest → score → synthesize chain here.
+
+  // Fast path (#30): dispatch ingest → score → synthesize for this user only
+  // so the first digest lands at /app/digests within a few minutes instead
+  // of waiting for the 05:30 UTC cron. Singleton on userId — double-clicking
+  // "Looks good" is a no-op while the first run is in flight.
+  try {
+    const boss = await getBoss()
+    const { enqueued } = await enqueueFastPath(boss, session.user.id)
+    logger.info(
+      { userId: session.user.id, enqueued },
+      'onboarding: fast-path enqueued on profile confirm',
+    )
+  } catch (err) {
+    // Don't block the user's flow on a queue hiccup — the daily cron at
+    // 05:30 UTC is the safety net. We log and move on.
+    logger.warn(
+      { err, userId: session.user.id },
+      'onboarding: failed to enqueue fast-path — falling back to cron',
+    )
+  }
+
   return { ok: true as const }
 })
 

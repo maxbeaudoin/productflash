@@ -22,7 +22,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 7. **#25** — debug digest preview (wraps #31's component) ✅
 8. **#28** — FTE agent backend ✅
 9. **#29** — FTE flow frontend ✅
-10. **#30** — fast-path time-to-first-digest
+10. **#30** — fast-path time-to-first-digest ✅
 11. **#13** — Maxime full FTE dogfood
 12. **#32** — `/app/profile` view + edit
 13. **#16** — admin app (`/admin/users/*`)
@@ -185,8 +185,12 @@ Once `run_finished` arrives and a profile is saved, the profile preview card rev
 Out of scope here (deferred to #30): on-demand ingest → score → synthesize fast-path. `confirmProfile` will enqueue that chain once #30 lands.
 **Blocked by:** #21, #26, #28 · **Blocks:** #30
 
-### #30 Time-to-first-digest fast path — ☐
-On profile confirmation (from #29), dispatch one-off pg-boss jobs synchronously: `ingest(user_id) → score(user_id) → synthesize(user_id)`. Each is idempotent (on-conflict-do-nothing). Target: first digest at `/app/digests/:id` within ~3–5 minutes of signup. `/app/digests` polls (or subscribes via pg `LISTEN/NOTIFY`) for the first row to land and auto-routes to it.
+### #30 Time-to-first-digest fast path — ✅
+On profile confirmation in `/app/onboarding` (#29), the `confirmProfile` server fn enqueues a one-off `fast-path-run` pg-boss job (singleton on `userId`) via the web-side `getBoss()` client. The handler in `src/jobs/fast-path.ts` runs the same `ingest → score → synthesize` chain the daily crons use, but scoped to one user: `runIngestionForUser(userId)` (new — extracted shared `runIngestionForRefs` so the orchestrator now has both global-cron and per-user paths) then the already-existing `runScoringForUser` + `runSynthesisForUser`. Each stage stays idempotent — the cron path can still overwrite later that day.
+
+`/app/digests` polls the loader every 4s while the user has zero digests, rendering a "Brewing your first brief" card with a live elapsed counter; when the first row lands it auto-navigates to `/app/digests/:id`. Returning users with existing digests skip the brewing state entirely (auto-route gate keyed on whether the page mounted brewing).
+
+A failed enqueue is non-fatal — the 05:30 UTC synthesis cron is the safety net, so `confirmProfile` always returns ok and the user lands on the brewing state regardless.
 **Blocked by:** #28 · **Blocks:** #13
 
 ### #13 Maxime full FTE dogfood — ☐

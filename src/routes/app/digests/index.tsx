@@ -1,6 +1,7 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { desc, eq, sql } from 'drizzle-orm'
+import { useEffect, useState } from 'react'
 import { digestItems, digests } from '~/db/schema'
 import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
@@ -56,8 +57,41 @@ export const Route = createFileRoute('/app/digests/')({
   component: DigestsListPage,
 })
 
+// Poll cadence while waiting for the fast-path (#30) first digest. 4s keeps
+// the brewing state responsive without hammering the DB; the fast path
+// itself takes 1–5 min so the user sees several "still working" polls
+// before the row lands.
+const BREWING_POLL_MS = 4000
+
 function DigestsListPage() {
   const { rows } = Route.useLoaderData()
+  const router = useRouter()
+  const brewing = rows.length === 0
+  const [autoRoutedTo, setAutoRoutedTo] = useState<string | null>(null)
+
+  // Brewing → poll the loader; when the first digest lands, jump straight
+  // into it. We don't auto-route for users who already had a digest before
+  // this mount — only the first-row case matches the fast-path UX.
+  useEffect(() => {
+    if (!brewing) return
+    const id = setInterval(() => {
+      void router.invalidate()
+    }, BREWING_POLL_MS)
+    return () => clearInterval(id)
+  }, [brewing, router])
+
+  useEffect(() => {
+    if (rows.length === 0) return
+    const first = rows[0]
+    if (autoRoutedTo === first.id) return
+    // Only auto-route if the page mounted in brewing state — i.e. this is the
+    // user's first digest landing live. Returning users with existing
+    // digests should stay on the list.
+    if (!brewing) return
+    setAutoRoutedTo(first.id)
+    void router.navigate({ to: '/app/digests/$digestId', params: { digestId: first.id } })
+  }, [rows, brewing, autoRoutedTo, router])
+
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-12">
       <header className="mb-10">
@@ -73,7 +107,7 @@ function DigestsListPage() {
         </p>
       </header>
 
-      {rows.length === 0 ? <EmptyState /> : <DigestList rows={rows} />}
+      {rows.length === 0 ? <BrewingState /> : <DigestList rows={rows} />}
     </main>
   )
 }
@@ -137,16 +171,41 @@ function DigestListRow({ row }: { row: DigestRow }) {
   )
 }
 
-function EmptyState() {
+function BrewingState() {
+  const [elapsedMs, setElapsedMs] = useState(0)
+  useEffect(() => {
+    const start = Date.now()
+    const id = setInterval(() => setElapsedMs(Date.now() - start), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const seconds = Math.floor(elapsedMs / 1000)
+  const elapsed =
+    seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${(seconds % 60).toString().padStart(2, '0')}s`
+
   return (
-    <div className="rounded-card-lg border border-dashed border-[#2a2a38] bg-ink-soft px-7 py-16 text-center">
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#666]">
-        No digests yet
+    <div
+      className="rounded-card-lg border border-[#2a2a38] bg-ink-soft px-7 py-16 text-center"
+      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+    >
+      <div className="mb-3 inline-flex items-center gap-[10px] text-[11px] font-semibold uppercase tracking-[0.15em] text-accent">
+        <span
+          aria-hidden
+          className="h-[6px] w-[6px] animate-pulse rounded-full bg-coral"
+          style={{ boxShadow: '0 0 12px var(--color-coral)' }}
+        />
+        Brewing your first brief
       </div>
-      <p className="text-[15px] text-[#a8a8b8]">
-        Your first brief will land here once the pipeline runs. If you just
-        finished onboarding, give it a few minutes.
+      <h2 className="text-[clamp(22px,2.4vw,28px)] font-extrabold leading-[1.1] tracking-[-0.02em] text-white">
+        Reading your competitors right now.
+      </h2>
+      <p className="mx-auto mt-3 max-w-[480px] text-[15px] text-[#a8a8b8]">
+        Pulling RSS, scanning launches, scoring what matters. Usually 1–3
+        minutes. We'll jump you straight into the brief the moment it lands.
       </p>
+      <div className="mt-6 inline-flex items-center gap-[8px] rounded-pill border border-[#2a2a38] bg-ink/40 px-3 py-[6px] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a8a8b8]">
+        <span className="font-mono text-xs tracking-normal text-accent">{elapsed}</span>
+        elapsed
+      </div>
     </div>
   )
 }
