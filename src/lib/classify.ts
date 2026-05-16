@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic, HAIKU_MODEL } from './anthropic'
+import { recordLlmUsage } from './llm-cost'
 import { logger } from './logger'
 
 // Haiku-driven per-item classifier. Given a single raw_item (title + body),
@@ -40,6 +41,11 @@ export interface ClassificationInput {
   body: string | null
   publishedAt: Date | null
   reader?: ReaderProfile | null
+  // Optional accounting context. When supplied, every successful Haiku
+  // response writes one llm_usage row tagged with this userId + rawItemId.
+  // Omitted by callers that don't have an attribution target (e.g. ad-hoc
+  // scripts) — those calls are real spend but go uncounted by design.
+  usageContext?: { userId: string; rawItemId: string } | null
 }
 
 export interface Classification {
@@ -119,7 +125,7 @@ export async function classifyItem(input: ClassificationInput): Promise<Classifi
   let lastErr: unknown
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const result = await callHaiku(userMessage)
+      const result = await callHaiku(userMessage, input.usageContext ?? null)
       return result
     } catch (err) {
       lastErr = err
@@ -133,7 +139,10 @@ export async function classifyItem(input: ClassificationInput): Promise<Classifi
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
-async function callHaiku(userMessage: string): Promise<Classification> {
+async function callHaiku(
+  userMessage: string,
+  usageContext: { userId: string; rawItemId: string } | null,
+): Promise<Classification> {
   const client = getAnthropic()
   const response = await client.messages.create({
     model: HAIKU_MODEL,
@@ -143,6 +152,20 @@ async function callHaiku(userMessage: string): Promise<Classification> {
     tool_choice: { type: 'tool', name: CLASSIFY_TOOL.name },
     messages: [{ role: 'user', content: userMessage }],
   })
+
+  // Record cost before we parse — even a malformed response was billed.
+  // Recorder swallows its own errors, so this never derails the caller.
+  if (usageContext) {
+    await recordLlmUsage(
+      {
+        kind: 'classify',
+        model: HAIKU_MODEL,
+        userId: usageContext.userId,
+        rawItemId: usageContext.rawItemId,
+      },
+      response.usage,
+    )
+  }
 
   const toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',

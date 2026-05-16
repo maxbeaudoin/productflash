@@ -1,9 +1,10 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { desc, eq, sql } from 'drizzle-orm'
-import { digests, userCompetitors, users } from '~/db/schema'
+import { digests, llmUsage, userCompetitors, users } from '~/db/schema'
 import { requireAdminSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
+import { formatUsd } from '~/lib/llm-cost-format'
 
 // /admin/users (#16). All users newest first. Each row carries the four
 // summary signals we lean on during babysitting: email (identity), status
@@ -22,6 +23,15 @@ type UserRow = {
   createdAt: string
   lastDigestAt: string | null
   competitorCount: number
+  lifetimeCostMicroUsd: number
+  // Trailing-30-day spend. Rolling window beats calendar-month here: a
+  // user signed up on the 28th would otherwise show two consecutive
+  // near-zero months in their first week.
+  monthlyCostMicroUsd: number
+  // All-time FTE-agent spend for this user (sum across every onboarding
+  // run + re-run). A subset of lifetime; surfaced separately so operators
+  // can see the one-time onboarding hit at a glance.
+  fteCostMicroUsd: number
 }
 
 const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
@@ -47,6 +57,32 @@ const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
     .groupBy(userCompetitors.userId)
     .as('competitor_count')
 
+  // Lifetime + trailing-30-day LLM spend per user. cost_micro_usd values are
+  // small ints (a 14-iteration FTE run is ~$0.05 = 50_000 micro-USD), so a
+  // bigint cast is overkill for the PoC scale — keep as int and accept the
+  // implicit ceiling at ~$2k per user. Both rollups share one subquery so we
+  // don't double the join cost; the 30-day window uses FILTER (WHERE …) and
+  // collapses to 0 for older rows.
+  const costRollup = db
+    .select({
+      userId: llmUsage.userId,
+      lifetimeCostMicroUsd:
+        sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`.as(
+          'lifetime_cost_micro_usd',
+        ),
+      monthlyCostMicroUsd:
+        sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}) FILTER (WHERE ${llmUsage.createdAt} >= NOW() - INTERVAL '30 days'), 0)::int`.as(
+          'monthly_cost_micro_usd',
+        ),
+      fteCostMicroUsd:
+        sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}) FILTER (WHERE ${llmUsage.kind} = 'fte'), 0)::int`.as(
+          'fte_cost_micro_usd',
+        ),
+    })
+    .from(llmUsage)
+    .groupBy(llmUsage.userId)
+    .as('cost_rollup')
+
   const rows = await db
     .select({
       id: users.id,
@@ -56,10 +92,14 @@ const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
       createdAt: users.createdAt,
       lastDigestAt: lastDigest.lastDigestAt,
       competitorCount: competitorCount.competitorCount,
+      lifetimeCostMicroUsd: costRollup.lifetimeCostMicroUsd,
+      monthlyCostMicroUsd: costRollup.monthlyCostMicroUsd,
+      fteCostMicroUsd: costRollup.fteCostMicroUsd,
     })
     .from(users)
     .leftJoin(lastDigest, eq(users.id, lastDigest.userId))
     .leftJoin(competitorCount, eq(users.id, competitorCount.userId))
+    .leftJoin(costRollup, eq(users.id, costRollup.userId))
     .orderBy(desc(users.createdAt))
 
   return {
@@ -71,6 +111,9 @@ const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
       createdAt: r.createdAt.toISOString(),
       lastDigestAt: r.lastDigestAt ? new Date(r.lastDigestAt).toISOString() : null,
       competitorCount: r.competitorCount ?? 0,
+      lifetimeCostMicroUsd: r.lifetimeCostMicroUsd ?? 0,
+      monthlyCostMicroUsd: r.monthlyCostMicroUsd ?? 0,
+      fteCostMicroUsd: r.fteCostMicroUsd ?? 0,
     })),
   }
 })
@@ -137,12 +180,47 @@ function UserRowItem({ row }: { row: UserRow }) {
             {row.competitorCount} competitor{row.competitorCount === 1 ? '' : 's'}
           </div>
         </div>
-        <span
-          aria-hidden
-          className="hidden text-text-muted transition-transform group-hover:translate-x-[2px] group-hover:text-text sm:inline"
-        >
-          →
-        </span>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div
+            className="text-right"
+            title="All-time FTE onboarding spend (sum across every FTE run + re-run). Claude tokens + web_search surcharge."
+          >
+            <div className="font-mono text-sm tabular-nums text-text">
+              {formatUsd(row.fteCostMicroUsd)}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
+              fte
+            </div>
+          </div>
+          <div
+            className="text-right"
+            title="Claude token spend in the last 30 days. FTE + classify + synthesize; Firecrawl not included."
+          >
+            <div className="font-mono text-sm tabular-nums text-text">
+              {formatUsd(row.monthlyCostMicroUsd)}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
+              30 days
+            </div>
+          </div>
+          <div
+            className="text-right"
+            title="Lifetime Claude token spend (FTE + classify + synthesize). Firecrawl not included."
+          >
+            <div className="font-mono text-sm tabular-nums text-text">
+              {formatUsd(row.lifetimeCostMicroUsd)}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
+              lifetime
+            </div>
+          </div>
+          <span
+            aria-hidden
+            className="hidden text-text-muted transition-transform group-hover:translate-x-[2px] group-hover:text-text sm:inline"
+          >
+            →
+          </span>
+        </div>
       </Link>
     </li>
   )

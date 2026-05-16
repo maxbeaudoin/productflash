@@ -275,6 +275,41 @@ export const fteEvents = pgTable(
   (t) => [index('fte_events_user_run_ts_idx').on(t.userId, t.runId, t.ts)],
 )
 
+// Per-call accounting for every Anthropic API hit (FTE agent iterations,
+// Haiku classifications, Sonnet syntheses). One row per successful API
+// response. `cost_micro_usd` freezes the price-at-call so historical totals
+// don't drift when public pricing changes; raw token columns stay alongside
+// so we can re-price retroactively if needed. `web_search_requests` covers
+// the server-tool surcharge that lands in the FTE agent's usage envelope.
+// userId is cascade-deleted with the user; runId/digestId/rawItemId are
+// nullable bare refs so a backfill / purge of those tables doesn't drop
+// the cost history. Indexed for the three rollups the admin UI does:
+// lifetime-per-user, per-FTE-run, per-digest.
+export const llmUsage = pgTable(
+  'llm_usage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    model: text('model').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheCreationTokens: integer('cache_creation_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    webSearchRequests: integer('web_search_requests').notNull().default(0),
+    costMicroUsd: integer('cost_micro_usd').notNull().default(0),
+    runId: uuid('run_id'),
+    digestId: uuid('digest_id'),
+    rawItemId: uuid('raw_item_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('llm_usage_user_created_idx').on(t.userId, t.createdAt),
+    index('llm_usage_run_idx').on(t.runId),
+    index('llm_usage_digest_idx').on(t.digestId),
+  ],
+)
+
 export const feedback = pgTable(
   'feedback',
   {
@@ -317,3 +352,5 @@ export type Waitlist = typeof waitlist.$inferSelect
 export type NewWaitlist = typeof waitlist.$inferInsert
 export type FteEvent = typeof fteEvents.$inferSelect
 export type NewFteEvent = typeof fteEvents.$inferInsert
+export type LlmUsage = typeof llmUsage.$inferSelect
+export type NewLlmUsage = typeof llmUsage.$inferInsert

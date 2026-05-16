@@ -9,12 +9,14 @@ import {
 } from '~/db/schema'
 import type { NewDigestItem } from '~/db/schema'
 import { getDb } from '~/lib/db'
+import { recordLlmUsage } from '~/lib/llm-cost'
 import { logger } from '~/lib/logger'
 import { captureServerEvent } from '~/lib/posthog'
 import {
   type ReaderProfile,
   type SynthesisInputItem,
   synthesizeDigest,
+  type SynthesisUsage,
   type SynthesizedItem,
 } from '~/lib/synthesize'
 
@@ -328,13 +330,19 @@ async function runForUser(
     why: c.why,
   }))
 
-  const synthesized = await synthesizeDigest({ userName, reader, items: synthesisInput })
+  const { items: synthesized, usage: synthesisUsage } = await synthesizeDigest({
+    userName,
+    reader,
+    items: synthesisInput,
+  })
 
   if (synthesized.length === 0) {
     // Sonnet returned an empty array despite non-empty input — treat as
     // synthesis failure and persist empty digest so send job stays unblocked.
+    // Still attach cost to the empty digest row so the spend isn't lost.
     logger.warn({ userId, candidates: candidates.length }, 'synthesize: empty output for non-empty input')
-    await upsertDigest(db, userId, dayStart, cutoff, now, [])
+    const digestId = await upsertDigest(db, userId, dayStart, cutoff, now, [])
+    await recordSynthesisUsage(userId, digestId, synthesisUsage)
     return { userId, candidates: candidates.length, synthesized: 0, empty: true, errored: true }
   }
 
@@ -343,7 +351,8 @@ async function runForUser(
     .map((s) => buildDigestItemRow(userId, s, byId))
     .filter((row): row is Omit<NewDigestItem, 'digestId'> => row !== null)
 
-  await upsertDigest(db, userId, dayStart, cutoff, now, itemRows)
+  const digestId = await upsertDigest(db, userId, dayStart, cutoff, now, itemRows)
+  await recordSynthesisUsage(userId, digestId, synthesisUsage)
 
   return {
     userId,
@@ -352,6 +361,29 @@ async function runForUser(
     empty: false,
     errored: false,
   }
+}
+
+async function recordSynthesisUsage(
+  userId: string,
+  digestId: string,
+  usage: SynthesisUsage | null,
+): Promise<void> {
+  if (!usage) return
+  await recordLlmUsage(
+    {
+      kind: 'synthesize',
+      model: usage.model,
+      userId,
+      digestId,
+    },
+    {
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      cache_creation_input_tokens: usage.cacheCreationTokens,
+      cache_read_input_tokens: usage.cacheReadTokens,
+      server_tool_use: { web_search_requests: usage.webSearchRequests },
+    },
+  )
 }
 
 function buildDigestItemRow(
@@ -389,8 +421,8 @@ async function upsertDigest(
   periodStart: Date,
   periodEnd: Date,
   itemRows: Array<Omit<NewDigestItem, 'digestId'>>,
-): Promise<void> {
-  await db.transaction(async (tx) => {
+): Promise<string> {
+  return db.transaction(async (tx) => {
     const existing = await tx
       .select({ id: digests.id })
       .from(digests)
@@ -416,6 +448,8 @@ async function upsertDigest(
     if (itemRows.length > 0) {
       await tx.insert(digestItems).values(itemRows.map((row) => ({ ...row, digestId })))
     }
+
+    return digestId
   })
 }
 

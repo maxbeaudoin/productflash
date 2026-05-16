@@ -2,6 +2,18 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic, SONNET_MODEL } from './anthropic'
 import { logger } from './logger'
 
+// Usage envelope returned alongside synthesized items so the caller can
+// attach a digestId and write the cost row after the digest is upserted.
+// Kept narrow to what llm-cost.ts consumes.
+export interface SynthesisUsage {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheCreationTokens: number
+  cacheReadTokens: number
+  webSearchRequests: number
+}
+
 // Sonnet-driven per-user digest synthesis. Takes the top-N scored items for
 // a single user and produces a small set of editorial { headline, snippet,
 // impactNote } tuples ready to render in the daily email.
@@ -61,6 +73,11 @@ export interface SynthesizedItem {
   headline: string
   snippet: string
   impactNote: string
+}
+
+export interface SynthesisResult {
+  items: SynthesizedItem[]
+  usage: SynthesisUsage | null
 }
 
 const BODY_EXCERPT_CHARS = 800
@@ -129,9 +146,9 @@ const SYSTEM_PROMPT = [
   '- Always call the record_digest tool — never reply in prose.',
 ].join('\n')
 
-export async function synthesizeDigest(input: SynthesisInput): Promise<SynthesizedItem[]> {
+export async function synthesizeDigest(input: SynthesisInput): Promise<SynthesisResult> {
   if (input.items.length === 0) {
-    return []
+    return { items: [], usage: null }
   }
 
   const userMessage = renderUserPrompt(input)
@@ -154,10 +171,16 @@ export async function synthesizeDigest(input: SynthesisInput): Promise<Synthesiz
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
+// Same opt-in shape we use in llm-cost.ts: SDK 0.40 doesn't type
+// server_tool_use yet, so we widen at the wire boundary.
+interface UsageWithServerTools extends Anthropic.Usage {
+  server_tool_use?: { web_search_requests?: number | null } | null
+}
+
 async function callSonnet(
   userMessage: string,
   expectedIds: Set<string>,
-): Promise<SynthesizedItem[]> {
+): Promise<SynthesisResult> {
   const client = getAnthropic()
   const response = await client.messages.create({
     model: SONNET_MODEL,
@@ -168,6 +191,16 @@ async function callSonnet(
     messages: [{ role: 'user', content: userMessage }],
   })
 
+  const u = response.usage as UsageWithServerTools
+  const usage: SynthesisUsage = {
+    model: SONNET_MODEL,
+    inputTokens: u.input_tokens ?? 0,
+    outputTokens: u.output_tokens ?? 0,
+    cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+    cacheReadTokens: u.cache_read_input_tokens ?? 0,
+    webSearchRequests: u.server_tool_use?.web_search_requests ?? 0,
+  }
+
   const toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
   )
@@ -176,7 +209,8 @@ async function callSonnet(
       `synthesize: no tool_use block in response (stop_reason=${response.stop_reason})`,
     )
   }
-  return parseToolInput(toolUse.input, expectedIds)
+  const items = parseToolInput(toolUse.input, expectedIds)
+  return { items, usage }
 }
 
 function parseToolInput(raw: unknown, expectedIds: Set<string>): SynthesizedItem[] {

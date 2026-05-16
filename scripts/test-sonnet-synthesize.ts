@@ -71,7 +71,7 @@ async function main() {
 
   const started = Date.now()
 
-  const result = await synthesizeDigest({
+  const { items: result } = await synthesizeDigest({
     userName: 'Maxime',
     items: FIXTURES,
   })

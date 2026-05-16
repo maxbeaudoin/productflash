@@ -107,11 +107,11 @@ async function main() {
   }
 
   logger.info('eval: synthesizing twice')
-  const genericOutput = await synthesizeDigest({
+  const { items: genericOutput } = await synthesizeDigest({
     userName: USER_SLUG,
     items: genericClassified,
   })
-  const personalizedOutput = await synthesizeDigest({
+  const { items: personalizedOutput } = await synthesizeDigest({
     userName: USER_SLUG,
     reader: READER,
     items: personalizedClassified,

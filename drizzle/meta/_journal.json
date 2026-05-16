@@ -71,6 +71,13 @@
       "when": 1778969254253,
       "tag": "0009_pretty_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778969831283,
+      "tag": "0010_flimsy_penance",
+      "breakpoints": true
     }
   ]
 }

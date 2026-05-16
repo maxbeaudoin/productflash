@@ -180,6 +180,7 @@ async function runForUser(
           body: item.body,
           publishedAt: item.publishedAt,
           reader,
+          usageContext: { userId, rawItemId: item.rawItemId },
         })
         const row: NewItemScore = {
           userId,

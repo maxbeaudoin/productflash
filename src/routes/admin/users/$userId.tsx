@@ -1,6 +1,6 @@
 import { Link, createFileRoute, notFound, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { useState } from 'react'
 import { z } from 'zod'
 import { enqueueFteRun } from '~/agents/fte/job'
@@ -11,6 +11,7 @@ import {
   digestItems,
   digests,
   fteEvents,
+  llmUsage,
   rawItems,
   userCompetitors,
   users,
@@ -21,6 +22,7 @@ import { requireAdminSession } from '~/lib/auth-server'
 import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
 import { deriveDigestPeriod } from '~/lib/digest-period'
+import { formatUsd } from '~/lib/llm-cost-format'
 import { logger } from '~/lib/logger'
 
 // /admin/users/:id (#16). Operator console for one user. Three jobs:
@@ -64,6 +66,9 @@ type DigestView = {
   periodEnd: string | null
   itemCount: number
   items: DigestItemView[]
+  // Sum of llm_usage rows tied to this digest (synthesis only — classify
+  // is per-(user, raw_item) and not always digest-attributable).
+  costMicroUsd: number
 }
 
 type JsonValue =
@@ -88,6 +93,10 @@ type DetailLoaderData = {
   digests: DigestView[]
   fteRunId: string | null
   fteEvents: FteEventRow[]
+  // Cost of the latest FTE run (sum of llm_usage rows where kind='fte' and
+  // run_id = fteRunId). Null when there are no runs yet.
+  fteRunCostMicroUsd: number | null
+  lifetimeCostMicroUsd: number
 }
 
 const loadUserDetail = createServerFn({ method: 'GET' })
@@ -171,6 +180,61 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       .limit(1)
     const runId = latestRun?.runId ?? null
 
+    // Per-digest synthesis cost. classify spend is per (user, raw_item) and
+    // doesn't always end up tied to one digest, so the per-digest number is
+    // intentionally synthesis-only — the lifetime number below absorbs the
+    // rest.
+    const digestCostRows = digestIds.length
+      ? await db
+          .select({
+            digestId: llmUsage.digestId,
+            costMicroUsd: sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`,
+          })
+          .from(llmUsage)
+          .where(
+            and(
+              eq(llmUsage.userId, user.id),
+              eq(llmUsage.kind, 'synthesize'),
+              inArray(
+                llmUsage.digestId,
+                digestIds as [string, ...string[]],
+              ),
+            ),
+          )
+          .groupBy(llmUsage.digestId)
+      : []
+    const digestCostById = new Map<string, number>()
+    for (const row of digestCostRows) {
+      if (row.digestId) digestCostById.set(row.digestId, row.costMicroUsd)
+    }
+
+    const fteRunCostMicroUsd = runId
+      ? (
+          await db
+            .select({
+              cost: sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`,
+            })
+            .from(llmUsage)
+            .where(
+              and(
+                eq(llmUsage.userId, user.id),
+                eq(llmUsage.kind, 'fte'),
+                eq(llmUsage.runId, runId),
+              ),
+            )
+        )[0]?.cost ?? 0
+      : null
+
+    const lifetimeCostMicroUsd =
+      (
+        await db
+          .select({
+            cost: sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`,
+          })
+          .from(llmUsage)
+          .where(eq(llmUsage.userId, user.id))
+      )[0]?.cost ?? 0
+
     const eventRows: FteEventRow[] = runId
       ? (
           await db
@@ -219,9 +283,12 @@ const loadUserDetail = createServerFn({ method: 'GET' })
         periodEnd: d.periodEnd ? d.periodEnd.toISOString() : null,
         itemCount: d.itemCount,
         items: itemsByDigest.get(d.id) ?? [],
+        costMicroUsd: digestCostById.get(d.id) ?? 0,
       })),
       fteRunId: runId,
       fteEvents: eventRows,
+      fteRunCostMicroUsd,
+      lifetimeCostMicroUsd,
     }
   })
 
@@ -332,7 +399,10 @@ function AdminUserDetailPage() {
           <span aria-hidden>←</span> All users
         </Link>
 
-        <ProfileCard profile={data.profile} />
+        <ProfileCard
+          profile={data.profile}
+          lifetimeCostMicroUsd={data.lifetimeCostMicroUsd}
+        />
 
         <ActionsRow
           fteState={fteState}
@@ -346,13 +416,23 @@ function AdminUserDetailPage() {
 
         <DigestsBlock digests={data.digests} />
 
-        <FteTimelineBlock runId={data.fteRunId} events={data.fteEvents} />
+        <FteTimelineBlock
+          runId={data.fteRunId}
+          events={data.fteEvents}
+          costMicroUsd={data.fteRunCostMicroUsd}
+        />
       </div>
     </main>
   )
 }
 
-function ProfileCard({ profile }: { profile: ProfileView }) {
+function ProfileCard({
+  profile,
+  lifetimeCostMicroUsd,
+}: {
+  profile: ProfileView
+  lifetimeCostMicroUsd: number
+}) {
   return (
     <section className="rounded-2xl border border-ink-line bg-paper-warm p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -373,7 +453,20 @@ function ProfileCard({ profile }: { profile: ProfileView }) {
             )}
           </div>
         </div>
-        <code className="font-mono text-xs text-text-muted">{profile.id}</code>
+        <div className="flex flex-col items-end gap-1">
+          <div
+            className="flex items-baseline gap-2"
+            title="Lifetime Claude token spend (FTE + classify + synthesize). Firecrawl scrapes are not included."
+          >
+            <span className="text-[10px] uppercase tracking-[0.12em] text-text-muted">
+              lifetime cost
+            </span>
+            <span className="font-mono text-sm tabular-nums text-text">
+              {formatUsd(lifetimeCostMicroUsd)}
+            </span>
+          </div>
+          <code className="font-mono text-xs text-text-muted">{profile.id}</code>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-5 sm:grid-cols-2">
@@ -576,7 +669,15 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
           <strong className="font-semibold text-white">Product Flash</strong> ·{' '}
           {headerLabel}
         </div>
-        <div className="font-mono text-xs text-[#666]">{headerMetaLabel}</div>
+        <div className="flex items-center gap-3">
+          <span
+            className="font-mono text-xs text-[#888]"
+            title="Synthesis-only — classify cost rolls up into lifetime cost."
+          >
+            {formatUsd(digest.costMicroUsd)}
+          </span>
+          <span className="font-mono text-xs text-[#666]">{headerMetaLabel}</span>
+        </div>
       </div>
       <div className="px-6 py-6">
         {digest.items.length === 0 ? (
@@ -600,17 +701,23 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
 function FteTimelineBlock({
   runId,
   events,
+  costMicroUsd,
 }: {
   runId: string | null
   events: FteEventRow[]
+  costMicroUsd: number | null
 }) {
   return (
     <section className="mt-8">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="text-lg font-semibold tracking-tight">FTE event timeline</h2>
         {runId ? (
-          <span className="font-mono text-xs text-text-muted">
-            run {runId.slice(0, 8)}… · {events.length} events
+          <span
+            className="font-mono text-xs text-text-muted"
+            title="Onboarding cost = Sonnet tokens + web_search surcharge for this run. Firecrawl not included."
+          >
+            run {runId.slice(0, 8)}… · {events.length} events ·{' '}
+            <span className="text-text">{formatUsd(costMicroUsd ?? 0)}</span>
           </span>
         ) : (
           <span className="font-mono text-xs text-text-muted">no runs yet</span>

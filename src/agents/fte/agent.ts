@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { users as usersTable } from '~/db/schema'
 import { getAnthropic, SONNET_MODEL } from '~/lib/anthropic'
 import { getDb } from '~/lib/db'
+import { recordLlmUsage } from '~/lib/llm-cost'
 import { logger } from '~/lib/logger'
 import { captureServerEvent, captureServerException } from '~/lib/posthog'
 import { emitFteDelta, writeFteEvent } from './events'
@@ -200,6 +201,13 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
         // Deltas are best-effort — see emitFteDelta. Any rejection was already
         // logged by the emitter.
       })
+
+      // Account for this iteration's spend. response.usage includes web_search
+      // surcharge under server_tool_use; recordLlmUsage prices it.
+      await recordLlmUsage(
+        { kind: 'fte', model: SONNET_MODEL, userId, runId },
+        response.usage,
+      )
 
       const blocks = response.content as AnyContentBlock[]
 
