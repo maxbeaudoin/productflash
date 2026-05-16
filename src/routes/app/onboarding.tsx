@@ -1,7 +1,7 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { z } from 'zod'
 import {
   competitors as competitorsTable,
@@ -293,11 +293,33 @@ function OnboardingPage() {
   const [events, setEvents] = useState<FteEventRow[]>(loaded.events)
   const [streamingText, setStreamingText] = useState('')
   const [streamingActive, setStreamingActive] = useState(false)
+  // `pendingThoughts` bridges the gap between (a) a text block completing on
+  // the wire — Anthropic SDK fires `contentBlock` *at the END* of each block —
+  // and (b) the durable `planner_text` event landing in fte_events, which only
+  // happens after `stream.finalMessage()` resolves for the whole iteration.
+  // Without this queue, the streamed text vanishes the instant the block ends
+  // and reappears (with markdown) once the durable event finally arrives —
+  // the disappear/reappear flicker dogfood iter 2 flagged on 2026-05-16.
+  const [pendingThoughts, setPendingThoughts] = useState<string[]>([])
+  // Mirror the streamed text in a ref so the block-end snapshot reads the
+  // latest value without nesting setState updaters. The earlier
+  // setStreamingText(prev => { setPendingThoughts(...); return ''; }) pattern
+  // double-pushed under concurrent rendering (dogfood iter 3 — cards counted
+  // up to ~#13 then collapsed to ~6 once save_profile cleared pending).
+  const streamingTextRef = useRef('')
   const [profile, setProfile] = useState<ProfileView>(loaded.profile)
   const [competitors, setCompetitors] = useState<CompetitorView[]>(loaded.competitors)
   const [editingProfile, setEditingProfile] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [addingCompetitor, setAddingCompetitor] = useState(false)
+  const streamEndRef = useRef<HTMLDivElement | null>(null)
+  const profileSectionRef = useRef<HTMLElement | null>(null)
+  // Capture whether the run was already finished at page-load. If yes, the
+  // user is just revisiting an already-onboarded view — auto-scrolling to the
+  // profile would hijack their scroll position. We only auto-jump on the
+  // *transition* from running → finished.
+  const wasFinishedOnMountRef = useRef<boolean | null>(null)
+  const scrolledToProfileRef = useRef(false)
 
   const runId = useMemo(() => {
     return events[0]?.runId ?? loaded.runId
@@ -357,8 +379,11 @@ function OnboardingPage() {
           return [...prev, row]
         })
         if (row.kind === 'planner_text') {
-          setStreamingText('')
-          setStreamingActive(false)
+          // The durable counterpart of the oldest pending snapshot just landed.
+          // FIFO-pop so the pending card hands off to the durable one (which
+          // renders parsed markdown). If the pending queue is empty (e.g. the
+          // run replay path on initial load), this is a no-op.
+          setPendingThoughts((q) => (q.length > 0 ? q.slice(1) : q))
         }
       } catch {
         // Bad payload — ignore.
@@ -373,15 +398,30 @@ function OnboardingPage() {
           blockKind?: string
         }
         if (d.kind === 'block_start') {
+          // `contentBlock` in the Anthropic SDK fires when a block COMPLETES,
+          // not when it starts. `block_start: blockKind=text` means "the text
+          // block we were streaming just finished." Read the captured text
+          // from the ref (always current), push to pending, clear both ref
+          // and state. Two setState calls run sequentially in the event-loop
+          // callback — no nesting, no double-push under concurrent rendering.
           if (d.blockKind === 'text') {
+            const captured = streamingTextRef.current
+            streamingTextRef.current = ''
             setStreamingText('')
-            setStreamingActive(true)
+            setStreamingActive(false)
+            if (captured.trim().length > 0) {
+              setPendingThoughts((q) => [...q, captured])
+            }
           } else {
+            // Non-text block completed (tool_use / server_tool_use). Streamed
+            // text state is unaffected — text deltas don't arrive during
+            // these. Just turn the caret off in case it was still on.
             setStreamingActive(false)
           }
         } else if (d.kind === 'text_delta') {
+          streamingTextRef.current += d.delta
           setStreamingActive(true)
-          setStreamingText((prev) => prev + d.delta)
+          setStreamingText(streamingTextRef.current)
         }
       } catch {
         // Bad payload — ignore.
@@ -399,6 +439,15 @@ function OnboardingPage() {
     if (!finished) return
     void router.invalidate()
   }, [finished, router])
+
+  // Snapshot the finished state on first render so we can distinguish
+  // "run just completed in this session" from "revisiting a finished run".
+  // Only the former gets the auto-jump to the profile preview.
+  useEffect(() => {
+    if (wasFinishedOnMountRef.current === null) {
+      wasFinishedOnMountRef.current = finished
+    }
+  }, [finished])
 
   useEffect(() => {
     setProfile(loaded.profile)
@@ -454,6 +503,35 @@ function OnboardingPage() {
     !!profile.ultimateGoal &&
     (profile.focusAreas?.length ?? 0) > 0
 
+  // On the running → finished transition, once the profile preview is
+  // mounted, smooth-scroll the page so the top of the card sits ~24px below
+  // the viewport top. Guarded by `wasFinishedOnMountRef` so a page reload
+  // onto an already-finished run doesn't yank the user's scroll position.
+  //
+  // Implementation note: dogfood iter 3 second pass landed `scrollIntoView`
+  // with `block: 'start'`, but on completion the page ended up at the
+  // BOTTOM of the profile preview — `scrollIntoView` was firing before the
+  // newly-mounted section's layout had settled, so the measured top was
+  // stale. Switching to a double-rAF (which guarantees one full paint has
+  // happened) + `window.scrollTo` with explicit `getBoundingClientRect`
+  // math gives a deterministic landing position regardless of late-mounting
+  // children inside the section.
+  useEffect(() => {
+    if (!profileReady) return
+    if (scrolledToProfileRef.current) return
+    if (wasFinishedOnMountRef.current !== false) return
+    const node = profileSectionRef.current
+    if (!node) return
+    scrolledToProfileRef.current = true
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const rect = node.getBoundingClientRect()
+        const targetY = window.scrollY + rect.top - 24
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+      })
+    })
+  }, [profileReady])
+
   return (
     <main className="mx-auto max-w-[920px] px-6 py-12">
       <header className="mb-10">
@@ -478,15 +556,17 @@ function OnboardingPage() {
 
       <ThinkingStream
         thoughts={thoughts}
+        pendingThoughts={wrappingUp ? [] : pendingThoughts}
         streamingText={streamingText}
         streamingActive={streamingActive && !wrappingUp}
         liveStatus={liveStatus}
         running={!finished}
         hasRun={Boolean(runId) || events.length > 0}
+        streamEndRef={streamEndRef}
       />
 
       {profileReady ? (
-        <section className="mt-10">
+        <section ref={profileSectionRef} className="mt-10">
           {editingProfile ? (
             <ProfileEditor
               initial={profile}
@@ -611,19 +691,52 @@ function formatElapsed(ms: number): string {
 
 function ThinkingStream({
   thoughts,
+  pendingThoughts,
   streamingText,
   streamingActive,
   liveStatus,
   running,
   hasRun,
+  streamEndRef,
 }: {
   thoughts: Array<{ id: string; ts: string; text: string }>
+  pendingThoughts: string[]
   streamingText: string
   streamingActive: boolean
   liveStatus: string | null
   running: boolean
   hasRun: boolean
+  streamEndRef: React.RefObject<HTMLDivElement | null>
 }) {
+  // Auto-scroll the bottom anchor into view as content lands. Dogfood iter 3
+  // (round 2) asked for visibly animated scrolling — the iter-3-round-1 fix
+  // used `behavior: 'auto'` for text-delta updates to avoid mid-tween
+  // interruptions, but the resulting snap-snap-snap motion read as "not very
+  // animated". Browsers handle a smooth-scroll being re-issued mid-animation
+  // by gracefully redirecting toward the new target, so we just use smooth
+  // for everything and let the browser chase the moving end-of-stream. The
+  // 600px proximity gate still freezes the follow when the user scrolls up
+  // to re-read; rAF defers the scroll until layout has settled.
+  useEffect(() => {
+    if (!running) return
+    const node = streamEndRef.current
+    if (!node) return
+    const distanceFromBottom =
+      document.documentElement.scrollHeight -
+      (window.scrollY + window.innerHeight)
+    if (distanceFromBottom > 600) return
+    requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    })
+  }, [
+    running,
+    streamingText,
+    streamingActive,
+    thoughts.length,
+    pendingThoughts.length,
+    streamEndRef,
+  ])
+
   if (!hasRun) {
     return (
       <div className="rounded-card-lg border border-dashed border-[#2a2a38] bg-ink-soft px-7 py-12 text-center">
@@ -639,22 +752,41 @@ function ThinkingStream({
   }
 
   const showLive = running && streamingActive
+  const pendingStart = thoughts.length + 1
+  const liveIndex = thoughts.length + pendingThoughts.length + 1
 
   return (
     <div>
-      <LiveStatusLine status={liveStatus} running={running} />
       <ol className="grid gap-4">
         {thoughts.map((thought, idx) => (
           <DurableThought key={thought.id} index={idx + 1} text={thought.text} />
         ))}
+        {pendingThoughts.map((text, idx) => (
+          // Pending: the streamed text we already saw on the wire, frozen
+          // here until its durable planner_text event lands. Same parsed
+          // markdown body as a durable card — the swap to durable is a no-op
+          // visual change. Key includes the text length so React doesn't
+          // confuse the slot when the next pending pushes in.
+          <PendingThought
+            key={`pending-${pendingStart + idx}-${text.length}`}
+            index={pendingStart + idx}
+            text={text}
+          />
+        ))}
         {showLive ? (
           <LiveThought
             key="live"
-            index={thoughts.length + 1}
+            index={liveIndex}
             text={streamingText}
           />
         ) : null}
       </ol>
+      {/* Status sits at the BOTTOM (dogfood iter 3) so the auto-scroll target
+          and the "what's happening" indicator are the same element — the
+          status is always in view by virtue of the page following the stream
+          downward. */}
+      <BottomStatusLine status={liveStatus} running={running} />
+      <div ref={streamEndRef} aria-hidden className="h-px" />
     </div>
   )
 }
@@ -699,6 +831,21 @@ function LiveThought({ index, text }: { index: number; text: string }) {
   return (
     <ThoughtCard index={index}>
       <PlainStreamingBody text={text} />
+    </ThoughtCard>
+  )
+}
+
+// Bridge card: streamed text we've already shown the user, awaiting the
+// durable planner_text event so it can be replaced by the canonical version.
+// Renders with the SAME parsed-markdown body as a durable card — the text is
+// complete at this point (the block ended on the wire), so there's no risk of
+// half-typed `**bold` flickering. This way the durable arrival is a no-op
+// visual swap rather than a delayed plain-text → markdown reformat (the
+// markdown lag dogfood iter 3 flagged).
+function PendingThought({ index, text }: { index: number; text: string }) {
+  return (
+    <ThoughtCard index={index}>
+      <ThoughtBody text={text} />
     </ThoughtCard>
   )
 }
@@ -780,22 +927,32 @@ function renderInline(text: string): React.ReactNode[] {
 
 // ---- live status line ------------------------------------------------
 
-function LiveStatusLine({
+// Status pill rendered at the BOTTOM of the stream. Aligned to the left so it
+// sits flush with the cards above it (centered felt floaty). Matching top/
+// bottom margins (`my-5`) give the scroll anchor below the same breathing
+// room as the gap above — the pill never butts against the last card or the
+// page bottom.
+function BottomStatusLine({
   status,
   running,
 }: {
   status: string | null
   running: boolean
 }) {
-  if (!running || !status) return null
+  if (!running) return null
   return (
-    <div className="mb-5 inline-flex items-center gap-[10px] rounded-pill border border-[#2a2a38] bg-ink-soft/70 px-4 py-[8px] text-[13px] text-[#cfcfd6]">
-      <span
-        aria-hidden
-        className="h-[6px] w-[6px] animate-pulse rounded-full bg-accent"
-        style={{ boxShadow: '0 0 12px var(--color-accent)' }}
-      />
-      <span>{status}</span>
+    <div className="my-5 flex justify-start">
+      <div
+        className="inline-flex items-center gap-[10px] rounded-pill border border-[#2a2a38] bg-ink-soft/90 px-4 py-[8px] text-[13px] text-[#cfcfd6]"
+        style={{ boxShadow: '0 8px 24px -12px rgba(0,0,0,0.6)' }}
+      >
+        <span
+          aria-hidden
+          className="h-[6px] w-[6px] animate-pulse rounded-full bg-accent"
+          style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+        />
+        <span>{status ?? 'Thinking…'}</span>
+      </div>
     </div>
   )
 }

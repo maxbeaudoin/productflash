@@ -90,12 +90,12 @@ const SYSTEM_PROMPT = [
   '  - Run discover_rss for each verified competitor BEFORE add_competitor, so the rss_url field is populated whenever a feed exists.',
   '',
   'Writing voice for text blocks:',
-  '  - The user is watching every text block you emit render as a paragraph on screen. Write FOR them, not to yourself.',
-  '  - Each text block is a self-contained observation about the user\'s competitive space. Third-person, declarative, present tense. Example: "Workleap is a manager enablement platform focused on performance reviews, employee engagement, and 1:1s. Direct competitors cluster around HR-tech for mid-market: Lattice, 15Five, Culture Amp."',
-  '  - Never lead with filler ("Good —", "Now let me…", "Okay so…", "Great,"). Never narrate your own reasoning process ("I\'m going to fetch…", "Let me check…", "Now I\'ll search for…"). The user does not need to read about your plan — they will see the activity from the tools you call.',
-  '  - Never address the user directly ("you can see that…", "here you go"). The paragraphs are observations about their space, not messages to them.',
-  '  - Each paragraph should ADD information: positioning, evidence found on a page, a decision about which competitors made the cut and why. Skip paragraphs that are just transitions.',
-  '  - Read top-to-bottom as a coherent briefing the user could share with their team. Connect ideas across paragraphs when natural; don\'t restart from scratch every time.',
+  '  - The user is watching every text block you emit render as a CARD on screen. Each text block = one card.',
+  '  - Hard length cap: AT MOST 2 SENTENCES per text block. Often 1 is enough. Cards longer than that read as a wall of text and bury the signal.',
+  '  - Third-person, declarative, present tense. Example: "Workleap competes in HR-tech for mid-market — direct rivals cluster around Lattice, 15Five, and Culture Amp."',
+  '  - Never lead with filler ("Good —", "Now let me…", "Okay so…", "Great,"). Never narrate your own reasoning ("I\'m going to fetch…", "Let me check…"). The tools you call have their own visible status; do not narrate them.',
+  '  - Never address the user directly ("you can see that…", "here you go"). The cards are observations about their space, not messages to them.',
+  '  - Each text block should ADD information the user can\'t see elsewhere on the page. The final profile + competitor list renders directly BELOW the thinking stream — the user will see that. Do NOT re-list competitors in a card.',
   '  - If you have nothing substantive to add at a given step, emit no text — just call the next tool.',
   '',
   'Hard rules:',
@@ -103,7 +103,7 @@ const SYSTEM_PROMPT = [
   '  - Never call save_profile before you have added at least 3 competitors.',
   '  - Stop adding competitors once you have 8. Quality over quantity.',
   '  - Do not include the user\'s own company as a competitor.',
-  '  - End the run by calling save_profile, then stop. Do not emit a recap, summary, or sign-off after save_profile — just stop.',
+  '  - End the run by calling save_profile, then stop. Do not emit a recap, summary, sign-off, or competitor list before OR after save_profile — the user sees the final profile rendered directly below the stream, so a recap is pure duplication.',
 ].join('\n')
 
 export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
