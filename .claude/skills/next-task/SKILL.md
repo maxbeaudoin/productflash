@@ -131,53 +131,65 @@ Screenshots live in `/tmp/` only. Never commit them; they exist to prove this tu
 
 Emit the full report in **exactly** this order, in **one message**, *before* asking anything.
 
-Each section is its own **single-column 2-row table** — a header row (title + emoji) followed by a body row. This gives each section a visible titled card so the report scans like a stack of blocks rather than running prose. Don't merge them into one mega-table; separate tables render with clearer divisions between sections.
+Use clean markdown headers + native lists. **No tables** — they look orderly in source but markdown table cells can't hold real bullet lists or numbered steps, so a "bulleted" cell renders as a paragraph of literal `-` characters. Headers + native lists render correctly everywhere.
 
-Inside body cells, use `<br>` for line breaks (markdown bullets and numbered lists don't render inside table cells the way they do in prose, so write bullets as `- item<br>- item<br>- item` or steps as `1. step<br>2. step<br>3. step`).
-
-Length: write what the task warrants. A schema migration may have one-line bodies; a complex UI feature may need five or six bullets per section. Stop when you've covered it, not when you hit an arbitrary cap. Don't restate the task description from `TASKS.md` — the reader already has that. Focus on what you *did*, what's *interesting*, and what they need to *act on*.
+Length: write what the task warrants. A schema migration may have one-line sections; a complex UI feature may need five or six bullets per section. Stop when you've covered it, not when you hit an arbitrary cap. Don't restate the task description from `TASKS.md` — the reader already has that. Focus on what you *did*, what's *interesting*, and what they need to *act on*.
 
 Template:
 
-```
-| ✅ Task |
-|---|
-| #N — <one-line outcome> |
+```markdown
+### ✅ Task #N — <one-line outcome>
 
-| 🧩 What it does |
-|---|
-| - <user-visible change><br>- <user-visible change><br>- <user-visible change> |
+<optional 1–2 sentence framing if the outcome line doesn't say enough on its own>
 
-| 🔧 How it works |
-|---|
-| - <key mechanic, with `file_path:line` when helpful><br>- <key mechanic><br>- <trade-off / "why this approach" when non-obvious> |
+### 🧩 What it does
 
-| 🧪 How to test |
-|---|
-| 1. <step — exact command / URL / click target><br>2. <step><br>3. <step><br>4. <step><br>5. <step> |
+- <user-visible change>
+- <user-visible change>
+- <user-visible change>
 
-| 📸 Screenshots |
-|---|
-| <embedded images from Step 8 — `![label](/tmp/task-N-slug.png)` — or "_no UI surface affected_"> |
+### 🔧 How it works
 
-| 🪧 Follow-ups & deferrals |
-|---|
-| - <deliberate deferral with reason><br>- <known limitation to revisit> |
+- <key mechanic, with `file_path:line` when helpful>
+- <key mechanic>
+- <trade-off / "why this approach" when non-obvious>
 
-| ⚠️ User actions |
-|---|
-| - <env var to set / account to create / approval needed before next task> |
+### 🧪 How to test
 
-| ➡️ Next up |
-|---|
-| - #M `<subject>`<br>- #M+1 `<subject>`<br>- #M+2 `<subject>` |
+1. <step — exact command / URL / click target>
+2. <step>
+3. <step>
+4. <step>
+5. <step>
+
+### 📸 Screenshots
+
+![label](/tmp/task-N-slug.png)
+![label](/tmp/task-N-other.png)
+
+### 🪧 Follow-ups & deferrals
+
+- <deliberate deferral with reason>
+- <known limitation to revisit>
+
+### ⚠️ User actions
+
+- <env var to set / account to create / approval needed before next task>
+
+### ➡️ Next up
+
+- **#M** `<subject>`
+- **#M+1** `<subject>` _(blocked by #M)_
+- **#M+2** `<subject>` _(blocked by #M+1)_
 ```
 
 Section rules:
-- **Follow-ups & deferrals** and **User actions** are optional — omit the whole table when there's nothing to say (don't render an empty card).
-- **Screenshots** is required for any UI surface; for non-UI work write `_no UI surface affected_` in the body cell.
-- **Next up** lists the top 2–3 eligible tasks by the same priority/ID rule used in Step 2. If everything is blocked, body is `_all eligible work blocked on #X_`; if the backlog is empty, `_backlog clear — see SCOPE.md §7_`.
-- Don't add prefaces like "Here's the report" — the tables speak for themselves.
+- **Headers are `###`** (H3). Heavier headers compete with the section titles inside the conversation; H3 reads as "named block" without dominating.
+- **Use real markdown lists** — `-` for bullets, `1.` for numbered. They render as proper bullets/numbers. Never `<br>`-separated dashes.
+- **`📸 Screenshots`** is required for any task with a viewable surface. For non-UI work (schema, adapter, infra, internal pipeline) write `_no UI surface affected_` as the body.
+- **`🪧 Follow-ups & deferrals`** and **`⚠️ User actions`** are optional — omit the entire section (header and all) when there's nothing to say.
+- **`➡️ Next up`** lists the top 2–3 eligible tasks by the same priority/ID rule used in Step 2. If everything is blocked, body is `_all eligible work blocked on #X_`; if the backlog is empty, `_backlog clear — see SCOPE.md §7_`.
+- Don't add prefaces like "Here's the report" — the headers carry it.
 
 ## Step 10 — Confirm, then push (default to push)
 
