@@ -31,7 +31,15 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 16. **#40** — catch-up framing + visible date ranges on digests ✅
 17. **#41** — per-item timestamps when truthful, omit when unknown ✅
 18. **#42** — next-digest banner on `/app/digests` listing ✅
-19. **#13** — Maxime full FTE dogfood (resume iter 2 after #36–#42 land)
+19. **#13** — Maxime full FTE dogfood (iter 3 ran 2026-05-16; surfaced #46/#47/#48 — resume iter 4 after those land)
+19a. **#43** — fix planner_text disappear/reappear flicker (dogfood iter 2) ✅
+19b. **#44** — sticky status header + auto-scroll for streaming (dogfood iter 2) ✅
+19c. **#45** — diversify digest items across competitors (dogfood iter 2) ✅
+19d. **#46** — fix pending-push double-counting + smoother auto-scroll (dogfood iter 3) ✅
+19e. **#47** — move status to bottom + parse markdown in pending cards (dogfood iter 3) ✅
+19f. **#48** — agent prompt: ≤2-sentence steps, ban competitor recaps (dogfood iter 3) ✅
+19g. **#49** — status pill polish + smooth scrolling everywhere + jump to profile on completion (dogfood iter 3, second pass) ✅
+19h. **#50** — catch-up digest: 10 items, cap-3, full per-competitor pool (dogfood iter 3, "still all Lattice") ✅
 20. **#32** — `/app/profile` view + edit ✅
 21. **#16** — admin app (`/admin/users/*`) ✅
 22. **#11** — Resend email template + send (reactivate after dogfood)
@@ -223,9 +231,16 @@ Out of scope:
 
 **Blocked by:** none (all surfaces exist) · **Blocks:** #13 (dogfood is the test of whether personalization lands well), #18 (beta launch).
 
-### #13 Maxime full FTE dogfood — ☐
+### #13 Maxime full FTE dogfood — ⏳
 Sign up at `/signup` against your own company. Watch the FTE agent run end-to-end at `/app/onboarding`. Read the resulting profile critically: did it identify the right competitors? Right framing of your role + goal? Confirm and check the fast-path digest. Repeat for 3 consecutive days: open the daily digest at `/app/digests/:id`, look for quality, missed items, hallucinations. Tune prompts in #28 / #10 / #9 / #35 between runs. **Block real beta launch until 3 clean days in a row.**
-**Blocked by:** #30, #35
+
+Iteration log:
+- **2026-05-16 (iter 1)** — surfaced #36, #37, #38, #39, #40, #41, #42. All landed.
+- **2026-05-16 (iter 2)** — smoother overall. Three issues left: streaming still flickers (#43 — root cause is durable planner_text events being written only after stream.finalMessage(), so the live card vanishes the moment a block ends and reappears once the full iteration completes); streaming status scrolls out of view on long runs and there's no auto-scroll (#44); digest content was 100% Lattice — one competitor monopolizing the 5 slots (#45). Pause iter 3 until those land.
+- **2026-05-16 (iter 3)** — pending queue helped the disappear/reappear feel but introduced its own regression: the step count climbed to ~#13 then collapsed to ~6 when save_profile cleared pending (#46 — nested setState double-pushed pending under concurrent rendering). Sticky-top status got lost again on long runs — user proposed moving the indicator to the BOTTOM and auto-scrolling into it (chat-app pattern, #47). Markdown lagged because pending cards rendered as plain text and waited for the durable event before parsing (#47 — fix: pending cards parse markdown immediately). Steps were too verbose and the final card duplicated the competitor list already shown in the profile preview (#48 — agent prompt tightened to ≤2-sentence cards, ban recaps).
+- **2026-05-16 (iter 3, polish pass)** — pill polish (#49): align left (centered felt floaty), add bottom margin matching the top so the scroll anchor has equal breathing room, scroll smoothly to the profile preview on the running→finished transition (block: 'start' to top-align the panel), and switch ALL stream auto-scrolls to behavior: 'smooth' (browsers redirect a mid-tween smooth scroll toward the new target rather than fighting it, so the previous text-delta-uses-auto compromise wasn't needed). Pause iter 4 until #49 lands.
+
+**Blocked by:** #30, #35, #43, #44, #45, #46, #47, #48, #49
 
 ### #32 `/app/profile` view + edit — ✅
 TanStack Start route at `/app/profile` (auth-gated under the existing `/app` shell) renders an inline view + edit of the AI-generated profile: position, company name, company URL, ultimate goal, and focus_areas chips. "Edit" toggles the card into a form (re-uses the same Zod schema between client validation and the server fn). A second card lists tracked competitors with homepage + RSS badge (links open in new tab), an "Add" button that opens an inline form, and a per-row `×` to remove. `addCompetitor` server fn runs the same RSS autodetect helper the onboarding form uses, so newly added competitors get an RSS badge automatically when one resolves. Toasts confirm save / add / remove. A `Profile` pill link was added to `AppHeader` so the page is reachable from anywhere in `/app`.
@@ -329,6 +344,115 @@ Concrete deliverables:
 Validation: one digest mixing sources. RSS items show feed pubDate. PH items show post creation. Firehose events with no date render cleanly without a placeholder. The strings "today" / "recently" / current date never appear unless the source itself said so.
 
 Out of scope: client-side relative-time auto-update (server-rendered static is fine — page reloads pick up newer relativity).
+
+**Blocked by:** none
+
+### #43 Fix planner_text disappear/reappear flicker — ✅
+Dogfood iter 2 (2026-05-16) confirmed the streaming UI still flickers — each paragraph appears as it streams, then vanishes, then re-appears (with markdown) seconds later. #39 made the chrome consistent but didn't fix the underlying timing.
+
+Root cause: the Anthropic SDK's `contentBlock` event fires *at the END* of each content block. The agent code (`src/agents/fte/agent.ts`) emits this as a `block_start` delta on the wire. The frontend handler in `src/routes/app/onboarding.tsx` then resets `streamingText` to `''`, blanking the live card. Meanwhile, the durable `planner_text` event isn't written until *after* `stream.finalMessage()` resolves for the whole iteration — which can be several seconds later if a tool_use follows the text. So the user sees: text streams in fully → live card blanks → (multi-second gap) → durable card lands.
+
+Fix: introduce a `pendingThoughts` FIFO queue on the frontend. On `block_start` with `blockKind: 'text'` (which is misnamed in the SDK — really means "text block just ended"), snapshot `streamingText` into the queue instead of dropping it. Render pending entries as durable-looking cards with plain (unparsed) text. When the durable `planner_text` event lands, FIFO-pop the queue — the durable card with parsed markdown takes the same slot. The transition becomes a single style swap, not a disappear/reappear.
+
+Validation: run a fresh FTE. Each paragraph should stay visible continuously from the moment its last character streams in through the swap to the parsed markdown version — no blank gap.
+
+**Blocked by:** none
+
+### #44 Sticky status header + auto-scroll for streaming — ✅
+Dogfood iter 2 (2026-05-16) flagged that on longer runs the streaming status indicator at the top of the page scrolls out of view, leaving the user unable to tell *what* the agent is doing as new paragraphs land. The auto-scroll-to-latest-step is also missing — users have to manually scroll to follow.
+
+Fix:
+- Promote `LiveStatusLine` into a `StickyStatusBar` that pins to the viewport top (`sticky top-0`, backdrop-blur, high z-index) for the duration of the run. Hides itself once `run_finished` lands.
+- Add an auto-scroll effect: on each change to `streamingText` / `thoughts.length` / `pendingThoughts.length`, scroll the bottom-of-stream sentinel into view, but only when the user is already within ~320px of the bottom (so manual scrolling up to re-read doesn't get hijacked).
+
+Validation: as the agent emits paragraph after paragraph, the live status stays visible at the top regardless of scroll depth; the latest card pulls itself into view as it grows; manually scrolling up freezes auto-scroll until the user returns to the bottom.
+
+**Blocked by:** none
+
+### #45 Diversify digest items across competitors — ✅
+Dogfood iter 2 (2026-05-16) opened a digest where all five slots were occupied by Lattice. The synthesis pipeline (`src/jobs/synthesize.ts`) was selecting the top N items globally by score, with no diversity guarantees — a single high-volume competitor with strong scores can monopolize the digest.
+
+Fix: two-pass selection inside `runForUser`. First pass pulls a wider candidate pool and applies `MAX_ITEMS_PER_COMPETITOR = 2`. Second pass relaxes the cap and fills any remaining slots from the leftover pool (still ordered by score) — protects the small-N case where the user genuinely only has news from one or two competitors and we'd rather ship a full 5-item digest from one competitor than half-fill it.
+
+With `MAX_ITEMS_PER_DIGEST=5` + cap=2, any digest with ≥3 competitors emitting non-noise items in the window is guaranteed ≥3 distinct competitors.
+
+**Follow-up (#50 fold) on 2026-05-16:** the original implementation capped the candidate pool at `min(100, maxItems*6) = 60` rows by score — which silently re-introduced the original bug at a different layer. A high-volume competitor (Lattice, 68 non-noise items, max score 92) consumed every pool slot before low-volume competitors (15Five, 2 non-noise items, max score 42) were ever considered. The selection algorithm was correct; the pool simply didn't contain the diverse-pick candidates. Removed the score-based pool limit; the WHERE filter (userId + non-noise + window) bounds the row count to a few hundred at most, with a 2000-row warn-threshold safety net for runaway classifier noise filter regressions. This also tightens daily digests retroactively — high-volume competitor tails no longer crowd out low-volume competitor heads.
+
+Validation: synth run for a user whose pool is skewed toward one competitor should produce a digest where no single competitor exceeds 2 items unless the pool is itself <3 competitors deep.
+
+**Blocked by:** none
+
+### #50 Catch-up digest: 10 items, cap-3, full per-competitor pool — ✅
+Dogfood iter 3 (2026-05-16) on a re-run of the catch-up flow: with the iter-2 diversity fix the digest landed at 5/5 split across two competitors (Lattice + Leapsome), still no 15Five. User asked whether the first digest should be wider so users see the breadth of what the product will surface over time.
+
+Two changes, both fast-path only:
+- `FAST_PATH_MAX_ITEMS_PER_DIGEST = 10` (vs daily 5). Meatier first impression without doubling Sonnet cost much.
+- `FAST_PATH_MAX_ITEMS_PER_COMPETITOR = 3` (vs daily 2). At 10 items, cap-2 leaves the second pass to backfill 4+ slots from the top-scored competitor — 60% Lattice. Cap-3 lands closer to a 50/30/20 split.
+
+Threaded `maxItemsPerCompetitor` through `SynthesisOptions`. Removed the score-based pool limit (rolled into #45's writeup since same root cause). Re-run against Maxime's pool: 6 Lattice + 3 Leapsome + 1 15Five = 10 items, 3 competitors. The 15Five count is 1 (not 2) because the new user's classifier marked one of their two non-noise items differently — that's the classifier's call, not the selection's.
+
+**Open follow-up:** feedback signal loop. The 👍/👎 plumbing exists end-to-end (#12 endpoint + #31 buttons surface on every digest item card). What's missing: the captured ratings don't feed back into scoring or synthesis prompts. Designing that loop is a separate task (per-user "what resonates" aggregate flowed into the reader profile? per-item reweighting in score.ts?).
+
+**Blocked by:** none
+
+### #46 Fix pending-push double-counting + smoother auto-scroll — ✅
+Dogfood iter 3 (2026-05-16) surfaced a regression introduced by #43's pending queue. The block-end snapshot was written as a nested setState:
+
+```ts
+setStreamingText((prev) => {
+  if (prev.trim().length > 0) {
+    setPendingThoughts((q) => [...q, prev])  // ← nested
+  }
+  return ''
+})
+```
+
+Under React 18 concurrent rendering the outer updater can be discarded and replayed; when it replays, the nested `setPendingThoughts` fires again with the same `prev`, pushing the same text twice. After a handful of iterations the pending queue carries 6+ ghost duplicates — the live card index climbs to ~#13 while only ~6 distinct text blocks have actually streamed. When `save_profile` lands the `wrappingUp` gate empties pending and the count collapses to the durable count (~6). Reads to the user as the step counter "jumping around".
+
+Fix: mirror the streamed text in a `useRef` (`streamingTextRef`). On block-end, read from the ref, push to pending sequentially (not nested), then clear both ref and state. setState calls are now flat in the event-loop callback — no replay hazard.
+
+Same task also widens the auto-scroll follow threshold (320px → 600px), defers the scroll to `requestAnimationFrame` so layout has settled, and uses `behavior: 'auto'` for text-delta updates (smooth tween fights itself when called every few chars) while reserving `behavior: 'smooth'` for structural changes (new card / pending card / live toggle). Tracks the structural key in a ref so rapid text deltas don't re-trigger the smooth animation.
+
+Validation: run a fresh FTE. The numbered card index should grow monotonically and match the durable count + pending + live. The page should follow the bottom of the stream as new content lands; manually scrolling up >600px should freeze the follow until returning to the bottom.
+
+**Blocked by:** none
+
+### #47 Status at bottom + parse markdown in pending cards — ✅
+Dogfood iter 3 (2026-05-16) flagged two issues with the iter-2 fixes:
+
+1. **Sticky-top status got lost again.** Even though `sticky top-0` is set, on longer runs the user perceives the status as scrolling out of view (likely because the user is scrolling actively and the top doesn't catch their eye). User proposed moving the status to the BOTTOM of the stream and auto-scrolling into it — chat-app pattern. The status is then always at the user's natural reading position.
+2. **Markdown rendering lagged.** Pending cards rendered as plain text (`PlainBody`) and only swapped to parsed markdown when the durable `planner_text` event landed — which can be several seconds after the block ended on the wire (`stream.finalMessage()` only resolves at end of iteration). Reads as a delayed "reformat".
+
+Fix:
+- Replace `StickyStatusBar` with `BottomStatusLine` rendered AFTER the cards (and before the scroll sentinel). Auto-scroll target is the sentinel just below it, so the status is always in view as the page follows downward.
+- `PendingThought` now renders with `ThoughtBody` (parsed markdown) instead of `PlainBody`. The text is complete by the time it lands in pending — no risk of half-typed `**bold` flickering. The durable arrival is now a no-op visual swap rather than a delayed reformat.
+
+Validation: status pill sits at the bottom of the stream throughout the run, follows the auto-scroll target, hides on completion. Markdown formatting (bold, paragraph breaks) appears the instant a block ends, not seconds later.
+
+**Blocked by:** none
+
+### #48 Agent prompt: ≤2-sentence cards, ban competitor recaps — ✅
+Dogfood iter 3 (2026-05-16) flagged that the planner_text cards were too verbose (multi-paragraph walls) and that the final card before `save_profile` was a recap of the competitor list — which the user immediately sees again in the profile preview card directly below the stream. Pure duplication.
+
+Fix: tighten `SYSTEM_PROMPT` in `src/agents/fte/agent.ts`:
+- Hard cap: **≤ 2 sentences per text block, often 1**. Cards longer than that "bury the signal".
+- Each block must ADD information the user can't see elsewhere on the page. The profile preview is right below; do NOT re-list competitors in a card.
+- Explicit ban on recaps / summaries / sign-offs / competitor lists either BEFORE or after `save_profile`.
+
+No code change in the agent loop or tools — just prompt edits. Effect verifiable from the next FTE run.
+
+Validation: run a fresh FTE. Each card reads as 1–2 sentences. No final "Here's a summary of competitors:" card before save_profile. The competitor list appears only in the profile preview.
+
+**Blocked by:** none
+
+### #49 Status pill polish + smooth scrolling + jump to profile on completion — ✅
+Dogfood iter 3, second pass (2026-05-16). Three small polish items on top of #46/#47/#48:
+
+- **Status pill** — was center-aligned at the bottom of the stream, which felt "floaty" relative to the left-aligned cards above. Switch to `justify-start` so the pill sits flush with the card column. Add `my-5` (matching top/bottom margin) so the scroll anchor sentinel beneath the pill has the same breathing room as the gap above — no more pill-butting-against-bottom-of-viewport.
+- **Smooth scrolling everywhere** — the iter-3-round-1 fix used `behavior: 'auto'` for text-delta updates to avoid mid-tween interruption, but visually that read as snap-snap-snap. Browsers actually handle a smooth-scroll being re-issued mid-animation by gracefully redirecting toward the new target, so the auto/smooth split wasn't buying anything. All stream auto-scrolls now use `behavior: 'smooth'`.
+- **Jump to profile on completion** — on the running → finished transition, smooth-scroll the profile preview section to ~24px below the viewport top. First implementation used `scrollIntoView({block: 'start'})` inside a single `requestAnimationFrame`, but the page consistently overscrolled to the bottom of the profile preview — the section had just mounted and `scrollIntoView` was measuring its top before late-mounting children had finalized layout. Fixed by switching to a double-rAF (guarantees one full paint has completed) + `window.scrollTo` with an explicit `getBoundingClientRect`-based target. Captured `wasFinishedOnMountRef` on first render to skip the jump when the user revisits an already-completed run.
+
+Validation: pill sits flush left with matching whitespace top and bottom; scrolling visibly animates as content streams in (the browser chases the moving end-of-stream); on completion the profile preview slides into view with its title at the top of the viewport; reloading onto a completed run does NOT auto-jump.
 
 **Blocked by:** none
 

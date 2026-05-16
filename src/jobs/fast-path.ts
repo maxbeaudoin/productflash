@@ -33,6 +33,16 @@ const FAST_PATH_LOOKBACK_HOURS = 24 * 7
 // can easily clear the daily-cron default of 50. 200 keeps headroom for
 // chatty changelogs without doubling Haiku spend for a typical user.
 const FAST_PATH_SCORE_CAP = 200
+// Catch-up digest is intentionally wider than the daily 5-item digest:
+//   - 10 items so the user gets a meatier first impression of what we'll
+//     surface over time.
+//   - Cap-3 per competitor (vs daily cap-2) since a 10-item digest with
+//     cap-2 forces the relaxed second pass to backfill 4+ slots from the
+//     top-scored competitor, defeating the diversity intent. Cap-3 at 10
+//     items keeps the highest-volume competitor at ~50% of the digest
+//     instead of ~60% (dogfood 2026-05-16: 5L+3Lp+2x vs 6L+2Lp+2x).
+const FAST_PATH_MAX_ITEMS_PER_DIGEST = 10
+const FAST_PATH_MAX_ITEMS_PER_COMPETITOR = 3
 
 export interface FastPathJobData {
   userId: string
@@ -70,6 +80,8 @@ export async function handleFastPathJob(
   })
   const synthesize = await runSynthesisForUser(userId, {
     lookbackHours: FAST_PATH_LOOKBACK_HOURS,
+    maxItemsPerDigest: FAST_PATH_MAX_ITEMS_PER_DIGEST,
+    maxItemsPerCompetitor: FAST_PATH_MAX_ITEMS_PER_COMPETITOR,
   })
 
   // synthesize always upserts at most one digest per (user, UTC day). Re-read

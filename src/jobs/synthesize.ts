@@ -41,6 +41,23 @@ export const SYNTHESIZE_CRON = '30 5 * * *' // 05:30 UTC daily, per SCOPE.md §6
 
 const LOOKBACK_HOURS = 24
 const MAX_ITEMS_PER_DIGEST = 5
+// Cap per competitor in the first selection pass. With MAX_ITEMS_PER_DIGEST=5
+// this guarantees at least 3 distinct competitors in any digest where ≥3
+// competitors have qualifying items. Dogfood iter 2 (2026-05-16) flagged
+// digests dominated by a single high-volume competitor (Lattice in the
+// surfaced case) — top-N-by-score alone doesn't enforce diversity. Daily
+// cron uses this default; fast-path (catch-up) overrides with a looser cap
+// since the wider 10-item digest needs more headroom per competitor.
+const MAX_ITEMS_PER_COMPETITOR = 2
+// Pool fetch strategy: fetch ALL non-noise items in the window for this
+// user, no score-based LIMIT. A flat top-N pool silently drops low-scored
+// / low-volume competitors when a high-volume competitor's tail still
+// beats their head — dogfood 2026-05-16 found 15Five (max non-noise score
+// 42) entirely excluded from a 60-item pool because Lattice (68 non-noise
+// items, max 92) consumed every slot. With WHERE already filtering by
+// userId + non-noise + 7-day window, the realistic upper bound is a few
+// hundred rows — safe to load fully and partition in memory.
+const POOL_WARN_THRESHOLD = 2000
 
 export interface UserSynthesisMetrics {
   userId: string
@@ -63,6 +80,11 @@ export interface SynthesisMetrics {
 export interface SynthesisOptions {
   lookbackHours?: number
   maxItemsPerDigest?: number
+  // Per-competitor cap in the first selection pass. Falls back to the module
+  // default when omitted. Fast-path (catch-up) overrides this with a looser
+  // cap since a 10-item digest needs more headroom per competitor than a
+  // 5-item daily one.
+  maxItemsPerCompetitor?: number
   now?: Date
 }
 
@@ -76,6 +98,7 @@ export async function runSynthesisForUser(
   const db = getDb()
   const lookbackHours = options.lookbackHours ?? LOOKBACK_HOURS
   const maxItems = options.maxItemsPerDigest ?? MAX_ITEMS_PER_DIGEST
+  const maxPerCompetitor = options.maxItemsPerCompetitor ?? MAX_ITEMS_PER_COMPETITOR
   const now = options.now ?? new Date()
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000)
   const dayStart = startOfUtcDay(now)
@@ -106,6 +129,7 @@ export async function runSynthesisForUser(
     now,
     dayStart,
     maxItems,
+    maxPerCompetitor,
   )
   logger.info({ ...metrics, email: user.email }, 'synthesize: on-demand user run complete')
   return metrics
@@ -116,6 +140,7 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
   const db = getDb()
   const lookbackHours = options.lookbackHours ?? LOOKBACK_HOURS
   const maxItems = options.maxItemsPerDigest ?? MAX_ITEMS_PER_DIGEST
+  const maxPerCompetitor = options.maxItemsPerCompetitor ?? MAX_ITEMS_PER_COMPETITOR
   const now = options.now ?? new Date()
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000)
   const dayStart = startOfUtcDay(now)
@@ -161,6 +186,7 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
         now,
         dayStart,
         maxItems,
+        maxPerCompetitor,
       )
       perUser.push(metrics)
       logger.info({ ...metrics, email: user.email }, 'synthesize: user complete')
@@ -203,8 +229,9 @@ async function runForUser(
   now: Date,
   dayStart: Date,
   maxItems: number,
+  maxPerCompetitor: number,
 ): Promise<UserSynthesisMetrics> {
-  const candidates = await db
+  const pool = await db
     .select({
       rawItemId: rawItems.id,
       competitorName: competitorsTable.name,
@@ -228,12 +255,20 @@ async function runForUser(
       ),
     )
     .orderBy(desc(itemScores.score))
-    .limit(maxItems)
 
-  if (candidates.length === 0) {
+  if (pool.length > POOL_WARN_THRESHOLD) {
+    logger.warn(
+      { userId, poolSize: pool.length },
+      'synthesize: large candidate pool — investigate classifier noise filter',
+    )
+  }
+
+  if (pool.length === 0) {
     await upsertDigest(db, userId, dayStart, cutoff, now, [])
     return { userId, candidates: 0, synthesized: 0, empty: true, errored: false }
   }
+
+  const candidates = selectDiverseCandidates(pool, maxItems, maxPerCompetitor)
 
   const synthesisInput: SynthesisInputItem[] = candidates.map((c) => ({
     rawItemId: c.rawItemId,
@@ -337,6 +372,47 @@ async function upsertDigest(
       await tx.insert(digestItems).values(itemRows.map((row) => ({ ...row, digestId })))
     }
   })
+}
+
+// Two-pass selection: first pass enforces `maxPerCompetitor` so a single
+// high-volume source can't monopolize the digest. Second pass fills any
+// remaining slots from the leftover pool (still ordered by score) — protects
+// the small-N case where the user genuinely only has news from one or two
+// competitors and we'd rather show 5 items from that competitor than ship a
+// near-empty digest.
+//
+// The cap is a parameter (not the module constant) so fast-path can loosen it
+// for the 10-item catch-up — at 5 items + cap=2 every digest gets ≥3
+// competitors when the pool has them; at 10 items the same cap-2 gives a
+// flat 60% concentration on the highest-volume competitor (caps fill, then
+// the relaxed second pass falls back to top-score = all leader). Cap=3 at
+// 10 items lands closer to a 50/30/20 split.
+function selectDiverseCandidates<
+  T extends { rawItemId: string; competitorName: string },
+>(pool: T[], maxItems: number, maxPerCompetitor: number): T[] {
+  const selected: T[] = []
+  const used = new Set<string>()
+  const perCompetitor = new Map<string, number>()
+
+  for (const item of pool) {
+    if (selected.length >= maxItems) break
+    const count = perCompetitor.get(item.competitorName) ?? 0
+    if (count >= maxPerCompetitor) continue
+    selected.push(item)
+    used.add(item.rawItemId)
+    perCompetitor.set(item.competitorName, count + 1)
+  }
+
+  if (selected.length < maxItems) {
+    for (const item of pool) {
+      if (selected.length >= maxItems) break
+      if (used.has(item.rawItemId)) continue
+      selected.push(item)
+      used.add(item.rawItemId)
+    }
+  }
+
+  return selected
 }
 
 function toReaderProfile(user: {
