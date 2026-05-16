@@ -60,6 +60,8 @@ const TAG_LABEL: Record<DigestTag, string> = {
   pricing: 'Pricing',
   feature: 'Feature',
   positioning: 'Positioning',
+  funding: 'Funding',
+  acquisition: 'Acquisition',
   noise: 'Noise',
 }
 

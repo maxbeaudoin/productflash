@@ -58,6 +58,8 @@ export const digestTags = {
   pricing: { bg: 'rgba(255, 91, 58, 0.15)', fg: colors.coral },
   feature: { bg: 'rgba(120, 180, 255, 0.15)', fg: '#78b4ff' },
   positioning: { bg: 'rgba(255, 214, 10, 0.15)', fg: colors.accentWarm },
+  funding: { bg: 'rgba(74, 222, 128, 0.15)', fg: '#4ade80' },
+  acquisition: { bg: 'rgba(167, 139, 250, 0.15)', fg: '#a78bfa' },
   noise: { bg: 'rgba(90, 90, 106, 0.15)', fg: colors.textMuted },
 } as const
 

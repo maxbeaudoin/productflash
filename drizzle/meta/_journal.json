@@ -64,6 +64,13 @@
       "when": 1778950242206,
       "tag": "0008_many_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778969254253,
+      "tag": "0009_pretty_hannibal_king",
+      "breakpoints": true
     }
   ]
 }

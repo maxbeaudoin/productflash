@@ -24,6 +24,8 @@ export const itemCategory = pgEnum('item_category', [
   'pricing',
   'feature',
   'positioning',
+  'funding',
+  'acquisition',
   'noise',
 ])
 export const feedbackRating = pgEnum('feedback_rating', ['up', 'down'])

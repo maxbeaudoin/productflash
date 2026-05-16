@@ -17,7 +17,13 @@ import { logger } from './logger'
 // input_schema. The rawItemId field round-trips so we can map each synthesis
 // result back to its source raw_item without relying on output ordering.
 
-export type SynthesisCategory = 'launch' | 'pricing' | 'feature' | 'positioning'
+export type SynthesisCategory =
+  | 'launch'
+  | 'pricing'
+  | 'feature'
+  | 'positioning'
+  | 'funding'
+  | 'acquisition'
 
 export interface SynthesisInputItem {
   rawItemId: string
@@ -92,7 +98,7 @@ const SYNTHESIZE_TOOL: Anthropic.Tool = {
             impactNote: {
               type: 'string',
               description:
-                'One sentence (≤ 25 words) explaining why this matters for the reader\'s product/positioning. Reference the category implication — e.g. "Pricing pressure on…", "Reframes the…", "Worth raising in…". Concrete, never generic.',
+                'One sentence (≤ 25 words) explaining why this matters for the reader\'s product/positioning. Reference the category implication — e.g. "Pricing pressure on…", "Reframes the…", "Funded runway to outspend you on…", "Now owns the adjacency you were heading toward…". Concrete, never generic.',
             },
           },
           required: ['rawItemId', 'headline', 'snippet', 'impactNote'],

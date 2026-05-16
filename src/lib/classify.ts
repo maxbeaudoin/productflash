@@ -13,7 +13,14 @@ import { logger } from './logger'
 // Cost shape: title + body excerpt is short (~200–800 input tokens), output
 // is a tiny JSON blob (~60 tokens). Expect <$0.001/call at Haiku rates.
 
-export type ItemCategory = 'launch' | 'pricing' | 'feature' | 'positioning' | 'noise'
+export type ItemCategory =
+  | 'launch'
+  | 'pricing'
+  | 'feature'
+  | 'positioning'
+  | 'funding'
+  | 'acquisition'
+  | 'noise'
 
 // Reader context lets the same item score differently for two users with
 // different roles/goals/focus areas. Optional — magic-link signup creates a
@@ -45,7 +52,15 @@ const BODY_EXCERPT_CHARS = 1200
 const MAX_RETRIES = 2
 const RETRY_BASE_DELAY_MS = 500
 
-const CATEGORIES: ItemCategory[] = ['launch', 'pricing', 'feature', 'positioning', 'noise']
+const CATEGORIES: ItemCategory[] = [
+  'launch',
+  'pricing',
+  'feature',
+  'positioning',
+  'funding',
+  'acquisition',
+  'noise',
+]
 
 const CLASSIFY_TOOL: Anthropic.Tool = {
   name: 'record_classification',
@@ -58,7 +73,7 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
         type: 'string',
         enum: CATEGORIES,
         description:
-          'launch = new product/major release; pricing = pricing or packaging change; feature = incremental feature shipped; positioning = messaging/branding/strategy shift; noise = recap, hiring, fluff, off-topic, or anything a product leader would not act on.',
+          'launch = new product/major release; pricing = pricing or packaging change; feature = incremental feature shipped; positioning = messaging/branding/strategy shift; funding = capital raise (seed/Series/PE/debt) — runway/aggression signal; acquisition = M&A as acquirer OR target — surface-area or exit signal; noise = recap, hiring, fluff, off-topic, or anything a product leader would not act on.',
       },
       score: {
         type: 'integer',
@@ -80,8 +95,9 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
 const SYSTEM_PROMPT = [
   'You are the editorial filter for Product Flash, a daily competitive-intel digest for SaaS product leaders.',
   'Read one news item about a competitor and classify it on two axes:',
-  '  1. category: launch | pricing | feature | positioning | noise',
+  '  1. category: launch | pricing | feature | positioning | funding | acquisition | noise',
   '     The category describes the item itself — it is independent of who is reading.',
+  '     Funding and acquisition are structural moves, not product moves: pick them when the item is primarily about capital raised or a deal closed, even if a product is mentioned in passing. If a single item announces both (e.g. "raised $X to acquire Y"), prefer acquisition.',
   '  2. score (0-100): how much THIS reader should care today',
   '     The score is reader-relative: tilt up when the item resonates with the reader\'s goal or focus areas, tilt down when it is off-axis even if globally newsworthy. If no reader context is provided, fall back to a generic "competing PM" baseline.',
   '',
@@ -90,7 +106,9 @@ const SYSTEM_PROMPT = [
   '- minor feature polish scores 20-40 in the baseline; lift to 50-65 if it directly touches one of the reader\'s focus areas.',
   '- meaningful shipped feature scores 50-70 in the baseline; lift toward 75-85 when it intersects the reader\'s focus areas or threatens their goal.',
   '- new product / pricing change / repositioning scores 75-95.',
-  '- only score 95+ for a launch that visibly reshapes the category or directly attacks the reader\'s positioning.',
+  '- funding round scores 60-80 in the baseline (more capital = more aggressive roadmap); lift toward 85+ for a category-defining round (e.g. mega-round at a stage that resets the market) or when the reader is directly competing for the same buyer.',
+  '- acquisition scores 70-90 (structural change to the competitor\'s surface area or the category); lift to 90+ when the deal directly absorbs an adjacency the reader cares about.',
+  '- only score 95+ for a launch, funding round, or acquisition that visibly reshapes the category or directly attacks the reader\'s positioning.',
   '',
   'Always call the record_classification tool — never reply in prose.',
 ].join('\n')

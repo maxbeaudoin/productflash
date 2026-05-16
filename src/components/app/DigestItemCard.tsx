@@ -23,6 +23,8 @@ const TAG_TONE: Record<DigestTag, string> = {
   pricing: 'bg-coral/15 text-coral',
   feature: 'bg-[#78b4ff]/15 text-[#78b4ff]',
   positioning: 'bg-accent-warm/15 text-accent-warm',
+  funding: 'bg-[#4ade80]/15 text-[#4ade80]',
+  acquisition: 'bg-[#a78bfa]/15 text-[#a78bfa]',
   noise: 'bg-text-muted/15 text-text-muted',
 }
 
@@ -31,6 +33,8 @@ const TAG_LABEL: Record<DigestTag, string> = {
   pricing: 'Pricing',
   feature: 'Feature',
   positioning: 'Positioning',
+  funding: 'Funding',
+  acquisition: 'Acquisition',
   noise: 'Noise',
 }
 
