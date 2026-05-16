@@ -78,7 +78,7 @@ export async function loadDigestForEmail(
   const greeting = greetingFor(rows.length, period.kind, period.daysBack)
   const recipientName = (user.name ?? user.email.split('@')[0]).trim()
 
-  const baseUrl = absoluteBaseUrl()
+  const baseUrl = requireEnv('BETTER_AUTH_URL').replace(/\/$/, '')
 
   const items: DigestEmailItem[] = rows.map((r) => ({
     id: r.id,
@@ -165,18 +165,6 @@ function formatOccurredAt(occurred: Date | null): string | null {
     month: 'short',
     day: 'numeric',
   })
-}
-
-// Fully-qualified base URL for links in the email. Falls back to
-// BETTER_AUTH_URL (always set in env validation) since that's already the
-// canonical "where this app lives" value used by magic-link callbacks.
-// Allows EMAIL_PUBLIC_URL to override for cases where the public marketing
-// host differs from the auth host (none yet — header for future).
-function absoluteBaseUrl(): string {
-  return (
-    process.env.EMAIL_PUBLIC_URL?.replace(/\/$/, '') ??
-    requireEnv('BETTER_AUTH_URL').replace(/\/$/, '')
-  )
 }
 
 // Re-exported for tests / preview scripts that want to short-circuit the DB
