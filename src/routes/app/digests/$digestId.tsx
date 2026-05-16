@@ -9,6 +9,7 @@ import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 import { deriveDigestPeriod } from '~/lib/digest-period'
 import { signFeedbackToken } from '~/lib/feedback-token'
+import { captureServerEvent } from '~/lib/posthog'
 
 type DigestView = {
   id: string
@@ -66,6 +67,12 @@ const loadDigest = createServerFn({ method: 'GET' })
     const feedbackByItem = new Map(
       feedbackRows.map((f) => [f.digestItemId, f.rating] as const),
     )
+
+    captureServerEvent(session.user.id, 'digest_rendered_in_app', {
+      digest_id: digest.id,
+      item_count: digest.itemCount,
+      digest_created_at: digest.createdAt.toISOString(),
+    })
 
     return {
       id: digest.id,

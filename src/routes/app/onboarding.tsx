@@ -14,6 +14,7 @@ import { requireSession } from '~/lib/auth-server'
 import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
+import { captureServerEvent } from '~/lib/posthog'
 import { autodetectRSSForHomepage } from '~/sources/rss'
 
 // /app/onboarding (#29). First stop after the magic-link click.
@@ -249,7 +250,7 @@ const confirmProfile = createServerFn({ method: 'POST' }).handler(async () => {
   // Idempotent: only stamp the first time. The agent may have already
   // promoted status to 'active' (save_profile + ≥1 competitor) — we still
   // promote on user consent if it hadn't.
-  await db
+  const updated = await db
     .update(usersTable)
     .set({
       profileConfirmedAt: new Date(),
@@ -257,6 +258,22 @@ const confirmProfile = createServerFn({ method: 'POST' }).handler(async () => {
       updatedAt: new Date(),
     })
     .where(and(eq(usersTable.id, session.user.id), isNull(usersTable.profileConfirmedAt)))
+    .returning({ id: usersTable.id })
+
+  // Only emit the funnel event on the FIRST confirmation. The WHERE clause
+  // above makes this idempotent — a repeat click on "Looks good" updates
+  // zero rows, so PostHog should also stay silent.
+  const wasFirstConfirm = updated.length > 0
+  if (wasFirstConfirm) {
+    const competitorCount = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userCompetitors)
+      .where(eq(userCompetitors.userId, session.user.id))
+      .then((rows) => rows[0]?.count ?? 0)
+    captureServerEvent(session.user.id, 'profile_confirmed', {
+      competitor_count: competitorCount,
+    })
+  }
 
   // Fast path (#30): dispatch ingest → score → synthesize for this user only
   // so the first digest lands at /app/digests within a few minutes instead

@@ -395,12 +395,16 @@ async function runSaveProfile(
 // status flip in agent.ts. Distinct from in-memory tracking so we survive
 // partial state restores in the future.
 export async function hasUserCompetitor(userId: string): Promise<boolean> {
+  return (await countUserCompetitors(userId)) > 0
+}
+
+export async function countUserCompetitors(userId: string): Promise<number> {
   const db = getDb()
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(userCompetitors)
     .where(eq(userCompetitors.userId, userId))
-  return (row?.count ?? 0) > 0
+  return row?.count ?? 0
 }
 
 export async function isProfileSaved(userId: string): Promise<boolean> {

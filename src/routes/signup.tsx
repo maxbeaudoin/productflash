@@ -11,6 +11,7 @@ import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
 import { verifyInviteToken } from '~/lib/invite-token'
 import { logger } from '~/lib/logger'
+import { captureServerEvent } from '~/lib/posthog'
 
 // The public funnel is invite-only (see #33/#34). Admins issue signed
 // `?invite=<token>` URLs from /admin/waitlist; a bare /signup or a tampered
@@ -127,6 +128,14 @@ const submitSignup = createServerFn({ method: 'POST' })
       { userId: user.id, runId: enqueueRes.runId, enqueued: enqueueRes.enqueued },
       'signup: fte enqueued',
     )
+
+    captureServerEvent(user.id, 'signup_started', {
+      email: user.email,
+      company_url: data.companyUrl,
+      position: data.position,
+      fte_enqueued: enqueueRes.enqueued,
+      run_id: enqueueRes.runId,
+    })
 
     // Mint a one-shot verify URL — the client navigates to it to consume the
     // pre-seeded verification row, which lands the Better Auth session cookie

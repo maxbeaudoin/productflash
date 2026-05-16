@@ -45,7 +45,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 22. **#11** — Resend email template + send (reactivate after dogfood)
 23. **#17** — per-TZ send scheduling
 24. **#18** — onboard 5–10 betas
-25. **#20** — PostHog wiring
+25. **#20** — PostHog wiring ✅
 26. **#19** — launch + monitor
 
 ---
@@ -487,7 +487,7 @@ pg-boss scheduled job groups users by TZ bucket and dispatches send jobs so each
 Recruit from network. Each goes through `/signup` → agentic FTE → first-digest fast path on their own. Confirm their generated profile + first digest look sane (admin app, #16). Flip status to active if FTE failed for any reason and manually re-run.
 **Blocked by:** #13, #16
 
-### #20 PostHog integration for funnel + digest events — ☐
+### #20 PostHog integration for funnel + digest events — ✅
 posthog-js on landing route (page views) + posthog-node in server functions and worker. Events: `signup_started`, `fte_completed` (with `competitor_count`, `tool_call_count`, `duration_seconds`), `profile_confirmed`, `digest_rendered_in_app` (with `item_count`), `digest_sent` (when #11/#17 live), `digest_opened` (forwarded from Resend webhook), `digest_feedback` (up/down). Project key via env.
 
 ### #19 Launch + monitor first 2 weeks — ☐

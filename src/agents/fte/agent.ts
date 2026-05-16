@@ -4,11 +4,12 @@ import { users as usersTable } from '~/db/schema'
 import { getAnthropic, SONNET_MODEL } from '~/lib/anthropic'
 import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
+import { captureServerEvent } from '~/lib/posthog'
 import { emitFteDelta, writeFteEvent } from './events'
 import {
+  countUserCompetitors,
   executeTool,
   FTE_TOOLS,
-  hasUserCompetitor,
   isProfileSaved,
 } from './tools'
 
@@ -109,6 +110,7 @@ const SYSTEM_PROMPT = [
 export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
   const { userId, runId, signup } = input
   const client = getAnthropic()
+  const startedAt = Date.now()
 
   await writeFteEvent({
     userId,
@@ -337,7 +339,8 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
   // Only promote to 'active' when both conditions hold so a half-finished
   // run doesn't push a user into the daily digest path with no profile.
   const profileSaved = await isProfileSaved(userId)
-  const hasCompetitor = await hasUserCompetitor(userId)
+  const competitorCount = await countUserCompetitors(userId)
+  const hasCompetitor = competitorCount > 0
   const statusFlippedActive = profileSaved && hasCompetitor
 
   if (statusFlippedActive) {
@@ -346,6 +349,8 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
       .set({ status: 'active', updatedAt: new Date() })
       .where(eq(usersTable.id, userId))
   }
+
+  const durationSeconds = Math.round((Date.now() - startedAt) / 1000)
 
   await writeFteEvent({
     userId,
@@ -359,7 +364,22 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
       status_flipped_active: statusFlippedActive,
       profile_saved: profileSaved,
       has_competitor: hasCompetitor,
+      competitor_count: competitorCount,
+      duration_seconds: durationSeconds,
     },
+  })
+
+  captureServerEvent(userId, 'fte_completed', {
+    run_id: runId,
+    finished_reason: finishedReason,
+    iterations,
+    tool_call_count: clientToolCalls + serverToolCalls,
+    client_tool_calls: clientToolCalls,
+    server_tool_calls: serverToolCalls,
+    competitor_count: competitorCount,
+    profile_saved: profileSaved,
+    status_flipped_active: statusFlippedActive,
+    duration_seconds: durationSeconds,
   })
 
   logger.info(

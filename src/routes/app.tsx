@@ -1,8 +1,10 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
+import { useEffect } from 'react'
 import { AppHeader } from '~/components/app/AppHeader'
 import { Toaster } from '~/components/ui/sonner'
 import { requireSession } from '~/lib/auth-server'
+import { identifyPostHog } from '~/lib/posthog-client'
 
 // Server fn wrapper so `beforeLoad` can call a server-only helper
 // during SSR + client navigations. The handler throws a TanStack
@@ -10,7 +12,11 @@ import { requireSession } from '~/lib/auth-server'
 // routes to /login before this layout renders.
 const ensureAuthed = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await requireSession()
-  return { email: session.user.email, name: session.user.name ?? null }
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name ?? null,
+  }
 })
 
 export const Route = createFileRoute('/app')({
@@ -23,6 +29,12 @@ export const Route = createFileRoute('/app')({
 
 function AppLayout() {
   const { user } = Route.useRouteContext()
+  useEffect(() => {
+    // Link the anonymous landing-page session (if any) to this user so the
+    // funnel from waitlist → signup → first digest is one identity. Safe to
+    // call repeatedly; PostHog dedupes on distinct_id.
+    identifyPostHog(user.id, { email: user.email })
+  }, [user.id, user.email])
   return (
     <div className="min-h-screen bg-ink text-white antialiased">
       <AppHeader email={user.email} />

@@ -8,6 +8,7 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import type { ReactNode } from 'react'
 import { DefaultCatchBoundary } from '~/components/DefaultCatchBoundary'
 import { NotFound } from '~/components/NotFound'
+import { PostHogTracker } from '~/components/PostHogTracker'
 import appCss from '~/styles/app.css?url'
 
 export const Route = createRootRoute({
@@ -34,6 +35,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <PostHogTracker />
         {children}
         {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-right" /> : null}
         <Scripts />
