@@ -23,14 +23,15 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 8. **#28** — FTE agent backend ✅
 9. **#29** — FTE flow frontend ✅
 10. **#30** — fast-path time-to-first-digest ✅
-11. **#13** — Maxime full FTE dogfood
-12. **#32** — `/app/profile` view + edit ✅
-13. **#16** — admin app (`/admin/users/*`)
-14. **#11** — Resend email template + send (reactivate after dogfood)
-15. **#17** — per-TZ send scheduling
-16. **#18** — onboard 5–10 betas
-17. **#20** — PostHog wiring
-18. **#19** — launch + monitor
+11. **#35** — personalize classify + synthesize on user profile (must precede dogfood)
+12. **#13** — Maxime full FTE dogfood
+13. **#32** — `/app/profile` view + edit ✅
+14. **#16** — admin app (`/admin/users/*`)
+15. **#11** — Resend email template + send (reactivate after dogfood)
+16. **#17** — per-TZ send scheduling
+17. **#18** — onboard 5–10 betas
+18. **#20** — PostHog wiring
+19. **#19** — launch + monitor
 
 ---
 
@@ -193,9 +194,31 @@ On profile confirmation in `/app/onboarding` (#29), the `confirmProfile` server 
 A failed enqueue is non-fatal — the 05:30 UTC synthesis cron is the safety net, so `confirmProfile` always returns ok and the user lands on the brewing state regardless.
 **Blocked by:** #28 · **Blocks:** #13
 
+### #35 Personalize classify + synthesize on user profile — ☐
+**Critical for product–market fit.** Today the AI-generated profile (`position`, `company_name`, `ultimate_goal`, `focus_areas`) is UI-only: the FTE agent (#28) writes it, `/app/profile` (#32) and `/app/onboarding` (#29) display/edit it, but neither the Haiku classifier nor the Sonnet synthesizer reads it. Same item ⇒ same category, same score, same headline regardless of reader. The product reduces to a competitor-news aggregator filtered by company list — *not* the personalized brief the landing page promises. If we run #13 dogfood on the current chain, we'll be testing whether universal classification is acceptable, which is the wrong question.
+
+Concrete deliverables:
+
+- **Classify prompt — profile-aware scoring.** Extend `classifyItem({...})` in `src/lib/classify.ts` to accept an optional `reader: { position, ultimateGoal, focusAreas }` and inject a short "Reader context" block. Score tilts up when an item resonates with a focus area or goal, down when off-axis (even when globally newsworthy). The `category` enum stays unchanged — it's a property of the item, not the reader. Update `runScoringForUser` + `runScoring` in `src/jobs/score.ts` to fetch the profile (one SELECT per user) and thread it through.
+
+- **Synthesize prompt — profile-aware framing.** Extend `SynthesisInput` in `src/lib/synthesize.ts` to carry the same `reader` shape; render it in the system message ("Reader is a Head of Product at Linear; their goal is …; they care about pricing changes, AI features, …"). The `impactNote` is the load-bearing surface — it must explicitly reference the reader's goal/focus where relevant ("Pressures *your* enterprise pricing positioning" beats a generic "Pricing pressure on the category"). Update `runForUser` in `src/jobs/synthesize.ts` to fetch + pass the profile.
+
+- **Cache invalidation on profile change.** Now that scores carry profile-derived weights, edits to `position` / `ultimate_goal` / `focus_areas` must invalidate `item_scores` for that user so the next score run re-classifies. Wire this into both write paths: `editProfile` server fn in `src/routes/app/profile.tsx` AND the FTE agent's `save_profile` tool in `src/agents/fte/tools.ts`. Simple `DELETE FROM item_scores WHERE user_id = $1` is fine for the PoC. The fast path (#30) will then re-score from scratch on profile confirm — exactly the desired behavior.
+
+- **Empty-profile fallback.** Magic-link signup creates a user row before the FTE agent fills it in. Classifier + synthesizer must gracefully degrade to the current generic prompts when the reader is absent — never block scoring on a missing profile.
+
+- **Eval evidence before merging.** Capture before/after digest markdown for one seeded user (e.g. `fte-iso-b`) — run the current generic chain, snapshot to `/tmp/eval-generic-<userId>.md`; deploy the personalized chain, snapshot to `/tmp/eval-personalized-<userId>.md`. Eyeball whether `impact_note` actually shifts from generic ("Pricing pressure on the category") to reader-specific ("Pressures your enterprise positioning vs. Asana"). Don't merge unless the diff is visible.
+
+Out of scope:
+- Per-focus_area numeric boost weights — the prompt does this work, not a multiplier.
+- Long-term memory of 👍/👎 feedback influencing future scoring (separate task — feedback loop).
+- Position/goal flowing into the FTE planner prompt — already there as the seed input to the agent.
+
+**Blocked by:** none (all surfaces exist) · **Blocks:** #13 (dogfood is the test of whether personalization lands well), #18 (beta launch).
+
 ### #13 Maxime full FTE dogfood — ☐
-Sign up at `/signup` against your own company. Watch the FTE agent run end-to-end at `/app/onboarding`. Read the resulting profile critically: did it identify the right competitors? Right framing of your role + goal? Confirm and check the fast-path digest. Repeat for 3 consecutive days: open the daily digest at `/app/digests/:id`, look for quality, missed items, hallucinations. Tune prompts in #28 / #10 / #9 between runs. **Block real beta launch until 3 clean days in a row.**
-**Blocked by:** #30
+Sign up at `/signup` against your own company. Watch the FTE agent run end-to-end at `/app/onboarding`. Read the resulting profile critically: did it identify the right competitors? Right framing of your role + goal? Confirm and check the fast-path digest. Repeat for 3 consecutive days: open the daily digest at `/app/digests/:id`, look for quality, missed items, hallucinations. Tune prompts in #28 / #10 / #9 / #35 between runs. **Block real beta launch until 3 clean days in a row.**
+**Blocked by:** #30, #35
 
 ### #32 `/app/profile` view + edit — ✅
 TanStack Start route at `/app/profile` (auth-gated under the existing `/app` shell) renders an inline view + edit of the AI-generated profile: position, company name, company URL, ultimate goal, and focus_areas chips. "Edit" toggles the card into a form (re-uses the same Zod schema between client validation and the server fn). A second card lists tracked competitors with homepage + RSS badge (links open in new tab), an "Add" button that opens an inline form, and a per-row `×` to remove. `addCompetitor` server fn runs the same RSS autodetect helper the onboarding form uses, so newly added competitors get an RSS badge automatically when one resolves. Toasts confirm save / add / remove. A `Profile` pill link was added to `AppHeader` so the page is reachable from anywhere in `/app`.
@@ -255,9 +278,9 @@ First broadcast day. Track open rate, click rate, feedback ratio, FTE completion
  ├── #26 (auth) ── #28, #29, #31, #32, #16
  ├── #27 (profile schema) ── #28, #32
  │
- └── #28 (FTE agent) ── #29 ── #30 ── #13 ── #18 ──┐
-                                                    ├── #19 (launch)
-                                       #11 ── #17 ──┘
+ └── #28 (FTE agent) ── #29 ── #30 ── #35 ── #13 ── #18 ──┐
+                                                           ├── #19 (launch)
+                                              #11 ── #17 ──┘
 
 #6 ── #23 (Firehose buffer verify)
 ```
