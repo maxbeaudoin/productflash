@@ -308,6 +308,20 @@ function OnboardingPage() {
     [events],
   )
 
+  // After save_profile fires (or the run wraps up), the agent might still
+  // emit a recap text block — we suppress both the durable card (via the
+  // cutoff below) AND the live composing card so nothing flashes up only
+  // to vanish.
+  const wrappingUp = useMemo(
+    () =>
+      events.some(
+        (e) =>
+          (e.kind === 'tool_use' && e.payload.name === 'save_profile') ||
+          e.kind === 'run_finished',
+      ),
+    [events],
+  )
+
   // The agent is briefed to stop after save_profile, but Sonnet sometimes
   // still emits a recap (with a markdown table and emoji headers) — that
   // duplicates the profile card below and feels like a verbatim log. Cut
@@ -324,6 +338,11 @@ function OnboardingPage() {
       }))
       .filter((t) => t.text.trim().length > 0)
   }, [events])
+
+  // Ephemeral "what's happening right now" line — derived from the latest
+  // tool_use / server_tool_use event. Replaces the previous status as the
+  // agent moves forward; cards above it stay as the historical narrative.
+  const liveStatus = useMemo(() => computeLiveStatus(events), [events])
 
   const stats = useMemo(() => buildStats(events), [events])
 
@@ -459,7 +478,9 @@ function OnboardingPage() {
 
       <ThinkingStream
         thoughts={thoughts}
-        streaming={streamingActive ? streamingText : ''}
+        streamingText={streamingText}
+        streamingActive={streamingActive && !wrappingUp}
+        liveStatus={liveStatus}
         running={!finished}
         hasRun={Boolean(runId) || events.length > 0}
       />
@@ -590,12 +611,16 @@ function formatElapsed(ms: number): string {
 
 function ThinkingStream({
   thoughts,
-  streaming,
+  streamingText,
+  streamingActive,
+  liveStatus,
   running,
   hasRun,
 }: {
   thoughts: Array<{ id: string; ts: string; text: string }>
-  streaming: string
+  streamingText: string
+  streamingActive: boolean
+  liveStatus: string | null
   running: boolean
   hasRun: boolean
 }) {
@@ -613,87 +638,77 @@ function ThinkingStream({
     )
   }
 
+  const showLive = running && streamingActive
+
   return (
-    <ol className="grid gap-4">
-      {thoughts.map((thought, idx) => (
-        <Thought
-          key={thought.id}
-          index={idx + 1}
-          text={thought.text}
-          live={false}
-        />
-      ))}
-      {running && streaming ? (
-        <Thought
-          key="live"
-          index={thoughts.length + 1}
-          text={streaming}
-          live
-        />
-      ) : null}
-      {running && !streaming && thoughts.length === 0 ? (
-        <Thought key="warming" index={1} text="Reading your homepage…" live />
-      ) : null}
-    </ol>
+    <div>
+      <LiveStatusLine status={liveStatus} running={running} />
+      <ol className="grid gap-4">
+        {thoughts.map((thought, idx) => (
+          <DurableThought key={thought.id} index={idx + 1} text={thought.text} />
+        ))}
+        {showLive ? (
+          <LiveThought
+            key="live"
+            index={thoughts.length + 1}
+            text={streamingText}
+          />
+        ) : null}
+      </ol>
+    </div>
   )
 }
 
-function Thought({
+// Live + durable cards share identical chrome. The only differences:
+// LiveThought renders plain text with a trailing caret; DurableThought
+// renders parsed markdown without a caret. When a planner_text durable
+// event lands, React swaps the keyed live node out and the new durable
+// node in at the same position — same border, same shadow, same badge,
+// so the transition reads as "cursor goes away, formatting kicks in".
+function ThoughtCard({
   index,
-  text,
-  live,
+  children,
 }: {
   index: number
-  text: string
-  live: boolean
+  children: React.ReactNode
 }) {
   return (
     <li
-      className={`relative grid grid-cols-[auto_1fr] gap-5 rounded-card-lg border bg-ink-soft px-7 py-6 transition-all duration-300 ${
-        live
-          ? 'border-accent/40 shadow-[0_0_0_4px_rgba(217,255,58,0.05)]'
-          : 'border-[#2a2a38]'
-      }`}
-      style={
-        live
-          ? undefined
-          : { boxShadow: '0 20px 40px -20px rgba(0,0,0,0.5)' }
-      }
+      className="relative grid grid-cols-[auto_1fr] gap-5 rounded-card-lg border border-[#2a2a38] bg-ink-soft px-7 py-6"
+      style={{ boxShadow: '0 20px 40px -20px rgba(0,0,0,0.5)' }}
     >
       <div className="flex flex-col items-center">
-        <div
-          className={`flex h-8 w-8 items-center justify-center rounded-full font-mono text-[12px] font-bold ${
-            live
-              ? 'bg-accent text-ink'
-              : 'border border-[#2a2a38] bg-ink text-[#8a8a98]'
-          }`}
-        >
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#2a2a38] bg-ink font-mono text-[12px] font-bold text-[#8a8a98]">
           {index.toString().padStart(2, '0')}
         </div>
       </div>
-      <div className="min-w-0">
-        <ThoughtBody text={text} />
-        {live ? (
-          <div className="mt-2 inline-flex items-center gap-[8px] text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">
-            <span aria-hidden className="h-[6px] w-[6px] animate-pulse rounded-full bg-accent" />
-            thinking
-          </div>
-        ) : null}
-      </div>
+      <div className="min-w-0">{children}</div>
     </li>
   )
 }
 
-// Light prose renderer for planner_text. Splits on blank-line paragraph
-// breaks and lifts `**bold**` runs to <strong>. Anything else (lists,
-// tables, headers) passes through as plain text — we don't try to fully
-// render markdown, the agent is briefed to be concise.
+function DurableThought({ index, text }: { index: number; text: string }) {
+  return (
+    <ThoughtCard index={index}>
+      <ThoughtBody text={text} />
+    </ThoughtCard>
+  )
+}
+
+function LiveThought({ index, text }: { index: number; text: string }) {
+  return (
+    <ThoughtCard index={index}>
+      <PlainStreamingBody text={text} />
+    </ThoughtCard>
+  )
+}
+
+// Light prose renderer for durable planner_text. Splits on blank-line
+// paragraph breaks and lifts `**bold**` runs to <strong>. Live streaming
+// uses PlainStreamingBody so half-typed `**bold` doesn't flicker as
+// markup parsing kicks in and out.
 function ThoughtBody({ text }: { text: string }) {
-  const paragraphs = text
-    .replace(/\r\n/g, '\n')
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
+  const paragraphs = splitParagraphs(text)
   if (paragraphs.length === 0) {
     return <p className="text-[15px] text-[#a8a8b8]">…</p>
   }
@@ -708,6 +723,47 @@ function ThoughtBody({ text }: { text: string }) {
   )
 }
 
+function PlainStreamingBody({ text }: { text: string }) {
+  const paragraphs = splitParagraphs(text)
+  if (paragraphs.length === 0) {
+    return (
+      <p className="text-[15px] leading-[1.65] text-white">
+        <Caret />
+      </p>
+    )
+  }
+  return (
+    <div className="grid gap-3 text-[15px] leading-[1.65] text-white">
+      {paragraphs.map((para, i) => {
+        const isLast = i === paragraphs.length - 1
+        return (
+          <p key={i} className="whitespace-pre-wrap">
+            {para}
+            {isLast ? <Caret /> : null}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+function Caret() {
+  return (
+    <span
+      aria-hidden
+      className="ml-[2px] inline-block h-[1em] w-[2px] -translate-y-[2px] animate-pulse rounded-sm bg-accent align-middle"
+    />
+  )
+}
+
+function splitParagraphs(text: string): string[] {
+  return text
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+}
+
 function renderInline(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*)/g)
   return parts.map((part, i) => {
@@ -720,6 +776,80 @@ function renderInline(text: string): React.ReactNode[] {
     }
     return <span key={i}>{part}</span>
   })
+}
+
+// ---- live status line ------------------------------------------------
+
+function LiveStatusLine({
+  status,
+  running,
+}: {
+  status: string | null
+  running: boolean
+}) {
+  if (!running || !status) return null
+  return (
+    <div className="mb-5 inline-flex items-center gap-[10px] rounded-pill border border-[#2a2a38] bg-ink-soft/70 px-4 py-[8px] text-[13px] text-[#cfcfd6]">
+      <span
+        aria-hidden
+        className="h-[6px] w-[6px] animate-pulse rounded-full bg-accent"
+        style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+      />
+      <span>{status}</span>
+    </div>
+  )
+}
+
+function computeLiveStatus(events: FteEventRow[]): string | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]
+    if (e.kind === 'tool_use' || e.kind === 'server_tool_use') {
+      return humanizeToolUse(e)
+    }
+  }
+  return events.length > 0 ? 'Getting started…' : null
+}
+
+function humanizeToolUse(e: FteEventRow): string {
+  const name = typeof e.payload.name === 'string' ? e.payload.name : ''
+  const rawInput = e.payload.input
+  const input: Record<string, JsonValue> =
+    rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput)
+      ? (rawInput as Record<string, JsonValue>)
+      : {}
+  switch (name) {
+    case 'fetch_url': {
+      const url = typeof input.url === 'string' ? input.url : ''
+      const host = prettyHost(url)
+      return host ? `Reading ${host}` : 'Reading a page'
+    }
+    case 'discover_rss': {
+      const url = typeof input.homepage_url === 'string' ? input.homepage_url : ''
+      const host = prettyHost(url)
+      return host ? `Looking for RSS on ${host}` : 'Looking for an RSS feed'
+    }
+    case 'add_competitor': {
+      const n = typeof input.name === 'string' ? input.name : ''
+      return n ? `Adding ${n}` : 'Adding a competitor'
+    }
+    case 'save_profile':
+      return 'Saving your profile'
+    case 'web_search': {
+      const q = typeof input.query === 'string' ? input.query : ''
+      return q ? `Searching “${q}”` : 'Searching the web'
+    }
+    default:
+      return name ? `Running ${name}` : 'Thinking…'
+  }
+}
+
+function prettyHost(url: string): string {
+  if (!url) return ''
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
 }
 
 // ---- profile card -----------------------------------------------------

@@ -273,7 +273,7 @@ Validation: end-to-end fresh signup. Submit form → land on `/app/onboarding` w
 
 **Blocked by:** #34
 
-### #39 Polish FTE streaming UI clunkiness — ☐
+### #39 Polish FTE streaming UI clunkiness — ✅
 The agentic thinking stream (#29) lands in a usable but jittery state. Dogfood iteration 1 (2026-05-16) flagged:
 
 - Current step appears, then disappears, as streaming progresses — a partial card flashes, then vanishes, then a different durable card lands.
@@ -283,16 +283,22 @@ The agentic thinking stream (#29) lands in a usable but jittery state. Dogfood i
 
 Per [[feedback_agentic_ui]] the user surface is "thinking steps", not the raw event log — the current implementation surfaces too much transience.
 
-Refactor `src/routes/app/onboarding.tsx`:
+**Scope expanded mid-task (2026-05-16):** the user's second pass on this clarified that the *content* of `planner_text` is also part of the clunkiness — phrases like "Good — Workleap is..." or "Now let me search..." leak internal reasoning instead of reading as a story to the user. Two architectural changes folded in:
 
-- Durable `planner_text` blocks render once and stay put. No unmount/remount on subsequent deltas.
-- The "currently thinking" indicator is a single typewriter line that only renders the *new* block being composed. When that block lands as durable, the typewriter clears — it does not duplicate the previous block.
-- Markdown renders only on durable text. Streaming partial text shows as plain (or typewriter without markdown parsing); the block transitions to formatted exactly once when it finalizes.
-- Nothing the user reads in a durable card later vanishes or rewrites — revisions become new cards.
+1. **Story-form planner_text.** Rewrite `SYSTEM_PROMPT` in `src/agents/fte/agent.ts` so each text block is a user-facing observation written in narrative third-person ("Workleap is a manager enablement platform focused on…"). No filler openers, no first-person reasoning narration.
+2. **Ephemeral status line ≠ historical cards.** Cards = durable narrative paragraphs (planner_text). A new live status line — derived on the frontend from the latest `tool_use` / `server_tool_use` event — replaces the previous status as activity moves forward. Status humanization is a frontend-only mapping (fetch_url → "Reading X", web_search → "Searching for 'Y'", add_competitor → "Adding Z", save_profile → "Saving your profile"). No new agent surface or tool needed.
 
-Validation: run a fresh FTE end-to-end. Cards land sequentially, none flicker, none disappear. Markdown shows one transition only (plain → formatted) per card.
+Concrete deliverables:
 
-Out of scope: deciding *what* content to expose vs. keep internal — the user wants that as a separate pass after the clunkiness is fixed.
+- **Prompt rewrite** — narrative third-person planner_text. Drop "Good —", "Now let me", "Okay so". Each paragraph adds substantive evidence (positioning, decisions about competitors), not internal commentary.
+- **`LiveStatusLine` component** above the cards. Reads the latest tool_use / server_tool_use event, humanizes to a short present-tense line. Hides on `run_finished`.
+- **Cards refactor** — durable + live cards share identical visuals (border, shadow, number badge). The only differences: live renders plain text + cursor (no markdown parsing); durable renders parsed markdown without cursor. The swap on `planner_text` arrival becomes a one-frame seamless transition.
+- **Drop the fake `Reading your homepage…` placeholder Thought card.** Pre-stream state is the new status line + WarmingPanel if no run yet.
+- **Suppress streaming after `save_profile`.** Once the agent's save_profile tool_use fires, hide the live composing card so Sonnet's occasional post-recap doesn't flash up only to be filtered out by the planner_text cutoff.
+
+Validation: run a fresh FTE end-to-end. Status line updates with each tool action and reads naturally. Cards land sequentially as story paragraphs, no filler openers, no flicker, no disappearing content. Markdown shows one transition only (plain → formatted) per card.
+
+Out of scope: an agent-side `set_status` tool (kept the status frontend-derived for now — can revisit if humanized tool-use mapping feels generic).
 
 **Blocked by:** none
 
