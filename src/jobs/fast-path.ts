@@ -17,10 +17,22 @@ import { runSynthesisForUser } from './synthesize'
 // path can still overwrite later that day) so a fast-path run before the
 // cron is safe.
 //
+// First-digest lookback is intentionally wider than the daily cron's 24h:
+// a brand-new user signing up on a quiet day shouldn't be greeted with
+// "your competitors went quiet — back tomorrow". 7 days is enough that
+// almost every realistic competitor portfolio yields ≥1 signal item.
+// Daily cadence reverts to 24h once the user has at least one digest
+// behind them.
+//
 // Singleton per user: a double-click on "Looks good" or a re-run from the
 // admin app is a no-op while the previous one is still in flight.
 
 export const FAST_PATH_QUEUE = 'fast-path-run'
+const FAST_PATH_LOOKBACK_HOURS = 24 * 7
+// Score cap matches the wider window — with ~5 competitors over 7 days you
+// can easily clear the daily-cron default of 50. 200 keeps headroom for
+// chatty changelogs without doubling Haiku spend for a typical user.
+const FAST_PATH_SCORE_CAP = 200
 
 export interface FastPathJobData {
   userId: string
@@ -52,8 +64,13 @@ export async function handleFastPathJob(
   logger.info({ jobId: job.id, userId }, 'fast-path: run started')
 
   const ingest = await runIngestionForUser(userId)
-  const score = await runScoringForUser(userId)
-  const synthesize = await runSynthesisForUser(userId)
+  const score = await runScoringForUser(userId, {
+    lookbackHours: FAST_PATH_LOOKBACK_HOURS,
+    maxItemsPerUser: FAST_PATH_SCORE_CAP,
+  })
+  const synthesize = await runSynthesisForUser(userId, {
+    lookbackHours: FAST_PATH_LOOKBACK_HOURS,
+  })
 
   // synthesize always upserts at most one digest per (user, UTC day). Re-read
   // its id for metrics so the worker logs make the chain traceable end-to-end.

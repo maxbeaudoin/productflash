@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import {
   itemScores,
   rawItems,
@@ -156,7 +156,7 @@ async function runForUser(
     })
     .from(rawItems)
     .where(and(inArray(rawItems.competitorId, ids), gte(rawItems.ingestedAt, cutoff)))
-    .orderBy(rawItems.ingestedAt)
+    .orderBy(desc(rawItems.ingestedAt))
     .limit(maxItems)
 
   const pending = candidates.filter((c) => !c.alreadyScored)
