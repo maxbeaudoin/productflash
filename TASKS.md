@@ -24,14 +24,21 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 9. **#29** — FTE flow frontend ✅
 10. **#30** — fast-path time-to-first-digest ✅
 11. **#35** — personalize classify + synthesize on user profile ✅
-12. **#13** — Maxime full FTE dogfood
-13. **#32** — `/app/profile` view + edit ✅
-14. **#16** — admin app (`/admin/users/*`) ✅
-15. **#11** — Resend email template + send (reactivate after dogfood)
-16. **#17** — per-TZ send scheduling
-17. **#18** — onboard 5–10 betas
-18. **#20** — PostHog wiring
-19. **#19** — launch + monitor
+12. **#39** — polish FTE streaming UI clunkiness (dogfood iter 1 — user said this first)
+13. **#36** — admins skip onboarding
+14. **#37** — pre-fill `/signup` from the waitlist row
+15. **#38** — auto-sign-in after `/signup` submit (kill the second magic link)
+16. **#40** — catch-up framing + visible date ranges on digests
+17. **#41** — per-item timestamps when truthful, omit when unknown
+18. **#42** — next-digest banner on `/app/digests` listing
+19. **#13** — Maxime full FTE dogfood (resume iter 2 after #36–#42 land)
+20. **#32** — `/app/profile` view + edit ✅
+21. **#16** — admin app (`/admin/users/*`) ✅
+22. **#11** — Resend email template + send (reactivate after dogfood)
+23. **#17** — per-TZ send scheduling
+24. **#18** — onboard 5–10 betas
+25. **#20** — PostHog wiring
+26. **#19** — launch + monitor
 
 ---
 
@@ -236,6 +243,107 @@ TanStack Start route at `/admin/*` gated by Better Auth's admin-role plugin (#26
 
 Used for personal QA + future beta babysitting.
 **Blocked by:** #26, #31
+
+### #36 Admins skip onboarding — ☐
+Admin users hit `/app` and get redirected to `/app/onboarding` because their `profile_confirmed_at` is null — but onboarding is irrelevant to admins, who use the product as operators. Surfaced in dogfood iteration 1 (2026-05-16).
+
+In `src/routes/app/index.tsx`, when the session has `role === 'admin'`, redirect to `/app/digests` regardless of `profile_confirmed_at`. Admins who *also* want a personalized digest can navigate to `/app/onboarding` manually — we just stop forcing it.
+
+Validation: log in as an admin with `profile_confirmed_at = NULL`, hit `/`, land on `/app/digests`. Log in as a regular user with the same null state, still land on `/app/onboarding`.
+
+**Blocked by:** none
+
+### #37 Pre-fill `/signup` from the waitlist row — ☐
+Waitlist capture (#33) collects `email`, `name`, `position`, `company_url`. The `/signup` FTE intake then asks for `position`, `company_url`, and `ultimate_goal` again — flagged in dogfood iteration 1 (2026-05-16) as duplicate effort that erodes trust.
+
+In `src/routes/signup.tsx`'s loader, after `verifyInviteToken` succeeds, look up the matching `waitlist` row (by email, or by `waitlist.id` if added to the token payload) and pass `{ position, companyUrl }` as form defaults. Goal stays empty (no waitlist counterpart). Defaults are editable, not locked — a user might want to revise.
+
+Validation: submit the waitlist with email + position + company_url → admin issues invite → opening the invite URL pre-fills both fields in the FTE intake form.
+
+**Blocked by:** none (#33 + #34 already shipped)
+
+### #38 Auto-sign-in after `/signup` submit — ☐
+Current flow: invite link → fill FTE intake → server sends a magic-link email → user clicks → arrives at `/app/onboarding`. The HMAC invite token is already proof-of-ownership, so the second magic-link round-trip is redundant friction. In dogfood iteration 1 (2026-05-16) the magic link didn't even appear in logs — likely a regression — leaving the user with no way forward except manually visiting `/login`.
+
+In `src/routes/signup.tsx`'s submit handler, after upserting the `users` row and enqueueing the FTE agent, create a Better Auth session server-side and set the cookie before redirecting to `/app/onboarding`. Remove the `signIn.magicLink({...})` call from this path; the invite token's HMAC verification is the trust anchor.
+
+Implementation hint: Better Auth's server API likely exposes a session-creation method that bypasses verification (e.g. `auth.api.signInEmail({ email })` or an admin-side `signInAsUser`). If neither exists cleanly, generate a magic-link token and auto-redeem it in the same request.
+
+Validation: end-to-end fresh signup. Submit form → land on `/app/onboarding` with an active session, no email round-trip. `/login` for returning users continues to use magic-link unchanged.
+
+**Blocked by:** #34
+
+### #39 Polish FTE streaming UI clunkiness — ☐
+The agentic thinking stream (#29) lands in a usable but jittery state. Dogfood iteration 1 (2026-05-16) flagged:
+
+- Current step appears, then disappears, as streaming progresses — a partial card flashes, then vanishes, then a different durable card lands.
+- Markdown formatting flickers as text streams in (raw `**bold**` syntax briefly visible before re-rendering).
+- Cards flicker on update.
+- Some content is shown temporarily and replaced by the final answer — user can't tell what will persist.
+
+Per [[feedback_agentic_ui]] the user surface is "thinking steps", not the raw event log — the current implementation surfaces too much transience.
+
+Refactor `src/routes/app/onboarding.tsx`:
+
+- Durable `planner_text` blocks render once and stay put. No unmount/remount on subsequent deltas.
+- The "currently thinking" indicator is a single typewriter line that only renders the *new* block being composed. When that block lands as durable, the typewriter clears — it does not duplicate the previous block.
+- Markdown renders only on durable text. Streaming partial text shows as plain (or typewriter without markdown parsing); the block transitions to formatted exactly once when it finalizes.
+- Nothing the user reads in a durable card later vanishes or rewrites — revisions become new cards.
+
+Validation: run a fresh FTE end-to-end. Cards land sequentially, none flicker, none disappear. Markdown shows one transition only (plain → formatted) per card.
+
+Out of scope: deciding *what* content to expose vs. keep internal — the user wants that as a separate pass after the clunkiness is fixed.
+
+**Blocked by:** none
+
+### #40 Catch-up framing + visible date ranges on digests — ☐
+The first digest a user receives covers ~7 days (fast-path #30 pulls a wider window so there's enough material to synthesize). Subsequent digests cover 24h. Today both render with identical "five things that mattered overnight" framing — misleading for the first digest, which the user noticed in dogfood iteration 1 (2026-05-16).
+
+Concrete deliverables:
+
+- **Digest record carries the window.** Add `period_start` + `period_end` (timestamptz) to `digests`; the synthesizer writes the actual ingestion window it used. Drizzle migration.
+- **Framing differs by digest index.** In `src/lib/synthesize.ts`, when this is the user's first digest (`count(digests) for user === 0` before insert), produce a "Your catch-up brief — past 7 days" header + an opening line that acknowledges the wider window. Subsequent digests use the existing daily framing.
+- **Range visible on `/app/digests/:id`** (and on the list peek at `/app/digests`). Catch-up renders e.g. `May 9 → May 16`; daily renders `May 16` (or `May 15 → May 16`).
+- **No hallucinated ranges.** Legacy rows with null `period_start` render without a range, not with a guess.
+
+Validation: brand-new user → first digest reads "catch-up brief" + 7-day range. Next day's run for the same user → "Today's brief" + 1-day range. Both ranges match the actual `raw_items` ingested.
+
+Out of scope: per-item timestamps (#41). Configurable catch-up window length.
+
+**Blocked by:** none
+
+### #41 Per-item timestamps when truthful, omit when unknown — ☐
+Each digest item has no visible timestamp today, which makes the "this week's news" framing impossible for the user to verify. The user wants to see *when* each item happened — but **only when we know**.
+
+**No hallucination.** Per [[feedback_rtfm]] (broader principle: don't fabricate data we don't have), missing timestamps must render as no-timestamp, not as "today" or "recently" or current-date.
+
+Concrete deliverables:
+
+- **Carry `occurred_at` raw_item → digest_item.** `raw_items` already stores a publication timestamp from each source. Plumb it through to `digest_items` as a nullable `occurred_at`. Drizzle migration.
+- **Sonnet does not invent the timestamp.** `src/lib/synthesize.ts` takes `occurred_at` as input *metadata*; the LLM-generated text does not reference it. The frontend renders the timestamp separately, beside the headline.
+- **Frontend: friendly + truthful.** `DigestItem` shows `May 14 · 2 days ago` when present; renders nothing when null. No placeholder, no "recently", no current-day fallback.
+- **Source adapters surface their best-available date.** Each of #3/#4/#5/#6 must set `raw_items.published_at` when the source provides one. When the source genuinely has no date (some Firehose events), leave it null — that's the truthful answer.
+
+Validation: one digest mixing sources. RSS items show feed pubDate. PH items show post creation. Firehose events with no date render cleanly without a placeholder. The strings "today" / "recently" / current date never appear unless the source itself said so.
+
+Out of scope: client-side relative-time auto-update (server-rendered static is fine — page reloads pick up newer relativity).
+
+**Blocked by:** none
+
+### #42 Next-digest banner on `/app/digests` listing — ☐
+The list page at `/app/digests` shows only past digests, with no indication of when the next one arrives or where it'll land. Dogfood iteration 1 (2026-05-16) flagged this as a missed anticipation/engagement moment.
+
+Above the list, render a card or banner:
+
+- **When the next digest arrives.** Computed from the user's TZ + the cron schedule (today: 05:30 UTC daily; per-TZ scheduling lands with #17). Show as "Tomorrow morning, ~6 AM UTC" or "in ~14h" — pick what reads cleanest. Once #17 ships, this becomes the user's actual local delivery time.
+- **Where it'll be delivered.** Today: "in-app only" (email send #11 is deferred). Once #11 ships, "in-app + email to you@example.com". Stay honest — don't promise email before #11 lands.
+- **Anchor copy.** "Your next brief is on the way — [time, channel]." Or similar; communicate confidence without being cute.
+
+Validation: user with prior digests opens `/app/digests` → banner appears with sensible next-time + "in-app only" channel. After #11 + #17 ship, banner reflects email delivery + per-TZ time with no further changes here.
+
+Out of scope: per-user delivery time customization (folds into #17). Slack/Teams channels (not in roadmap). Empty-digest preview (separate concern).
+
+**Blocked by:** none for the in-app version. #11 + #17 unlock the richer copy.
 
 ---
 
