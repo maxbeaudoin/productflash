@@ -7,11 +7,14 @@ import { digestItems, digests, feedback, rawItems } from '~/db/schema'
 import type { DigestTag } from '~/design/tokens'
 import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
+import { deriveDigestPeriod } from '~/lib/digest-period'
 import { signFeedbackToken } from '~/lib/feedback-token'
 
 type DigestView = {
   id: string
   createdAt: string
+  periodStart: string | null
+  periodEnd: string | null
   itemCount: number
   items: DigestItemView[]
 }
@@ -66,6 +69,8 @@ const loadDigest = createServerFn({ method: 'GET' })
     return {
       id: digest.id,
       createdAt: digest.createdAt.toISOString(),
+      periodStart: digest.periodStart ? digest.periodStart.toISOString() : null,
+      periodEnd: digest.periodEnd ? digest.periodEnd.toISOString() : null,
       itemCount: digest.itemCount,
       items: rows.map<DigestItemView>((r) => ({
         id: r.id,
@@ -93,8 +98,12 @@ export const Route = createFileRoute('/app/digests/$digestId')({
 
 function DigestDetailPage() {
   const digest = Route.useLoaderData()
-  const date = new Date(digest.createdAt)
-  const dateLabel = date
+  const period = deriveDigestPeriod({
+    periodStart: digest.periodStart,
+    periodEnd: digest.periodEnd,
+  })
+  const created = new Date(digest.createdAt)
+  const fallbackDateLabel = created
     .toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
@@ -102,10 +111,13 @@ function DigestDetailPage() {
       year: 'numeric',
     })
     .toUpperCase()
-  const timeLabel = date.toLocaleTimeString(undefined, {
+  const fallbackTimeLabel = created.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
   })
+  const headerLabel = headerLabelFor(period.kind)
+  const headerMetaLabel =
+    period.rangeLabel?.toUpperCase() ?? `${fallbackDateLabel} · ${fallbackTimeLabel}`
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-12">
@@ -123,20 +135,18 @@ function DigestDetailPage() {
         <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
           <div className="text-[13px] text-[#888]">
             <strong className="font-semibold text-white">Product Flash</strong>{' '}
-            · daily brief
+            · {headerLabel}
           </div>
-          <div className="font-mono text-xs text-[#666]">
-            {dateLabel} · {timeLabel}
-          </div>
+          <div className="font-mono text-xs text-[#666]">{headerMetaLabel}</div>
         </div>
 
         <div className="px-7 py-9">
           {digest.items.length === 0 ? (
-            <EmptyDigestBody />
+            <EmptyDigestBody periodKind={period.kind} daysBack={period.daysBack} />
           ) : (
             <>
               <div className="mb-6 text-sm text-[#888]">
-                {greetingFor(digest.items.length)}
+                {greetingFor(digest.items.length, period.kind, period.daysBack)}
               </div>
               {digest.items.map((item, idx) => (
                 <DigestItemCard
@@ -153,7 +163,21 @@ function DigestDetailPage() {
   )
 }
 
-function greetingFor(count: number) {
+function headerLabelFor(kind: 'catchup' | 'daily' | 'unknown'): string {
+  if (kind === 'catchup') return 'catch-up brief'
+  return 'daily brief'
+}
+
+function greetingFor(
+  count: number,
+  kind: 'catchup' | 'daily' | 'unknown',
+  daysBack: number | null,
+) {
+  if (kind === 'catchup') {
+    const window = daysBack && daysBack >= 2 ? `the past ${daysBack} days` : 'the past week'
+    if (count === 1) return `Here's the one thing that mattered in ${window}.`
+    return `Here's what mattered in ${window} — ${countWord(count).toLowerCase()} items worth your attention.`
+  }
   if (count === 1) return 'One thing mattered overnight.'
   return `${countWord(count)} things mattered overnight.`
 }
@@ -163,15 +187,29 @@ function countWord(n: number) {
   return words[n] ?? String(n)
 }
 
-function EmptyDigestBody() {
+function EmptyDigestBody({
+  periodKind,
+  daysBack,
+}: {
+  periodKind: 'catchup' | 'daily' | 'unknown'
+  daysBack: number | null
+}) {
+  const isCatchup = periodKind === 'catchup'
+  const eyebrow = isCatchup ? 'Nothing notable this past week' : 'Nothing notable overnight'
+  const window = isCatchup
+    ? daysBack && daysBack >= 2
+      ? `the past ${daysBack} days`
+      : 'the past week'
+    : null
   return (
     <div className="py-6 text-center">
       <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#666]">
-        Nothing notable overnight
+        {eyebrow}
       </div>
       <p className="mx-auto max-w-[480px] text-[15px] text-[#a8a8b8]">
-        Your competitors went quiet. We'd rather tell you nothing happened than
-        invent something. Back tomorrow.
+        {isCatchup
+          ? `Your competitors went quiet across ${window}. We'd rather tell you nothing happened than invent something. We'll keep watching — your next brief lands tomorrow.`
+          : "Your competitors went quiet. We'd rather tell you nothing happened than invent something. Back tomorrow."}
       </p>
     </div>
   )

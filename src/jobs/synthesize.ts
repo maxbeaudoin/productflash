@@ -97,7 +97,16 @@ export async function runSynthesisForUser(
 
   const userName = user.name ?? user.email.split('@')[0]
   const reader = toReaderProfile(user)
-  const metrics = await runForUser(db, user.id, userName, reader, cutoff, dayStart, maxItems)
+  const metrics = await runForUser(
+    db,
+    user.id,
+    userName,
+    reader,
+    cutoff,
+    now,
+    dayStart,
+    maxItems,
+  )
   logger.info({ ...metrics, email: user.email }, 'synthesize: on-demand user run complete')
   return metrics
 }
@@ -149,6 +158,7 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
         userName,
         reader,
         cutoff,
+        now,
         dayStart,
         maxItems,
       )
@@ -190,6 +200,7 @@ async function runForUser(
   userName: string,
   reader: ReaderProfile | null,
   cutoff: Date,
+  now: Date,
   dayStart: Date,
   maxItems: number,
 ): Promise<UserSynthesisMetrics> {
@@ -220,7 +231,7 @@ async function runForUser(
     .limit(maxItems)
 
   if (candidates.length === 0) {
-    await upsertDigest(db, userId, dayStart, [])
+    await upsertDigest(db, userId, dayStart, cutoff, now, [])
     return { userId, candidates: 0, synthesized: 0, empty: true, errored: false }
   }
 
@@ -243,7 +254,7 @@ async function runForUser(
     // Sonnet returned an empty array despite non-empty input — treat as
     // synthesis failure and persist empty digest so send job stays unblocked.
     logger.warn({ userId, candidates: candidates.length }, 'synthesize: empty output for non-empty input')
-    await upsertDigest(db, userId, dayStart, [])
+    await upsertDigest(db, userId, dayStart, cutoff, now, [])
     return { userId, candidates: candidates.length, synthesized: 0, empty: true, errored: true }
   }
 
@@ -252,7 +263,7 @@ async function runForUser(
     .map((s) => buildDigestItemRow(userId, s, byId))
     .filter((row): row is NewDigestItem => row !== null)
 
-  await upsertDigest(db, userId, dayStart, itemRows)
+  await upsertDigest(db, userId, dayStart, cutoff, now, itemRows)
 
   return {
     userId,
@@ -291,6 +302,8 @@ async function upsertDigest(
   db: ReturnType<typeof getDb>,
   userId: string,
   dayStart: Date,
+  periodStart: Date,
+  periodEnd: Date,
   itemRows: Array<Omit<NewDigestItem, 'digestId'>>,
 ): Promise<void> {
   await db.transaction(async (tx) => {
@@ -306,12 +319,12 @@ async function upsertDigest(
       await tx.delete(digestItems).where(eq(digestItems.digestId, digestId))
       await tx
         .update(digests)
-        .set({ itemCount: itemRows.length })
+        .set({ itemCount: itemRows.length, periodStart, periodEnd })
         .where(eq(digests.id, digestId))
     } else {
       const inserted = await tx
         .insert(digests)
-        .values({ userId, itemCount: itemRows.length })
+        .values({ userId, itemCount: itemRows.length, periodStart, periodEnd })
         .returning({ id: digests.id })
       digestId = inserted[0].id
     }

@@ -8,6 +8,7 @@ import type { DigestTag } from '~/design/tokens'
 import { runScoringForUser } from '~/jobs/score'
 import { runSynthesisForUser } from '~/jobs/synthesize'
 import { getDb } from '~/lib/db'
+import { deriveDigestPeriod } from '~/lib/digest-period'
 import { signFeedbackToken } from '~/lib/feedback-token'
 
 // Dev-only digest preview that bypasses Better Auth (#25). Renders the most
@@ -22,6 +23,8 @@ type DebugDigestView = {
   userEmail: string
   digestId: string
   createdAt: string
+  periodStart: string | null
+  periodEnd: string | null
   itemCount: number
   refreshed: boolean
   items: DigestItemView[]
@@ -89,6 +92,8 @@ const loadDebugDigest = createServerFn({ method: 'GET' })
       userEmail: user.email,
       digestId: digest.id,
       createdAt: digest.createdAt.toISOString(),
+      periodStart: digest.periodStart ? digest.periodStart.toISOString() : null,
+      periodEnd: digest.periodEnd ? digest.periodEnd.toISOString() : null,
       itemCount: digest.itemCount,
       refreshed: data.refresh,
       items: rows.map<DigestItemView>((r) => ({
@@ -128,8 +133,12 @@ export const Route = createFileRoute('/debug/digest/$userId')({
 
 function DebugDigestPage() {
   const data = Route.useLoaderData()
-  const date = new Date(data.createdAt)
-  const dateLabel = date
+  const period = deriveDigestPeriod({
+    periodStart: data.periodStart,
+    periodEnd: data.periodEnd,
+  })
+  const created = new Date(data.createdAt)
+  const fallbackDateLabel = created
     .toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
@@ -137,10 +146,14 @@ function DebugDigestPage() {
       year: 'numeric',
     })
     .toUpperCase()
-  const timeLabel = date.toLocaleTimeString(undefined, {
+  const fallbackTimeLabel = created.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
   })
+  const headerLabel = period.kind === 'catchup' ? 'catch-up brief' : 'daily brief'
+  const headerMetaLabel =
+    period.rangeLabel?.toUpperCase() ??
+    `${fallbackDateLabel} · ${fallbackTimeLabel}`
 
   return (
     <main className="min-h-screen bg-ink px-6 py-12 text-white antialiased">
@@ -154,20 +167,18 @@ function DebugDigestPage() {
           <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
             <div className="text-[13px] text-[#888]">
               <strong className="font-semibold text-white">Product Flash</strong>{' '}
-              · daily brief
+              · {headerLabel}
             </div>
-            <div className="font-mono text-xs text-[#666]">
-              {dateLabel} · {timeLabel}
-            </div>
+            <div className="font-mono text-xs text-[#666]">{headerMetaLabel}</div>
           </div>
 
           <div className="px-7 py-9">
             {data.items.length === 0 ? (
-              <EmptyDigestBody />
+              <EmptyDigestBody periodKind={period.kind} daysBack={period.daysBack} />
             ) : (
               <>
                 <div className="mb-6 text-sm text-[#888]">
-                  {greetingFor(data.items.length)}
+                  {greetingFor(data.items.length, period.kind, period.daysBack)}
                 </div>
                 {data.items.map((item, idx) => (
                   <DigestItemCard
@@ -220,7 +231,16 @@ function DebugBanner({ data }: { data: DebugDigestView }) {
   )
 }
 
-function greetingFor(count: number) {
+function greetingFor(
+  count: number,
+  kind: 'catchup' | 'daily' | 'unknown',
+  daysBack: number | null,
+) {
+  if (kind === 'catchup') {
+    const window = daysBack && daysBack >= 2 ? `the past ${daysBack} days` : 'the past week'
+    if (count === 1) return `Here's the one thing that mattered in ${window}.`
+    return `Here's what mattered in ${window} — ${countWord(count).toLowerCase()} items worth your attention.`
+  }
   if (count === 1) return 'One thing mattered overnight.'
   return `${countWord(count)} things mattered overnight.`
 }
@@ -230,15 +250,29 @@ function countWord(n: number) {
   return words[n] ?? String(n)
 }
 
-function EmptyDigestBody() {
+function EmptyDigestBody({
+  periodKind,
+  daysBack,
+}: {
+  periodKind: 'catchup' | 'daily' | 'unknown'
+  daysBack: number | null
+}) {
+  const isCatchup = periodKind === 'catchup'
+  const eyebrow = isCatchup ? 'Nothing notable this past week' : 'Nothing notable overnight'
+  const window = isCatchup
+    ? daysBack && daysBack >= 2
+      ? `the past ${daysBack} days`
+      : 'the past week'
+    : null
   return (
     <div className="py-6 text-center">
       <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#666]">
-        Nothing notable overnight
+        {eyebrow}
       </div>
       <p className="mx-auto max-w-[480px] text-[15px] text-[#a8a8b8]">
-        Your competitors went quiet. We'd rather tell you nothing happened than
-        invent something. Back tomorrow.
+        {isCatchup
+          ? `Your competitors went quiet across ${window}. We'd rather tell you nothing happened than invent something. We'll keep watching — your next brief lands tomorrow.`
+          : "Your competitors went quiet. We'd rather tell you nothing happened than invent something. Back tomorrow."}
       </p>
     </div>
   )

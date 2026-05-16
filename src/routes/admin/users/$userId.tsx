@@ -20,6 +20,7 @@ import { enqueueFastPath } from '~/jobs/fast-path'
 import { requireAdminSession } from '~/lib/auth-server'
 import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
+import { deriveDigestPeriod } from '~/lib/digest-period'
 import { logger } from '~/lib/logger'
 
 // /admin/users/:id (#16). Operator console for one user. Three jobs:
@@ -59,6 +60,8 @@ type CompetitorView = {
 type DigestView = {
   id: string
   createdAt: string
+  periodStart: string | null
+  periodEnd: string | null
   itemCount: number
   items: DigestItemView[]
 }
@@ -116,6 +119,8 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       .select({
         id: digests.id,
         createdAt: digests.createdAt,
+        periodStart: digests.periodStart,
+        periodEnd: digests.periodEnd,
         itemCount: digests.itemCount,
       })
       .from(digests)
@@ -208,6 +213,8 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       digests: digestRows.map<DigestView>((d) => ({
         id: d.id,
         createdAt: d.createdAt.toISOString(),
+        periodStart: d.periodStart ? d.periodStart.toISOString() : null,
+        periodEnd: d.periodEnd ? d.periodEnd.toISOString() : null,
         itemCount: d.itemCount,
         items: itemsByDigest.get(d.id) ?? [],
       })),
@@ -536,8 +543,12 @@ function DigestsBlock({ digests }: { digests: DigestView[] }) {
 // makes the embedded preview visually distinct from admin chrome and
 // matches what the user actually sees.
 function DigestPreviewCard({ digest }: { digest: DigestView }) {
-  const date = new Date(digest.createdAt)
-  const dateLabel = date
+  const period = deriveDigestPeriod({
+    periodStart: digest.periodStart,
+    periodEnd: digest.periodEnd,
+  })
+  const created = new Date(digest.createdAt)
+  const fallbackDateLabel = created
     .toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
@@ -545,10 +556,14 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
       year: 'numeric',
     })
     .toUpperCase()
-  const timeLabel = date.toLocaleTimeString(undefined, {
+  const fallbackTimeLabel = created.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
   })
+  const headerLabel = period.kind === 'catchup' ? 'catch-up brief' : 'daily brief'
+  const headerMetaLabel =
+    period.rangeLabel?.toUpperCase() ??
+    `${fallbackDateLabel} · ${fallbackTimeLabel}`
   return (
     <div
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft text-white"
@@ -556,12 +571,10 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
     >
       <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-6 py-4">
         <div className="text-[13px] text-[#888]">
-          <strong className="font-semibold text-white">Product Flash</strong> ·
-          daily brief
+          <strong className="font-semibold text-white">Product Flash</strong> ·{' '}
+          {headerLabel}
         </div>
-        <div className="font-mono text-xs text-[#666]">
-          {dateLabel} · {timeLabel}
-        </div>
+        <div className="font-mono text-xs text-[#666]">{headerMetaLabel}</div>
       </div>
       <div className="px-6 py-6">
         {digest.items.length === 0 ? (

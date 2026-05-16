@@ -5,10 +5,13 @@ import { useEffect, useState } from 'react'
 import { digestItems, digests } from '~/db/schema'
 import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
+import { deriveDigestPeriod } from '~/lib/digest-period'
 
 type DigestRow = {
   id: string
   createdAt: string
+  periodStart: string | null
+  periodEnd: string | null
   itemCount: number
   peek: string | null
 }
@@ -20,6 +23,8 @@ const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
     .select({
       id: digests.id,
       createdAt: digests.createdAt,
+      periodStart: digests.periodStart,
+      periodEnd: digests.periodEnd,
       itemCount: digests.itemCount,
     })
     .from(digests)
@@ -46,6 +51,8 @@ const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
     rows: digestRows.map<DigestRow>((r) => ({
       id: r.id,
       createdAt: r.createdAt.toISOString(),
+      periodStart: r.periodStart ? r.periodStart.toISOString() : null,
+      periodEnd: r.periodEnd ? r.periodEnd.toISOString() : null,
       itemCount: r.itemCount,
       peek: peeks.get(r.id) ?? null,
     })),
@@ -123,22 +130,32 @@ function DigestList({ rows }: { rows: DigestRow[] }) {
 }
 
 function DigestListRow({ row }: { row: DigestRow }) {
-  const date = new Date(row.createdAt)
-  const dateLabel = date
+  const period = deriveDigestPeriod({
+    periodStart: row.periodStart,
+    periodEnd: row.periodEnd,
+  })
+  const created = new Date(row.createdAt)
+  const fallbackDateLabel = created
     .toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
     })
     .toUpperCase()
-  const timeLabel = date.toLocaleTimeString(undefined, {
+  const fallbackTimeLabel = created.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
   })
+  const metaLine =
+    period.rangeLabel?.toUpperCase() ??
+    `${fallbackDateLabel} · ${fallbackTimeLabel}`
+  const kindBadge = period.kind === 'catchup' ? 'Catch-up' : null
   const itemLabel =
     row.itemCount === 0
       ? 'Nothing notable'
       : `${row.itemCount} ${row.itemCount === 1 ? 'item' : 'items'}`
+  const peekFallback =
+    period.kind === 'catchup' ? 'Nothing notable this past week.' : 'Nothing notable overnight.'
 
   return (
     <li>
@@ -148,11 +165,16 @@ function DigestListRow({ row }: { row: DigestRow }) {
         className="group flex items-start justify-between gap-6 px-7 py-5 transition-colors hover:bg-[#1a1a23]"
       >
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-xs text-[#888]">
-            {dateLabel} · {timeLabel}
+          <div className="flex items-center gap-3 font-mono text-xs text-[#888]">
+            <span>{metaLine}</span>
+            {kindBadge ? (
+              <span className="rounded-pill bg-coral/15 px-2 py-[2px] text-[10px] font-semibold uppercase tracking-[0.12em] text-coral">
+                {kindBadge}
+              </span>
+            ) : null}
           </div>
           <div className="mt-2 line-clamp-2 text-base font-semibold leading-[1.4] text-white">
-            {row.peek ?? 'Nothing notable overnight.'}
+            {row.peek ?? peekFallback}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3 pt-1">

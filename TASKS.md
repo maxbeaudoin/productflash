@@ -28,7 +28,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 13. **#36** — admins skip onboarding ✅
 14. **#37** — pre-fill `/signup` from the waitlist row ✅
 15. **#38** — auto-sign-in after `/signup` submit ✅
-16. **#40** — catch-up framing + visible date ranges on digests
+16. **#40** — catch-up framing + visible date ranges on digests ✅
 17. **#41** — per-item timestamps when truthful, omit when unknown
 18. **#42** — next-digest banner on `/app/digests` listing
 19. **#13** — Maxime full FTE dogfood (resume iter 2 after #36–#42 land)
@@ -298,7 +298,7 @@ Out of scope: an agent-side `set_status` tool (kept the status frontend-derived 
 
 **Blocked by:** none
 
-### #40 Catch-up framing + visible date ranges on digests — ☐
+### #40 Catch-up framing + visible date ranges on digests — ✅
 The first digest a user receives covers ~7 days (fast-path #30 pulls a wider window so there's enough material to synthesize). Subsequent digests cover 24h. Today both render with identical "five things that mattered overnight" framing — misleading for the first digest, which the user noticed in dogfood iteration 1 (2026-05-16).
 
 Concrete deliverables:

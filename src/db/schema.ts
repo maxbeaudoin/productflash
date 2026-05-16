@@ -163,6 +163,12 @@ export const digests = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
     openedAt: timestamp('opened_at', { withTimezone: true }),
     itemCount: integer('item_count').notNull().default(0),
+    // The raw_item ingestion window the synthesizer drew from. Wider for the
+    // user's first (catch-up) digest via the fast path (#30); ~24h for the
+    // daily cron. Nullable for legacy rows written before #40 — the
+    // frontend renders no range in that case rather than guessing.
+    periodStart: timestamp('period_start', { withTimezone: true }),
+    periodEnd: timestamp('period_end', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('digests_user_created_idx').on(t.userId, t.createdAt)],
