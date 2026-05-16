@@ -127,23 +127,73 @@ Email templates: render via the React Email preview server and screenshot the pr
 
 Screenshots live in `/tmp/` only. Never commit them; they exist to prove this turn's work, not as repo artifacts.
 
-## Step 9 — Report (with manual test runbook)
+## Step 9 — Report (standardized template)
 
-Compose the report in this order:
+Emit the full report in **exactly** this order, in **one message**, *before* asking anything.
 
-- ✅ **Task #N done** — one-sentence outcome
-- 📸 **Screenshots** — embed inline from Step 8 (omit this line if no UI surface was affected)
-- 🧪 **How to verify yourself** — a 5–8 step numbered checklist the user can follow locally. Specific: commands to run, URLs to open, what to click, what to look for at each step. Treat it as a runbook, not a vibe check.
-- ➡️ **Next eligible:** #M `<subject>` (or "all blocked on …" / "backlog clear")
-- ⚠️ **User action needed:** anything they must do before the next task can start (env vars, account setup, recruiting calls). Omit the line if none.
+Each section is its own **single-column 2-row table** — a header row (title + emoji) followed by a body row. This gives each section a visible titled card so the report scans like a stack of blocks rather than running prose. Don't merge them into one mega-table; separate tables render with clearer divisions between sections.
 
-## Step 10 — Ask to push
+Inside body cells, use `<br>` for line breaks (markdown bullets and numbered lists don't render inside table cells the way they do in prose, so write bullets as `- item<br>- item<br>- item` or steps as `1. step<br>2. step<br>3. step`).
 
-The commit from Step 7 is local. Always ask before pushing — never auto-push.
+Length: write what the task warrants. A schema migration may have one-line bodies; a complex UI feature may need five or six bullets per section. Stop when you've covered it, not when you hit an arbitrary cap. Don't restate the task description from `TASKS.md` — the reader already has that. Focus on what you *did*, what's *interesting*, and what they need to *act on*.
 
-Use `AskUserQuestion` with a single question: "Push the commit now?" Options: "Push" / "Hold". On Push: run `git push` with no args (respects the current branch's upstream). On Hold: confirm the commit is left local and stop.
+Template:
 
-Never `--force` or `--force-with-lease`. If the push is rejected (non-fast-forward, hook failure), surface the error verbatim and ask the user how to proceed — don't reach for a destructive flag to "fix" it.
+```
+| ✅ Task |
+|---|
+| #N — <one-line outcome> |
+
+| 🧩 What it does |
+|---|
+| - <user-visible change><br>- <user-visible change><br>- <user-visible change> |
+
+| 🔧 How it works |
+|---|
+| - <key mechanic, with `file_path:line` when helpful><br>- <key mechanic><br>- <trade-off / "why this approach" when non-obvious> |
+
+| 🧪 How to test |
+|---|
+| 1. <step — exact command / URL / click target><br>2. <step><br>3. <step><br>4. <step><br>5. <step> |
+
+| 📸 Screenshots |
+|---|
+| <embedded images from Step 8 — `![label](/tmp/task-N-slug.png)` — or "_no UI surface affected_"> |
+
+| 🪧 Follow-ups & deferrals |
+|---|
+| - <deliberate deferral with reason><br>- <known limitation to revisit> |
+
+| ⚠️ User actions |
+|---|
+| - <env var to set / account to create / approval needed before next task> |
+
+| ➡️ Next up |
+|---|
+| - #M `<subject>`<br>- #M+1 `<subject>`<br>- #M+2 `<subject>` |
+```
+
+Section rules:
+- **Follow-ups & deferrals** and **User actions** are optional — omit the whole table when there's nothing to say (don't render an empty card).
+- **Screenshots** is required for any UI surface; for non-UI work write `_no UI surface affected_` in the body cell.
+- **Next up** lists the top 2–3 eligible tasks by the same priority/ID rule used in Step 2. If everything is blocked, body is `_all eligible work blocked on #X_`; if the backlog is empty, `_backlog clear — see SCOPE.md §7_`.
+- Don't add prefaces like "Here's the report" — the tables speak for themselves.
+
+## Step 10 — Confirm, then push (default to push)
+
+Step 9's report **must already be on screen** before this step starts. Pushing without surfacing the report first is the failure mode this skill exists to prevent.
+
+After the report, ask via `AskUserQuestion`:
+- Question: "Any feedback before I push?"
+- Options:
+  - "Push it" (recommended; default)
+  - "I have feedback"
+
+Behavior:
+- **"Push it" (or the user adds no feedback via "Other"):** run `git push` with no args. Surface the result.
+- **"I have feedback" / user types feedback:** address it. Make a new commit (never `--amend` a pushed commit; for local-only follow-ups a new commit is still safer and clearer). Re-emit a brief delta (what changed since the last report) and re-ask the same question. Loop until the user says push.
+
+Never `--force` or `--force-with-lease`. If `git push` is rejected (non-fast-forward, hook failure), surface the error verbatim and ask the user how to proceed — don't reach for a destructive flag to "fix" it.
 
 Then stop. Do not auto-chain into the next task — let the user re-invoke `/next-task` when ready.
 
@@ -157,7 +207,7 @@ Then stop. Do not auto-chain into the next task — let the user re-invoke `/nex
 - Committing `.env`, generated `dist/` / `node_modules/`, or large binaries. Stage explicitly.
 - Running destructive ops (force-push, reset --hard, branch -D) without user authorization.
 - Skipping the side-by-side visual check on task #14 — pixel match is the entire acceptance bar.
-- Auto-pushing without explicit user OK. Step 10 is a gate, not a courtesy.
+- Asking "Push?" *before* emitting the Step 9 report. The report is the gate; the push question follows it.
 - Committing screenshots into the repo. They live in `/tmp/` and ship inline in the report.
 - Shipping UI work without a screenshot when a viewable surface exists.
 - Skipping the manual test runbook because "it's obvious." It's only obvious to whoever just wrote it.
