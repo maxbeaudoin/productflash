@@ -76,10 +76,6 @@ Use the PH public GraphQL API. Query recent posts; filter by competitor name/slu
 
 ### #6 Firehose source adapter — ✅
 
-### #23 Verify Firehose buffer is flowing — ☐
-Follow-up to #6. The initial probe ran minutes after `firehose-sync-rules.ts --apply` created the 7 rules; Firehose's buffer is forward-looking, so zero events was expected and is not a regression signal yet. Re-run `pnpm tsx scripts/test-source-firehose.ts --twice` ≥24h after rule creation (so realistically from 2026-05-15 onwards). Expectations: at least one of the seeded competitors returns ≥1 event; `--twice` shows sourceId overlap across runs. If still zero across all 7, investigate: Lucene query may be too narrow (e.g., common-word names like "Linear" / "Resend" filtered by quality flag), or Firehose simply hasn't crawled matching pages yet. Tune the template in `scripts/firehose-sync-rules.ts:buildLuceneQuery` and re-`--apply`. Block #7 (orchestrator) on this only if zero items persist past 48h.
-**Blocked by:** #6
-
 ### #4 Firecrawl pricing-page scraper — ✅
 Daily scrape of competitor `pricing_url` via Firecrawl (https://docs.firecrawl.dev/api-reference/introduction). Store latest snapshot; on change emit a `raw_item` with a unified diff in the body. Skip competitors without a `pricing_url`.
 
@@ -574,8 +570,6 @@ Validation: throw in a route's loader (e.g. add `throw new Error('test')` to a d
  └── #28 (FTE agent) ── #29 ── #30 ── #35 ── #13 ── #18 ──┐
                                                            ├── #19 (launch)
                                               #11 ── #17 ──┘
-
-#6 ── #23 (Firehose buffer verify)
 ```
 
 Tasks #3, #4, #5, #7, #8, #9, #10, #12, #24 have no inter-task blockers — they were ordered by milestone, not strict deps.
@@ -592,3 +586,4 @@ Retired (deleted from this file, kept in git history):
 - #15 — Competitor picker with RSS autodetect (replaced by FTE agent tool, #28)
 - #22 — Signup form section on landing page (replaced by `/signup` + agentic FTE, #29)
 - #24 — Serve `executive-summary.html` at `/executive-summary` (temporary share path; removed after #14 landed and the React port at `/` became canonical)
+- #23 — Verify Firehose buffer is flowing (deferred 2026-05-16: 48h+ probe returned zero events across all 7 rules; user opted to put Firehose aside for the PoC since RSS + Firecrawl + Product Hunt are carrying the signal. Adapter stays in code as a harmless no-op. See [[project_firehose_deferred]].)
