@@ -40,6 +40,13 @@ export const SYNTHESIZE_QUEUE = 'synthesize-run'
 export const SYNTHESIZE_CRON = '30 5 * * *' // 05:30 UTC daily, per SCOPE.md §6
 
 const LOOKBACK_HOURS = 24
+// Monday's digest covers the full weekend so users never come back to a
+// Saturday-shaped gap. 72h reaches from Friday 05:30 UTC (the previous
+// daily run) through Monday 05:30 UTC, so Sat/Sun ingestion gets folded
+// into the Monday brief alongside late-Friday/early-Monday items. The
+// daily cron path enables this automatically (see weekendAwareDefaults
+// below); manual + fast-path callers can override via SynthesisOptions.
+const MONDAY_LOOKBACK_HOURS = 72
 const MAX_ITEMS_PER_DIGEST = 5
 // Cap per competitor in the first selection pass. With MAX_ITEMS_PER_DIGEST=5
 // this guarantees at least 3 distinct competitors in any digest where ≥3
@@ -86,6 +93,14 @@ export interface SynthesisOptions {
   // 5-item daily one.
   maxItemsPerCompetitor?: number
   now?: Date
+  // When true, skip the run entirely on UTC Sat/Sun (no digests produced).
+  // The cron path passes this; manual `pnpm synthesize:run` does not so
+  // weekend dogfooding still works.
+  skipWeekends?: boolean
+  // When true and `lookbackHours` is unset, the cron path widens lookback
+  // to MONDAY_LOOKBACK_HOURS on UTC Monday so the Monday digest covers
+  // Fri+Sat+Sun. Off by default for manual/fast-path callers.
+  useWeekendAwareDefaults?: boolean
 }
 
 // On-demand variant used by the debug preview (#25) and the time-to-first
@@ -138,12 +153,42 @@ export async function runSynthesisForUser(
 export async function runSynthesis(options: SynthesisOptions = {}): Promise<SynthesisMetrics> {
   const started = Date.now()
   const db = getDb()
-  const lookbackHours = options.lookbackHours ?? LOOKBACK_HOURS
+  const now = options.now ?? new Date()
+  const dayStart = startOfUtcDay(now)
+
+  // Weekend skip — the cron path passes skipWeekends=true so Saturday and
+  // Sunday produce no digests. Synthesize cost stays zero, and the per-TZ
+  // send dispatcher's weekend filter would have suppressed delivery anyway.
+  if (options.skipWeekends) {
+    const utcDay = now.getUTCDay() // 0=Sun, 6=Sat
+    if (utcDay === 0 || utcDay === 6) {
+      logger.info(
+        { utcDay, now: now.toISOString() },
+        'synthesize: weekend — skipping run (use skipWeekends:false to override)',
+      )
+      return {
+        users: 0,
+        durationMs: Date.now() - started,
+        totalCandidates: 0,
+        totalSynthesized: 0,
+        emptyDigests: 0,
+        erroredUsers: 0,
+        perUser: [],
+      }
+    }
+  }
+
+  // Monday's lookback widens to 72h to fold in Fri/Sat/Sun ingestion. Only
+  // applied when the caller did not override `lookbackHours` and opted into
+  // weekend-aware defaults (cron path). Tue–Fri stay on the 24h daily window.
+  const defaultLookback =
+    options.useWeekendAwareDefaults && now.getUTCDay() === 1
+      ? MONDAY_LOOKBACK_HOURS
+      : LOOKBACK_HOURS
+  const lookbackHours = options.lookbackHours ?? defaultLookback
   const maxItems = options.maxItemsPerDigest ?? MAX_ITEMS_PER_DIGEST
   const maxPerCompetitor = options.maxItemsPerCompetitor ?? MAX_ITEMS_PER_COMPETITOR
-  const now = options.now ?? new Date()
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000)
-  const dayStart = startOfUtcDay(now)
 
   const activeUsers = await db
     .select({

@@ -1,16 +1,12 @@
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { desc, eq, sql } from 'drizzle-orm'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { digestItems, digests, users } from '~/db/schema'
 import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 import { deriveDigestPeriod } from '~/lib/digest-period'
-import {
-  computeNextDigestAt,
-  formatLocalTimeOfDay,
-  formatRelativeUntil,
-} from '~/lib/next-digest'
+import { computeNextDigestFor, formatRelativeUntil } from '~/lib/next-digest'
 
 type DigestRow = {
   id: string
@@ -59,7 +55,6 @@ const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
     peeks = new Map(peekRows.rows.map((r) => [r.digest_id, r.headline]))
   }
 
-  const nextDigestAt = computeNextDigestAt()
   const userTz = profileRows[0]?.tz ?? null
 
   return {
@@ -71,7 +66,9 @@ const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
       itemCount: r.itemCount,
       peek: peeks.get(r.id) ?? null,
     })),
-    nextDigestAt: nextDigestAt.toISOString(),
+    // The forecast is computed on the client (NextDigestBanner) so we can
+    // fall back to the browser-detected tz when `users.tz` is null —
+    // server-side we don't know what zone the visitor is in.
     userTz,
   }
 })
@@ -88,7 +85,7 @@ export const Route = createFileRoute('/app/digests/')({
 const BREWING_POLL_MS = 4000
 
 function DigestsListPage() {
-  const { rows, nextDigestAt, userTz } = Route.useLoaderData()
+  const { rows, userTz } = Route.useLoaderData()
   const router = useRouter()
   const brewing = rows.length === 0
   const [autoRoutedTo, setAutoRoutedTo] = useState<string | null>(null)
@@ -135,7 +132,7 @@ function DigestsListPage() {
         <BrewingState />
       ) : (
         <>
-          <NextDigestBanner nextDigestAt={nextDigestAt} userTz={userTz} />
+          <NextDigestBanner userTz={userTz} />
           <DigestList rows={rows} />
         </>
       )}
@@ -143,26 +140,23 @@ function DigestsListPage() {
   )
 }
 
-// Anticipation card above the digest list. The relative time refreshes on
-// the client so the banner reads correctly even if the loader-rendered
-// timestamp is a few seconds stale. Channel copy stays honest: email send
-// (#11) and per-TZ scheduling (#17) are deferred, so today the only channel
-// is `/app/digests`.
-function NextDigestBanner({
-  nextDigestAt,
-  userTz,
-}: {
-  nextDigestAt: string
-  userTz: string | null
-}) {
-  const target = new Date(nextDigestAt)
+// Anticipation card above the digest list. Forecasting runs on the client
+// so we can fall back to the browser-detected tz when `users.tz` is null
+// (legacy rows from before the signup form started capturing it). The
+// forecast respects the per-TZ + Mon-Fri rules of the send dispatcher
+// (#17), so on Friday after 7am local the banner reads "Monday at 7:00 AM".
+function NextDigestBanner({ userTz }: { userTz: string | null }) {
   const [now, setNow] = useState(() => new Date())
+  // Resolve the tz on the client so an empty users.tz still shows local
+  // time. `useState(() => ...)` ensures we sample Intl exactly once on
+  // mount and stay stable across re-renders.
+  const [tz] = useState<string>(() => userTz ?? detectBrowserTz())
+  const forecast = useMemo(() => computeNextDigestFor(tz, now), [tz, now])
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000)
     return () => clearInterval(id)
   }, [])
-  const relative = formatRelativeUntil(target, now)
-  const localTime = formatLocalTimeOfDay(target, userTz)
+  const relative = formatRelativeUntil(forecast.at, now)
 
   return (
     <div
@@ -182,12 +176,22 @@ function NextDigestBanner({
             On the way {relative}.
           </div>
           <div className="mt-1 text-[13px] text-[#a8a8b8]">
-            Lands at <span className="font-mono text-xs text-white">{localTime}</span> · in-app only
+            Lands <span className="font-mono text-xs text-white">{forecast.whenLabel}</span> · in-app + email
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function detectBrowserTz(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (tz && tz.length > 0) return tz
+  } catch {
+    // fall through
+  }
+  return 'UTC'
 }
 
 function DigestList({ rows }: { rows: DigestRow[] }) {

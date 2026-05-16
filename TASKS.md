@@ -43,7 +43,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 20. **#32** — `/app/profile` view + edit ✅
 21. **#16** — admin app (`/admin/users/*`) ✅
 22. **#11** — Resend email template + send ✅
-23. **#17** — per-TZ send scheduling
+23. **#17** — per-TZ send scheduling ✅
 24. **#18** — onboard 5–10 betas
 25. **#20** — PostHog wiring ✅
 26. **#51** — PostHog error tracking + Slack alerts ✅
@@ -504,8 +504,18 @@ Out of scope (deferred):
 
 **Blocked by:** #13
 
-### #17 Per-TZ send scheduling — ☐
-pg-boss scheduled job groups users by TZ bucket and dispatches send jobs so each user receives the digest before 08:00 local. Skip users with `status != active`. Idempotent — never send the same `digest_id` twice (unique constraint or processed flag).
+### #17 Per-TZ send scheduling — ✅
+Hourly pg-boss cron (`send-dispatch`, `0 * * * *` UTC) scans every unsent digest for active users. For each user it computes the local hour/weekday from `users.tz` via `Intl.DateTimeFormat` and enqueues a `SEND_QUEUE` job when the local hour matches `DEFAULT_SEND_HOUR = 7` AND the local day is Mon-Fri. Weekends are skipped entirely (no dispatch and no synthesize — see below). The send-time `singletonKey: digestId` plus the existing `digests.sent_at IS NOT NULL` bailout in `runSendForDigest` keep replays from double-sending.
+
+Synthesize side (`src/jobs/synthesize.ts`) now takes two opt-in flags driven by the cron path only:
+- `skipWeekends: true` — `runSynthesis` returns immediately on UTC Sat/Sun, producing no digests for delivery days that wouldn't ship anyway.
+- `useWeekendAwareDefaults: true` — when the caller hasn't overridden `lookbackHours`, Monday auto-widens to `MONDAY_LOOKBACK_HOURS = 72` so the Monday digest covers Fri+Sat+Sun ingestion instead of just Sunday. Tue–Fri stay on the standard 24h window.
+
+Manual triggers (`pnpm synthesize:run`, fast-path on profile confirm) leave both flags off so dev iterations and onboarding work regardless of the day. The new `pnpm send:dispatch [--hour N] [--include-weekends] [--dry]` script lets you preview / force the dispatcher off-cycle.
+
+Browser-tz capture: the `/signup` form now POSTs `Intl.DateTimeFormat().resolvedOptions().timeZone` so new users land with `users.tz` populated; legacy null-tz rows still get a sensible fallback (the next-digest banner detects the browser tz client-side; the dispatcher falls back to UTC).
+
+Next-digest banner (`/app/digests`) was rewritten to forecast against the same rules — Friday after 7am reads "Monday at 7:00 AM <local-zone>", weekends read Monday, weekdays-after-7 read the next weekday. UTC only appears when both `users.tz` and the browser detection fail.
 **Blocked by:** #11
 
 ### #18 Onboard 5–10 real beta users — ☐

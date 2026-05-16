@@ -8,6 +8,11 @@ import {
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from '~/jobs/ingest'
 import { runScoring, SCORE_CRON, SCORE_QUEUE } from '~/jobs/score'
 import { runSendForDigest, SEND_QUEUE, type SendJobData } from '~/jobs/send'
+import {
+  runSendDispatch,
+  SEND_DISPATCH_CRON,
+  SEND_DISPATCH_QUEUE,
+} from '~/jobs/send-dispatch'
 import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from '~/jobs/synthesize'
 import { env, requireEnv } from '~/lib/env'
 import { logger } from '~/lib/logger'
@@ -77,24 +82,40 @@ async function main() {
   // digestId` at send-time to keep replays from double-sending. The retry
   // policy is conservative because Resend handles its own internal retries
   // for transient sender failures; we mainly want to recover from worker
-  // crashes mid-send. Per-TZ scheduling (#17) lands as a separate cron that
-  // enqueues this queue per user when their bucket fires.
+  // crashes mid-send. Per-TZ scheduling (#17) is the SEND_DISPATCH_QUEUE
+  // cron below — it enqueues this queue per user when their local hour
+  // lines up.
   await boss.createQueue(SEND_QUEUE, {
     name: SEND_QUEUE,
     retryLimit: 2,
     retryDelay: 300,
     retryBackoff: true,
   })
+  // Hourly dispatcher (#17). The handler itself decides per-user whether
+  // to enqueue a SEND_QUEUE job for this hour based on each user's tz +
+  // weekday. Retry is short-fuse: if the hour's dispatch fails the next
+  // hour's run will pick up the same unsent digest anyway, so we don't
+  // need to push hard.
+  await boss.createQueue(SEND_DISPATCH_QUEUE, {
+    name: SEND_DISPATCH_QUEUE,
+    retryLimit: 1,
+    retryDelay: 60,
+  })
 
   if (env.INGEST_SCHEDULE_ENABLED) {
     await boss.schedule(INGEST_QUEUE, INGEST_CRON, {}, { tz: 'UTC' })
     await boss.schedule(SCORE_QUEUE, SCORE_CRON, {}, { tz: 'UTC' })
     await boss.schedule(SYNTHESIZE_QUEUE, SYNTHESIZE_CRON, {}, { tz: 'UTC' })
+    await boss.schedule(SEND_DISPATCH_QUEUE, SEND_DISPATCH_CRON, {}, { tz: 'UTC' })
     logger.info({ queue: INGEST_QUEUE, cron: INGEST_CRON }, 'ingest: cron schedule armed')
     logger.info({ queue: SCORE_QUEUE, cron: SCORE_CRON }, 'score: cron schedule armed')
     logger.info(
       { queue: SYNTHESIZE_QUEUE, cron: SYNTHESIZE_CRON },
       'synthesize: cron schedule armed',
+    )
+    logger.info(
+      { queue: SEND_DISPATCH_QUEUE, cron: SEND_DISPATCH_CRON },
+      'send-dispatch: cron schedule armed',
     )
   } else {
     await boss.unschedule(INGEST_QUEUE).catch(() => {
@@ -102,8 +123,9 @@ async function main() {
     })
     await boss.unschedule(SCORE_QUEUE).catch(() => {})
     await boss.unschedule(SYNTHESIZE_QUEUE).catch(() => {})
+    await boss.unschedule(SEND_DISPATCH_QUEUE).catch(() => {})
     logger.warn(
-      { queues: [INGEST_QUEUE, SCORE_QUEUE, SYNTHESIZE_QUEUE] },
+      { queues: [INGEST_QUEUE, SCORE_QUEUE, SYNTHESIZE_QUEUE, SEND_DISPATCH_QUEUE] },
       'pipeline: crons disabled (INGEST_SCHEDULE_ENABLED unset) — manual triggers only',
     )
   }
@@ -125,7 +147,14 @@ async function main() {
   await boss.work(SYNTHESIZE_QUEUE, async ([job]) => {
     if (!job) return
     logger.info({ jobId: job.id }, 'synthesize: job started')
-    const metrics = await runSynthesis()
+    // Cron path opts into weekend behavior: no Sat/Sun runs; Monday widens
+    // lookback to cover the weekend (see synthesize.ts). Manual triggers
+    // via `pnpm synthesize:run` leave both flags off so dev iterations
+    // work on any day.
+    const metrics = await runSynthesis({
+      skipWeekends: true,
+      useWeekendAwareDefaults: true,
+    })
     return metrics
   })
 
@@ -178,6 +207,12 @@ async function main() {
       )
     },
   )
+
+  await boss.work(SEND_DISPATCH_QUEUE, async ([job]) => {
+    if (!job) return
+    logger.info({ jobId: job.id }, 'send-dispatch: job started')
+    return await runSendDispatch(boss)
+  })
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down worker')

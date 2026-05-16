@@ -63,6 +63,13 @@ const submitSchema = z.object({
   companyUrl: z.string().trim().url().max(500),
   position: z.string().trim().min(2).max(120),
   ultimateGoal: z.string().trim().min(8).max(400),
+  // IANA tz name captured from the browser (`Intl.DateTimeFormat().
+  // resolvedOptions().timeZone`). Feeds the per-TZ send dispatcher (#17)
+  // so we mail the digest at the user's local 7am instead of UTC. Optional
+  // because the form fallback (when the browser refuses or returns an
+  // empty string) shouldn't block the signup — the user just gets the
+  // dispatcher's UTC fallback until they update their profile.
+  tz: z.string().trim().min(1).max(64).optional(),
 })
 
 type SubmitError = 'invalid_invite' | 'user_insert_failed' | 'session_failed'
@@ -97,6 +104,7 @@ const submitSignup = createServerFn({ method: 'POST' })
         companyUrl: data.companyUrl,
         position: data.position,
         ultimateGoal: data.ultimateGoal,
+        tz: data.tz ?? null,
       })
       .onConflictDoUpdate({
         target: usersTable.email,
@@ -105,6 +113,10 @@ const submitSignup = createServerFn({ method: 'POST' })
           companyUrl: data.companyUrl,
           position: data.position,
           ultimateGoal: data.ultimateGoal,
+          // Only overwrite tz when the client actually provided one — a
+          // browser that fails the Intl call shouldn't clobber a tz the
+          // user (or a prior signup) already set.
+          ...(data.tz ? { tz: data.tz } : {}),
           updatedAt: new Date(),
         },
       })
@@ -224,6 +236,7 @@ function FteSignupForm({
       companyUrl,
       position,
       ultimateGoal,
+      tz: detectBrowserTz(),
     })
     if (!parsed.success) {
       const first = parsed.error.issues[0]
@@ -355,6 +368,15 @@ function Field({
       {children}
     </label>
   )
+}
+
+function detectBrowserTz(): string | undefined {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return tz && tz.length > 0 ? tz : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function messageForError(code: SubmitError) {
