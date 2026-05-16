@@ -1,6 +1,9 @@
 import { redirect } from '@tanstack/react-router'
 import { getRequest } from '@tanstack/react-start/server'
+import { randomBytes } from 'node:crypto'
+import { verifications } from '~/db/schema'
 import { auth } from './auth'
+import { getDb } from './db'
 
 export type AppSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
 
@@ -30,4 +33,24 @@ export async function requireAdminSession(): Promise<AppSession> {
     throw redirect({ to: '/app' })
   }
   return session
+}
+
+// Establish a session without an email round-trip by pre-creating a magic-
+// link verification row, then returning the verify URL for the client to
+// navigate to. Better Auth's standard verify route consumes the row, creates
+// the session, sets the signed `session_token` cookie via `tanstackStartCookies`,
+// and follows the callbackURL. Used on /signup (#38) where the invite token's
+// HMAC is already proof of ownership — so the magic-link email is redundant
+// friction. Window is short (60s) because the URL ships in the server-fn
+// response payload over HTTPS and is consumed by the very next navigation.
+export async function issueAutoSignInUrl(email: string, callbackURL = '/app'): Promise<string> {
+  const token = randomBytes(32).toString('base64url')
+  const db = getDb()
+  await db.insert(verifications).values({
+    identifier: token,
+    value: JSON.stringify({ email }),
+    expiresAt: new Date(Date.now() + 60_000),
+  })
+  const params = new URLSearchParams({ token, callbackURL })
+  return `/api/auth/magic-link/verify?${params.toString()}`
 }

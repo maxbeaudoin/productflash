@@ -1,13 +1,12 @@
-import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
 import { eq, sql } from 'drizzle-orm'
 import { useState } from 'react'
 import { z } from 'zod'
 import { enqueueFteRun } from '~/agents/fte/job'
 import { AuthShell } from '~/components/auth/AuthShell'
 import { users as usersTable, waitlist as waitlistTable } from '~/db/schema'
-import { auth } from '~/lib/auth'
+import { issueAutoSignInUrl } from '~/lib/auth-server'
 import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
 import { verifyInviteToken } from '~/lib/invite-token'
@@ -17,8 +16,10 @@ import { logger } from '~/lib/logger'
 // `?invite=<token>` URLs from /admin/waitlist; a bare /signup or a tampered
 // token shows the gate. Valid tokens render the FTE intake form with the
 // email prefilled and locked — the user can only sign up as the address the
-// invite was issued to. Submitting kicks off the FTE agent (#28) and sends
-// the magic-link via Better Auth in the same request.
+// invite was issued to. Submitting kicks off the FTE agent (#28) and auto-
+// signs the user in (#38): the invite token's HMAC is the trust anchor, so
+// we skip the magic-link email round-trip and return a one-shot verify URL
+// the client navigates to — establishing the Better Auth session cookie.
 const searchSchema = z.object({
   invite: z.string().min(1).optional(),
 })
@@ -63,13 +64,16 @@ const submitSchema = z.object({
   ultimateGoal: z.string().trim().min(8).max(400),
 })
 
-type SubmitError = 'invalid_invite' | 'user_insert_failed' | 'send_failed'
-type SubmitResult = { ok: true; email: string } | { ok: false; error: SubmitError }
+type SubmitError = 'invalid_invite' | 'user_insert_failed' | 'session_failed'
+type SubmitResult =
+  | { ok: true; email: string; signInUrl: string }
+  | { ok: false; error: SubmitError }
 
 // Server fn: re-verifies the invite token, upserts the user with the AI-
-// profile seed fields the user typed, enqueues the FTE agent, then sends the
-// magic-link. The user row MUST exist before sendMagicLink because the
-// magic-link plugin runs with `disableSignUp: true` (private beta).
+// profile seed fields the user typed, enqueues the FTE agent, then mints a
+// one-shot magic-link verify URL the client navigates to (auto-sign-in). The
+// user row MUST exist before the verify URL is hit because magic-link runs
+// with `disableSignUp: true` (private beta).
 const submitSignup = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => submitSchema.parse(data))
   .handler(async ({ data }): Promise<SubmitResult> => {
@@ -124,19 +128,18 @@ const submitSignup = createServerFn({ method: 'POST' })
       'signup: fte enqueued',
     )
 
-    // Send the magic-link. Better Auth requires headers (origin check); the
-    // server fn request gives us those via getRequest().
+    // Mint a one-shot verify URL — the client navigates to it to consume the
+    // pre-seeded verification row, which lands the Better Auth session cookie
+    // on the response. /app routes admin → /admin, unconfirmed → onboarding.
+    let signInUrl: string
     try {
-      await auth.api.signInMagicLink({
-        body: { email: user.email, callbackURL: '/app' },
-        headers: getRequest().headers,
-      })
+      signInUrl = await issueAutoSignInUrl(user.email, '/app')
     } catch (err) {
-      logger.error({ err, userId: user.id }, 'signup: magic-link send failed')
-      return { ok: false, error: 'send_failed' }
+      logger.error({ err, userId: user.id }, 'signup: auto-sign-in url failed')
+      return { ok: false, error: 'session_failed' }
     }
 
-    return { ok: true, email: user.email }
+    return { ok: true, email: user.email, signInUrl }
   })
 
 export const Route = createFileRoute('/signup')({
@@ -197,11 +200,10 @@ function FteSignupForm({
   inviteToken: string
   defaults: { position: string; companyUrl: string } | null
 }) {
-  const router = useRouter()
   const [companyUrl, setCompanyUrl] = useState(defaults?.companyUrl ?? '')
   const [position, setPosition] = useState(defaults?.position ?? '')
   const [ultimateGoal, setUltimateGoal] = useState('')
-  const [state, setState] = useState<'idle' | 'submitting' | 'sent' | 'error'>('idle')
+  const [state, setState] = useState<'idle' | 'submitting' | 'redirecting' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -226,9 +228,11 @@ function FteSignupForm({
       setState('error')
       return
     }
-    setState('sent')
-    // Preload /app so the magic-link click feels instant.
-    router.preloadRoute({ to: '/app' }).catch(() => {})
+    // Full-page nav so Better Auth's redirect + Set-Cookie land naturally.
+    // The verify URL is single-use and expires in 60s; consuming it now
+    // creates the session and routes to /app → /app/onboarding.
+    setState('redirecting')
+    window.location.href = res.signInUrl
   }
 
   return (
@@ -236,7 +240,7 @@ function FteSignupForm({
       eyebrow="You're invited"
       headlineLead="Tell us"
       headlineAccent="who you are."
-      sub="Four lines, then your AI analyst goes to work — researching your space, finding your competitors, and shaping your first brief while you check your email."
+      sub="Four lines, then your AI analyst goes to work — researching your space, finding your competitors, and shaping your first brief in real time."
       footnote={
         <span>
           Not you?{' '}
@@ -246,79 +250,76 @@ function FteSignupForm({
         </span>
       }
     >
-      {state === 'sent' ? (
-        <SentCard email={email} />
-      ) : (
-        <form onSubmit={onSubmit} className="grid gap-4">
-          <Field label="Email" hint="locked to invite">
-            <input
-              type="email"
-              value={email}
-              readOnly
-              autoComplete="email"
-              className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink/60 px-4 text-base font-normal normal-case tracking-normal text-white outline-none cursor-not-allowed"
-            />
-          </Field>
+      <form onSubmit={onSubmit} className="grid gap-4">
+        <Field label="Email" hint="locked to invite">
+          <input
+            type="email"
+            value={email}
+            readOnly
+            autoComplete="email"
+            className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink/60 px-4 text-base font-normal normal-case tracking-normal text-white outline-none cursor-not-allowed"
+          />
+        </Field>
 
-          <Field label="Company URL">
-            <input
-              type="url"
-              required
-              autoFocus={!defaults?.companyUrl}
-              autoComplete="url"
-              placeholder="https://yourcompany.com"
-              value={companyUrl}
-              onChange={(e) => setCompanyUrl(e.target.value)}
-              className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-            />
-          </Field>
+        <Field label="Company URL">
+          <input
+            type="url"
+            required
+            autoFocus={!defaults?.companyUrl}
+            autoComplete="url"
+            placeholder="https://yourcompany.com"
+            value={companyUrl}
+            onChange={(e) => setCompanyUrl(e.target.value)}
+            className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
+          />
+        </Field>
 
-          <Field label="Your role">
-            <input
-              type="text"
-              required
-              autoComplete="organization-title"
-              placeholder="Head of Product, PM Lead, …"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-            />
-          </Field>
+        <Field label="Your role">
+          <input
+            type="text"
+            required
+            autoComplete="organization-title"
+            placeholder="Head of Product, PM Lead, …"
+            value={position}
+            onChange={(e) => setPosition(e.target.value)}
+            className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
+          />
+        </Field>
 
-          <Field
-            label="What's your goal"
-            hint="one sentence"
+        <Field label="What's your goal" hint="one sentence">
+          <textarea
+            required
+            rows={3}
+            autoFocus={!!defaults?.companyUrl}
+            placeholder="Catch every competitor launch / pricing change so I can react before my CEO asks."
+            value={ultimateGoal}
+            onChange={(e) => setUltimateGoal(e.target.value)}
+            className="min-h-[96px] w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 py-3 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
+          />
+        </Field>
+
+        <button
+          type="submit"
+          disabled={state === 'submitting' || state === 'redirecting'}
+          className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+        >
+          {state === 'submitting'
+            ? 'Kicking it off…'
+            : state === 'redirecting'
+              ? 'Signing you in…'
+              : 'Start onboarding'}
+          <span
+            aria-hidden
+            className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
           >
-            <textarea
-              required
-              rows={3}
-              autoFocus={!!defaults?.companyUrl}
-              placeholder="Catch every competitor launch / pricing change so I can react before my CEO asks."
-              value={ultimateGoal}
-              onChange={(e) => setUltimateGoal(e.target.value)}
-              className="min-h-[96px] w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 py-3 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-            />
-          </Field>
+            →
+          </span>
+        </button>
 
-          <button
-            type="submit"
-            disabled={state === 'submitting'}
-            className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
-          >
-            {state === 'submitting' ? 'Kicking it off…' : 'Start onboarding'}
-            <span
-              aria-hidden
-              className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
-            >
-              →
-            </span>
-          </button>
-
-          {state === 'error' && error ? (
-            <p className="text-sm font-medium text-coral">{error}</p>
-          ) : null}
-        </form>
-      )}
+        {state === 'error' && error ? (
+          <p className="text-sm font-medium text-coral">{error}</p>
+        ) : null}
+      </form>
     </AuthShell>
   )
 }
@@ -347,43 +348,13 @@ function Field({
   )
 }
 
-function SentCard({ email }: { email: string }) {
-  return (
-    <div
-      className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
-    >
-      <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-6 py-4">
-        <div className="inline-flex items-center gap-[8px] text-[11px] font-semibold uppercase tracking-[0.15em] text-accent">
-          <span
-            aria-hidden
-            className="h-[6px] w-[6px] rounded-full bg-accent"
-            style={{ boxShadow: '0 0 12px var(--color-accent)' }}
-          />
-          Onboarding running
-        </div>
-        <div className="font-mono text-xs text-[#888]">expires in 5 min</div>
-      </div>
-      <div className="px-6 py-7">
-        <p className="text-lg font-semibold text-white">Check your inbox.</p>
-        <p className="mt-2 text-sm text-[#b8b8c8]">
-          We sent a sign-in link to{' '}
-          <span className="font-mono text-white">{email}</span>. Click it from
-          the same browser — by the time you land in the app, your AI analyst
-          should be most of the way through researching your competitive map.
-        </p>
-      </div>
-    </div>
-  )
-}
-
 function messageForError(code: SubmitError) {
   switch (code) {
     case 'invalid_invite':
       return 'This invite link looks invalid or expired. Ask for a fresh one.'
     case 'user_insert_failed':
       return 'We couldn\'t set up your account. Try again in a moment.'
-    case 'send_failed':
-      return 'The magic-link email didn\'t go through. Try again in a moment.'
+    case 'session_failed':
+      return 'We couldn\'t start your session. Try again in a moment.'
   }
 }

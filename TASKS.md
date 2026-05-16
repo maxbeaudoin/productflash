@@ -27,7 +27,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 12. **#39** — polish FTE streaming UI clunkiness (dogfood iter 1 — user said this first)
 13. **#36** — admins skip onboarding ✅
 14. **#37** — pre-fill `/signup` from the waitlist row ✅
-15. **#38** — auto-sign-in after `/signup` submit (kill the second magic link)
+15. **#38** — auto-sign-in after `/signup` submit ✅
 16. **#40** — catch-up framing + visible date ranges on digests
 17. **#41** — per-item timestamps when truthful, omit when unknown
 18. **#42** — next-digest banner on `/app/digests` listing
@@ -262,14 +262,10 @@ Validation: submit the waitlist with email + position + company_url → admin is
 
 **Blocked by:** none (#33 + #34 already shipped)
 
-### #38 Auto-sign-in after `/signup` submit — ☐
-Current flow: invite link → fill FTE intake → server sends a magic-link email → user clicks → arrives at `/app/onboarding`. The HMAC invite token is already proof-of-ownership, so the second magic-link round-trip is redundant friction. In dogfood iteration 1 (2026-05-16) the magic link didn't even appear in logs — likely a regression — leaving the user with no way forward except manually visiting `/login`.
+### #38 Auto-sign-in after `/signup` submit — ✅
+The HMAC invite token (#34) is already proof-of-ownership, so the magic-link email after `/signup` submit was redundant friction. Now the submit path mints a single-use Better Auth verification row server-side (`issueAutoSignInUrl` in `src/lib/auth-server.ts`: `randomBytes(32)` → `verifications` insert with 60s TTL, identifier=token, value=`{email}`) and returns the `/api/auth/magic-link/verify?token=…&callbackURL=/app` URL to the client. The client does a full-page `window.location.href` nav so Better Auth's standard verify route can consume the row, create the session, set the signed `session_token` cookie via `tanstackStartCookies`, and 302 to `/app` — which then routes to `/app/onboarding` for unconfirmed non-admins.
 
-In `src/routes/signup.tsx`'s submit handler, after upserting the `users` row and enqueueing the FTE agent, create a Better Auth session server-side and set the cookie before redirecting to `/app/onboarding`. Remove the `signIn.magicLink({...})` call from this path; the invite token's HMAC verification is the trust anchor.
-
-Implementation hint: Better Auth's server API likely exposes a session-creation method that bypasses verification (e.g. `auth.api.signInEmail({ email })` or an admin-side `signInAsUser`). If neither exists cleanly, generate a magic-link token and auto-redeem it in the same request.
-
-Validation: end-to-end fresh signup. Submit form → land on `/app/onboarding` with an active session, no email round-trip. `/login` for returning users continues to use magic-link unchanged.
+Reused the existing magic-link verify endpoint instead of hand-rolling cookie signing: same trust anchor, same cookie attributes, no parallel auth path to maintain. `/login` for returning users still goes through `auth.api.signInMagicLink` and emails the link — unchanged. `SentCard` ("Check your inbox") component removed; the form button transitions `submitting → redirecting → /app/onboarding`.
 
 **Blocked by:** #34
 
