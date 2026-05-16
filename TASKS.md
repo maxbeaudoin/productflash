@@ -25,7 +25,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 10. **#30** — fast-path time-to-first-digest ✅
 11. **#35** — personalize classify + synthesize on user profile ✅
 12. **#39** — polish FTE streaming UI clunkiness (dogfood iter 1 — user said this first)
-13. **#36** — admins skip onboarding
+13. **#36** — admins skip onboarding ✅
 14. **#37** — pre-fill `/signup` from the waitlist row
 15. **#38** — auto-sign-in after `/signup` submit (kill the second magic link)
 16. **#40** — catch-up framing + visible date ranges on digests
@@ -244,7 +244,7 @@ TanStack Start route at `/admin/*` gated by Better Auth's admin-role plugin (#26
 Used for personal QA + future beta babysitting.
 **Blocked by:** #26, #31
 
-### #36 Admins skip onboarding — ☐
+### #36 Admins skip onboarding — ✅
 Admin users hit `/app` and get redirected to `/app/onboarding` because their `profile_confirmed_at` is null — but onboarding is irrelevant to admins, who use the product as operators. Surfaced in dogfood iteration 1 (2026-05-16).
 
 In `src/routes/app/index.tsx`, when the session has `role === 'admin'`, redirect to `/app/digests` regardless of `profile_confirmed_at`. Admins who *also* want a personalized digest can navigate to `/app/onboarding` manually — we just stop forcing it.

@@ -6,10 +6,14 @@ import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 
 // /app is the magic-link callbackURL. Route new users (no profile confirmed
-// yet) to the onboarding view; everyone else lands on /app/digests.
+// yet) to the onboarding view; everyone else lands on /app/digests. Admins
+// always go to /app/digests — onboarding is for end-users.
 
 const resolveLanding = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await requireSession()
+  if (session.user.role === 'admin') {
+    return { confirmed: true }
+  }
   const db = getDb()
   const [row] = await db
     .select({ profileConfirmedAt: usersTable.profileConfirmedAt })
