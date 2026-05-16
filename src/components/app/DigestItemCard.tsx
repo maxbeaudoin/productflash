@@ -8,6 +8,9 @@ export type DigestItemView = {
   snippet: string
   impactNote: string | null
   sourceUrl: string | null
+  // ISO string when the source supplied a publication time, null otherwise.
+  // No fabricated "today" / "recently" — see [[feedback_rtfm]] and #41.
+  occurredAt: string | null
   feedback?: 'up' | 'down' | null
   feedbackUrls?: { up: string; down: string }
 }
@@ -32,6 +35,7 @@ const TAG_LABEL: Record<DigestTag, string> = {
 }
 
 export function DigestItemCard({ item, isLast }: { item: DigestItemView; isLast: boolean }) {
+  const timestamp = formatOccurredAt(item.occurredAt)
   return (
     <div
       className={`grid grid-cols-[100px_1fr] gap-6 py-6 max-md:grid-cols-1 max-md:gap-3 ${
@@ -44,6 +48,11 @@ export function DigestItemCard({ item, isLast }: { item: DigestItemView; isLast:
         {TAG_LABEL[item.category]}
       </div>
       <div>
+        {timestamp ? (
+          <div className="mb-1 font-mono text-[11px] uppercase tracking-[0.1em] text-[#7a7a88]">
+            {timestamp}
+          </div>
+        ) : null}
         <div className="mb-[6px] text-base font-semibold leading-[1.4] text-white">
           {item.sourceUrl ? (
             <a
@@ -77,4 +86,36 @@ export function DigestItemCard({ item, isLast }: { item: DigestItemView; isLast:
       </div>
     </div>
   )
+}
+
+// "May 14 · 2 days ago" when we know; null when the source didn't supply a
+// date (e.g. some Firehose events). Server-rendered; relative phrasing reflects
+// the moment the page was rendered — accurate enough at PoC fidelity, and
+// users reload often enough that drift never compounds.
+function formatOccurredAt(iso: string | null): string | null {
+  if (!iso) return null
+  const occurred = new Date(iso)
+  if (Number.isNaN(occurred.getTime())) return null
+  const dateLabel = occurred.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+  const relative = relativeLabel(occurred, new Date())
+  return relative ? `${dateLabel} · ${relative}` : dateLabel
+}
+
+function relativeLabel(occurred: Date, now: Date): string | null {
+  const diffMs = now.getTime() - occurred.getTime()
+  if (diffMs < 0) return null
+  const minutes = Math.floor(diffMs / 60_000)
+  if (minutes < 60) {
+    if (minutes < 1) return 'just now'
+    return `${minutes} min ago`
+  }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return days === 1 ? '1 day ago' : `${days} days ago`
+  const months = Math.floor(days / 30)
+  return months === 1 ? '1 month ago' : `${months} months ago`
 }

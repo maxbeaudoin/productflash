@@ -261,7 +261,7 @@ async function runForUser(
   const byId = new Map(candidates.map((c) => [c.rawItemId, c]))
   const itemRows = synthesized
     .map((s) => buildDigestItemRow(userId, s, byId))
-    .filter((row): row is NewDigestItem => row !== null)
+    .filter((row): row is Omit<NewDigestItem, 'digestId'> => row !== null)
 
   await upsertDigest(db, userId, dayStart, cutoff, now, itemRows)
 
@@ -277,7 +277,7 @@ async function runForUser(
 function buildDigestItemRow(
   userId: string,
   s: SynthesizedItem,
-  byId: Map<string, { category: string; score: number }>,
+  byId: Map<string, { category: string; score: number; publishedAt: Date | null }>,
 ): Omit<NewDigestItem, 'digestId'> | null {
   const meta = byId.get(s.rawItemId)
   if (!meta) {
@@ -295,7 +295,11 @@ function buildDigestItemRow(
     snippet: s.snippet,
     impactNote: s.impactNote,
     score: meta.score,
-  } as Omit<NewDigestItem, 'digestId'>
+    // Snapshot the source's publication time at synthesis time. Nullable
+    // when the source has no date — frontend renders nothing rather than a
+    // fabricated "recently" (#41).
+    occurredAt: meta.publishedAt,
+  }
 }
 
 async function upsertDigest(

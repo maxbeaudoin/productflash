@@ -57,6 +57,13 @@
       "when": 1778949553743,
       "tag": "0007_funny_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778950242206,
+      "tag": "0008_many_caretaker",
+      "breakpoints": true
     }
   ]
 }

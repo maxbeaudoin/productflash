@@ -117,6 +117,7 @@ const SYSTEM_PROMPT = [
   '- Preserve every input rawItemId verbatim in your output.',
   '- One output item per input item — never merge, drop, or invent items.',
   '- Never fabricate facts beyond what the input body supports. If something is uncertain, frame it as observed ("Reframes positioning toward…") rather than asserted.',
+  '- Do not mention dates or relative time in any field ("today", "this week", "yesterday", "recently", weekday names, month names). The frontend renders the publication date separately beside the headline; your prose must stay timeless.',
   '- No emojis, no bullet lists inside fields, no markdown.',
   '- Never invent a competitor for the reader. If the reader\'s company name is supplied, you may reference it; otherwise stay neutral ("your product", "your positioning").',
   '- Always call the record_digest tool — never reply in prose.',

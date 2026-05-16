@@ -192,6 +192,12 @@ export const digestItems = pgTable(
     snippet: text('snippet').notNull(),
     impactNote: text('impact_note'),
     score: integer('score').notNull(),
+    // Best-available publication timestamp from the originating raw_item.
+    // Plumbed through synthesis (#41) so the frontend can render "May 14 ·
+    // 2 days ago" beside the headline. Nullable: some sources (notably
+    // Firehose events lacking publish_time) genuinely don't supply a date,
+    // and we'd rather render nothing than fabricate a "recently".
+    occurredAt: timestamp('occurred_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('digest_items_digest_idx').on(t.digestId)],

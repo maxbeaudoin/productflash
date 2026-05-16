@@ -29,7 +29,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 14. **#37** — pre-fill `/signup` from the waitlist row ✅
 15. **#38** — auto-sign-in after `/signup` submit ✅
 16. **#40** — catch-up framing + visible date ranges on digests ✅
-17. **#41** — per-item timestamps when truthful, omit when unknown
+17. **#41** — per-item timestamps when truthful, omit when unknown ✅
 18. **#42** — next-digest banner on `/app/digests` listing
 19. **#13** — Maxime full FTE dogfood (resume iter 2 after #36–#42 land)
 20. **#32** — `/app/profile` view + edit ✅
@@ -314,7 +314,7 @@ Out of scope: per-item timestamps (#41). Configurable catch-up window length.
 
 **Blocked by:** none
 
-### #41 Per-item timestamps when truthful, omit when unknown — ☐
+### #41 Per-item timestamps when truthful, omit when unknown — ✅
 Each digest item has no visible timestamp today, which makes the "this week's news" framing impossible for the user to verify. The user wants to see *when* each item happened — but **only when we know**.
 
 **No hallucination.** Per [[feedback_rtfm]] (broader principle: don't fabricate data we don't have), missing timestamps must render as no-timestamp, not as "today" or "recently" or current-date.

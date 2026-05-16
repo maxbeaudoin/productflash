@@ -70,6 +70,7 @@ const loadDebugDigest = createServerFn({ method: 'GET' })
         snippet: digestItems.snippet,
         impactNote: digestItems.impactNote,
         score: digestItems.score,
+        occurredAt: digestItems.occurredAt,
         sourceUrl: rawItems.url,
       })
       .from(digestItems)
@@ -103,6 +104,7 @@ const loadDebugDigest = createServerFn({ method: 'GET' })
         snippet: r.snippet,
         impactNote: r.impactNote,
         sourceUrl: r.sourceUrl,
+        occurredAt: r.occurredAt ? r.occurredAt.toISOString() : null,
         feedback: feedbackByItem.get(r.id) ?? null,
         feedbackUrls: {
           up: `/r/${r.id}/up?t=${signFeedbackToken(r.id, 'up')}`,

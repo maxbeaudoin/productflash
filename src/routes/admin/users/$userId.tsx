@@ -139,6 +139,7 @@ const loadUserDetail = createServerFn({ method: 'GET' })
             snippet: digestItems.snippet,
             impactNote: digestItems.impactNote,
             score: digestItems.score,
+            occurredAt: digestItems.occurredAt,
             sourceUrl: rawItems.url,
           })
           .from(digestItems)
@@ -157,6 +158,7 @@ const loadUserDetail = createServerFn({ method: 'GET' })
         snippet: row.snippet,
         impactNote: row.impactNote,
         sourceUrl: row.sourceUrl,
+        occurredAt: row.occurredAt ? row.occurredAt.toISOString() : null,
       })
       itemsByDigest.set(row.digestId, list)
     }
