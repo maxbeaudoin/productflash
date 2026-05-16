@@ -1,12 +1,12 @@
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { useState } from 'react'
 import { z } from 'zod'
 import { enqueueFteRun } from '~/agents/fte/job'
 import { AuthShell } from '~/components/auth/AuthShell'
-import { users as usersTable } from '~/db/schema'
+import { users as usersTable, waitlist as waitlistTable } from '~/db/schema'
 import { auth } from '~/lib/auth'
 import { getBoss } from '~/lib/boss'
 import { getDb } from '~/lib/db'
@@ -24,14 +24,36 @@ const searchSchema = z.object({
 })
 
 // HMAC verification runs server-side because INVITE_TOKEN_SECRET must never
-// reach the client. The loader returns just the verified email (or null) —
-// no raw secrets cross the boundary.
+// reach the client. On a valid token the loader also fetches the matching
+// waitlist row to seed the FTE intake form with `position` + `companyUrl` the
+// user already typed on the landing waitlist (task #37). Defaults are
+// returned to the client; the form lets the user revise them.
+type InviteVerification = {
+  email: string | null
+  defaults: { position: string; companyUrl: string } | null
+}
+
 const verifyInvite = createServerFn({ method: 'GET' })
   .inputValidator((data: { token?: string }) => data)
-  .handler(({ data }) => {
-    if (!data.token) return { email: null as string | null }
+  .handler(async ({ data }): Promise<InviteVerification> => {
+    if (!data.token) return { email: null, defaults: null }
     const payload = verifyInviteToken(data.token)
-    return { email: payload?.email ?? null }
+    if (!payload) return { email: null, defaults: null }
+
+    const db = getDb()
+    const [row] = await db
+      .select({ position: waitlistTable.position, companyUrl: waitlistTable.companyUrl })
+      .from(waitlistTable)
+      .where(eq(waitlistTable.id, payload.id))
+      .limit(1)
+
+    return {
+      email: payload.email,
+      defaults: {
+        position: row?.position ?? '',
+        companyUrl: row?.companyUrl ?? '',
+      },
+    }
   })
 
 const submitSchema = z.object({
@@ -121,16 +143,16 @@ export const Route = createFileRoute('/signup')({
   validateSearch: searchSchema,
   loaderDeps: ({ search: { invite } }) => ({ invite }),
   loader: async ({ deps }) => {
-    const { email } = await verifyInvite({ data: { token: deps.invite } })
-    return { email, inviteToken: deps.invite ?? null }
+    const { email, defaults } = await verifyInvite({ data: { token: deps.invite } })
+    return { email, defaults, inviteToken: deps.invite ?? null }
   },
   component: SignupPage,
 })
 
 function SignupPage() {
-  const { email, inviteToken } = Route.useLoaderData()
+  const { email, defaults, inviteToken } = Route.useLoaderData()
   if (!email || !inviteToken) return <InviteGate />
-  return <FteSignupForm email={email} inviteToken={inviteToken} />
+  return <FteSignupForm email={email} inviteToken={inviteToken} defaults={defaults} />
 }
 
 function InviteGate() {
@@ -166,10 +188,18 @@ function InviteGate() {
   )
 }
 
-function FteSignupForm({ email, inviteToken }: { email: string; inviteToken: string }) {
+function FteSignupForm({
+  email,
+  inviteToken,
+  defaults,
+}: {
+  email: string
+  inviteToken: string
+  defaults: { position: string; companyUrl: string } | null
+}) {
   const router = useRouter()
-  const [companyUrl, setCompanyUrl] = useState('')
-  const [position, setPosition] = useState('')
+  const [companyUrl, setCompanyUrl] = useState(defaults?.companyUrl ?? '')
+  const [position, setPosition] = useState(defaults?.position ?? '')
   const [ultimateGoal, setUltimateGoal] = useState('')
   const [state, setState] = useState<'idle' | 'submitting' | 'sent' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -234,7 +264,7 @@ function FteSignupForm({ email, inviteToken }: { email: string; inviteToken: str
             <input
               type="url"
               required
-              autoFocus
+              autoFocus={!defaults?.companyUrl}
               autoComplete="url"
               placeholder="https://yourcompany.com"
               value={companyUrl}
@@ -262,6 +292,7 @@ function FteSignupForm({ email, inviteToken }: { email: string; inviteToken: str
             <textarea
               required
               rows={3}
+              autoFocus={!!defaults?.companyUrl}
               placeholder="Catch every competitor launch / pricing change so I can react before my CEO asks."
               value={ultimateGoal}
               onChange={(e) => setUltimateGoal(e.target.value)}

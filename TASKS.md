@@ -26,7 +26,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 11. **#35** — personalize classify + synthesize on user profile ✅
 12. **#39** — polish FTE streaming UI clunkiness (dogfood iter 1 — user said this first)
 13. **#36** — admins skip onboarding ✅
-14. **#37** — pre-fill `/signup` from the waitlist row
+14. **#37** — pre-fill `/signup` from the waitlist row ✅
 15. **#38** — auto-sign-in after `/signup` submit (kill the second magic link)
 16. **#40** — catch-up framing + visible date ranges on digests
 17. **#41** — per-item timestamps when truthful, omit when unknown
@@ -253,7 +253,7 @@ Validation: log in as an admin with `profile_confirmed_at = NULL`, hit `/app`, l
 
 **Blocked by:** none
 
-### #37 Pre-fill `/signup` from the waitlist row — ☐
+### #37 Pre-fill `/signup` from the waitlist row — ✅
 Waitlist capture (#33) collects `email`, `name`, `position`, `company_url`. The `/signup` FTE intake then asks for `position`, `company_url`, and `ultimate_goal` again — flagged in dogfood iteration 1 (2026-05-16) as duplicate effort that erodes trust.
 
 In `src/routes/signup.tsx`'s loader, after `verifyInviteToken` succeeds, look up the matching `waitlist` row (by email, or by `waitlist.id` if added to the token payload) and pass `{ position, companyUrl }` as form defaults. Goal stays empty (no waitlist counterpart). Defaults are editable, not locked — a user might want to revise.
