@@ -4,7 +4,7 @@ import { users as usersTable } from '~/db/schema'
 import { getAnthropic, SONNET_MODEL } from '~/lib/anthropic'
 import { getDb } from '~/lib/db'
 import { logger } from '~/lib/logger'
-import { captureServerEvent } from '~/lib/posthog'
+import { captureServerEvent, captureServerException } from '~/lib/posthog'
 import { emitFteDelta, writeFteEvent } from './events'
 import {
   countUserCompetitors,
@@ -328,6 +328,7 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
   } catch (err) {
     finishedReason = 'error'
     logger.error({ err, userId, runId }, 'fte: agent loop threw')
+    captureServerException(err, userId, { source: 'fte-agent', run_id: runId })
     await writeFteEvent({
       userId,
       runId,

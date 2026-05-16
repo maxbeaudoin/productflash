@@ -19,6 +19,11 @@ export function initPostHog(): void {
     capture_pageview: false,
     capture_pageleave: true,
     person_profiles: 'identified_only',
+    // PostHog Error Tracking (#51). Auto-captures window.onerror +
+    // unhandledrejection. React render errors don't surface through these
+    // — they go through TanStack Router's errorComponent (DefaultCatchBoundary)
+    // which calls captureClientException() explicitly.
+    capture_exceptions: true,
   })
   initialized = true
 }
@@ -31,6 +36,15 @@ export function capturePageview(pathname: string): void {
 export function captureClient(event: string, properties: Record<string, unknown> = {}): void {
   if (!initialized) return
   posthog.capture(event, properties)
+}
+
+export function captureClientException(
+  err: unknown,
+  extra: Record<string, unknown> = {},
+): void {
+  if (!initialized) return
+  // posthog.captureException accepts unknown — it stringifies non-Error inputs.
+  posthog.captureException(err, extra)
 }
 
 export function identifyPostHog(distinctId: string, traits: Record<string, unknown> = {}): void {

@@ -10,7 +10,7 @@ import { runScoring, SCORE_CRON, SCORE_QUEUE } from '~/jobs/score'
 import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from '~/jobs/synthesize'
 import { env, requireEnv } from '~/lib/env'
 import { logger } from '~/lib/logger'
-import { shutdownPosthog } from '~/lib/posthog'
+import { captureServerException, shutdownPosthog } from '~/lib/posthog'
 
 // Long-running pg-boss host. Hosts the daily ingest → score → synthesize
 // crons and workers today; the send queue from #17 registers here too as it
@@ -25,7 +25,10 @@ import { shutdownPosthog } from '~/lib/posthog'
 async function main() {
   const boss = new PgBoss({ connectionString: requireEnv('DATABASE_URL') })
 
-  boss.on('error', (err) => logger.error({ err }, 'pg-boss error'))
+  boss.on('error', (err) => {
+    logger.error({ err }, 'pg-boss error')
+    captureServerException(err, undefined, { source: 'pg-boss' })
+  })
 
   await boss.start()
   logger.info('pg-boss worker started')
@@ -161,7 +164,11 @@ async function main() {
   process.on('SIGINT', () => void shutdown('SIGINT'))
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   logger.fatal({ err }, 'worker failed to start')
+  captureServerException(err, undefined, { source: 'worker-bootstrap' })
+  // flushAt=1 means the capture above is already in flight, but give it a
+  // beat (and shutdown the client cleanly) before the process dies.
+  await shutdownPosthog().catch(() => {})
   process.exit(1)
 })

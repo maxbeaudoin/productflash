@@ -46,7 +46,8 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 23. **#17** — per-TZ send scheduling
 24. **#18** — onboard 5–10 betas
 25. **#20** — PostHog wiring ✅
-26. **#19** — launch + monitor
+26. **#51** — PostHog error tracking + Slack alerts ✅
+27. **#19** — launch + monitor
 
 ---
 
@@ -493,6 +494,30 @@ posthog-js on landing route (page views) + posthog-node in server functions and 
 ### #19 Launch + monitor first 2 weeks — ☐
 First broadcast day. Track open rate, click rate, feedback ratio, FTE completion rate, time-to-first-digest, LLM + Firehose + Firecrawl + web-search cost. Talk to each user at end of week 1. Decide go/no-go against success criteria in `SCOPE.md` §8.
 **Blocked by:** #11, #17, #18, #20
+
+### #51 PostHog error tracking + Slack alerts — ✅
+Reuse the PostHog wiring from #20 as an error aggregator so unhandled exceptions surface in one place (client + server), with Slack pings for new issues. Avoids standing up a second vendor (Sentry) at PoC scale; trades depth for "errors correlated with the user's funnel state and events."
+
+Concrete deliverables:
+
+- **Client autocapture.** Flip `enable_exception_autocapture: true` in `src/lib/posthog-client.ts` so `window.onerror` + `unhandledrejection` ship stacks via posthog-js. No-op when `VITE_POSTHOG_KEY` is unset.
+- **React error boundary.** Wrap the app tree in `__root.tsx` with a `<PostHogErrorBoundary>` that catches render errors, calls `posthog.captureException(err)`, and renders the existing `DefaultCatchBoundary` as fallback. Stays usable without PostHog (catches errors, just doesn't ship them).
+- **Server helper.** Add `captureServerException(err, distinctId?, extra?)` to `src/lib/posthog.ts` mirroring `captureServerEvent`'s no-op behavior. Internally calls `posthog.captureException(err, distinctId, extra)`.
+- **Wire server captures.** Three spots:
+  1. `src/worker/index.ts` — `boss.on('error', …)` already logs; also call `captureServerException`.
+  2. `src/agents/fte/agent.ts` — the existing catch block that writes the `error` event also captures.
+  3. The `main().catch(…)` at the worker entry — fatal start-up errors get captured before exit.
+- **Source maps.** Out of scope for the first cut — production stacks will look minified. Add as a follow-up task once we see what shape errors actually take.
+- **Slack subscriptions.** No code. PostHog → Settings → Integrations → install Slack app → subscribe to "New issues" in Error Tracking + a threshold subscription on `fte_completed where finished_reason='error'`. Document the steps in the commit / `.env.example` comment so it's reproducible.
+
+Out of scope:
+- A Pino transport that mirrors `logger.error` into PostHog. Tempting, but most useful errors are already thrown (not just logged) — wire explicit captures first; tap Pino if signal is missing.
+- Source-map upload via `posthog-cli` in the Railway build.
+- Replacing or augmenting Sentry. We're not running Sentry; the trade is "PostHog as the single observability vendor" vs adding a second one.
+
+Validation: throw in a route's loader (e.g. add `throw new Error('test')` to a debug route), hit it, see the issue in PostHog → Error Tracking with the user's funnel events alongside. Repeat on the worker side by raising in a job handler.
+
+**Blocked by:** #20
 
 ---
 

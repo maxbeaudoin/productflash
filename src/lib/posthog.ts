@@ -38,6 +38,22 @@ export function captureServerEvent(
   client.capture({ distinctId, event, properties: properties as Record<string, unknown> })
 }
 
+// Ship a thrown error to PostHog Error Tracking (#51). distinctId is optional
+// because some failures (worker start-up, pg-boss internal errors) don't have
+// a user to attribute to — they land against the 'worker' system identity.
+export function captureServerException(
+  err: unknown,
+  distinctId: string | undefined,
+  extra: Record<string, unknown> = {},
+): void {
+  const client = getClient()
+  if (!client) return
+  // posthog-node's captureException coerces unknown into an Error-shaped event.
+  // Wrap non-Error values so the stack trace surface stays useful in the UI.
+  const exception = err instanceof Error ? err : new Error(String(err))
+  client.captureException(exception, distinctId ?? 'worker', extra)
+}
+
 export async function shutdownPosthog(): Promise<void> {
   if (!_client) return
   try {
