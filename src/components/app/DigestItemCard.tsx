@@ -8,8 +8,8 @@ export type DigestItemView = {
   snippet: string
   impactNote: string | null
   sourceUrl: string | null
-  feedback: 'up' | 'down' | null
-  feedbackUrls: { up: string; down: string }
+  feedback?: 'up' | 'down' | null
+  feedbackUrls?: { up: string; down: string }
 }
 
 // Color treatment mirrors `src/components/landing/DigestItem.tsx` so the
@@ -67,11 +67,13 @@ export function DigestItemCard({ item, isLast }: { item: DigestItemView; isLast:
             </>
           ) : null}
         </div>
-        <FeedbackButtons
-          digestItemId={item.id}
-          initialRating={item.feedback}
-          signedUrls={item.feedbackUrls}
-        />
+        {item.feedbackUrls ? (
+          <FeedbackButtons
+            digestItemId={item.id}
+            initialRating={item.feedback ?? null}
+            signedUrls={item.feedbackUrls}
+          />
+        ) : null}
       </div>
     </div>
   )

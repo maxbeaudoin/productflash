@@ -26,7 +26,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 11. **#35** — personalize classify + synthesize on user profile ✅
 12. **#13** — Maxime full FTE dogfood
 13. **#32** — `/app/profile` view + edit ✅
-14. **#16** — admin app (`/admin/users/*`)
+14. **#16** — admin app (`/admin/users/*`) ✅
 15. **#11** — Resend email template + send (reactivate after dogfood)
 16. **#17** — per-TZ send scheduling
 17. **#18** — onboard 5–10 betas
@@ -229,7 +229,7 @@ Deviations from spec, kept as follow-ups rather than expanding scope:
 
 **Blocked by:** #26, #27, #31
 
-### #16 Admin app (`/admin/users/*`) — ☐
+### #16 Admin app (`/admin/users/*`) — ✅
 TanStack Start route at `/admin/*` gated by Better Auth's admin-role plugin (#26). Views:
 - `/admin/users` — list with email, status, last digest date, competitor count
 - `/admin/users/:id` — profile, recent digests (rendered via #31's components), FTE event timeline (from `fte_events`), button to re-run FTE / re-trigger digest

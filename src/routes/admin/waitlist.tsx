@@ -102,7 +102,7 @@ export const Route = createFileRoute('/admin/waitlist')({
 function AdminWaitlistPage() {
   const { rows } = Route.useLoaderData()
   return (
-    <main className="min-h-screen bg-paper text-text antialiased px-6 py-12">
+    <main className="px-6 py-12">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 flex items-center justify-between">
           <div>

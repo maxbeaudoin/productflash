@@ -1,5 +1,6 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
+import { AdminHeader } from '~/components/admin/AdminHeader'
 import { requireAdminSession } from '~/lib/auth-server'
 
 // Same shape as the /app layout, but layered: requireAdminSession first
@@ -21,5 +22,11 @@ export const Route = createFileRoute('/admin')({
 })
 
 function AdminLayout() {
-  return <Outlet />
+  const { admin } = Route.useRouteContext()
+  return (
+    <div className="min-h-screen bg-paper text-text antialiased">
+      <AdminHeader email={admin.email} />
+      <Outlet />
+    </div>
+  )
 }
