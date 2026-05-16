@@ -2,10 +2,15 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { desc, eq, sql } from 'drizzle-orm'
 import { useEffect, useState } from 'react'
-import { digestItems, digests } from '~/db/schema'
+import { digestItems, digests, users } from '~/db/schema'
 import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 import { deriveDigestPeriod } from '~/lib/digest-period'
+import {
+  computeNextDigestAt,
+  formatLocalTimeOfDay,
+  formatRelativeUntil,
+} from '~/lib/next-digest'
 
 type DigestRow = {
   id: string
@@ -19,17 +24,24 @@ type DigestRow = {
 const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await requireSession()
   const db = getDb()
-  const digestRows = await db
-    .select({
-      id: digests.id,
-      createdAt: digests.createdAt,
-      periodStart: digests.periodStart,
-      periodEnd: digests.periodEnd,
-      itemCount: digests.itemCount,
-    })
-    .from(digests)
-    .where(eq(digests.userId, session.user.id))
-    .orderBy(desc(digests.createdAt))
+  const [digestRows, profileRows] = await Promise.all([
+    db
+      .select({
+        id: digests.id,
+        createdAt: digests.createdAt,
+        periodStart: digests.periodStart,
+        periodEnd: digests.periodEnd,
+        itemCount: digests.itemCount,
+      })
+      .from(digests)
+      .where(eq(digests.userId, session.user.id))
+      .orderBy(desc(digests.createdAt)),
+    db
+      .select({ tz: users.tz })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1),
+  ])
 
   // Top-scored headline per digest — used as the list row peek. One round
   // trip via `DISTINCT ON`; Drizzle's correlated-subquery templating
@@ -47,6 +59,9 @@ const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
     peeks = new Map(peekRows.rows.map((r) => [r.digest_id, r.headline]))
   }
 
+  const nextDigestAt = computeNextDigestAt()
+  const userTz = profileRows[0]?.tz ?? null
+
   return {
     rows: digestRows.map<DigestRow>((r) => ({
       id: r.id,
@@ -56,6 +71,8 @@ const listDigests = createServerFn({ method: 'GET' }).handler(async () => {
       itemCount: r.itemCount,
       peek: peeks.get(r.id) ?? null,
     })),
+    nextDigestAt: nextDigestAt.toISOString(),
+    userTz,
   }
 })
 
@@ -71,7 +88,7 @@ export const Route = createFileRoute('/app/digests/')({
 const BREWING_POLL_MS = 4000
 
 function DigestsListPage() {
-  const { rows } = Route.useLoaderData()
+  const { rows, nextDigestAt, userTz } = Route.useLoaderData()
   const router = useRouter()
   const brewing = rows.length === 0
   const [autoRoutedTo, setAutoRoutedTo] = useState<string | null>(null)
@@ -114,8 +131,62 @@ function DigestsListPage() {
         </p>
       </header>
 
-      {rows.length === 0 ? <BrewingState /> : <DigestList rows={rows} />}
+      {rows.length === 0 ? (
+        <BrewingState />
+      ) : (
+        <>
+          <NextDigestBanner nextDigestAt={nextDigestAt} userTz={userTz} />
+          <DigestList rows={rows} />
+        </>
+      )}
     </main>
+  )
+}
+
+// Anticipation card above the digest list. The relative time refreshes on
+// the client so the banner reads correctly even if the loader-rendered
+// timestamp is a few seconds stale. Channel copy stays honest: email send
+// (#11) and per-TZ scheduling (#17) are deferred, so today the only channel
+// is `/app/digests`.
+function NextDigestBanner({
+  nextDigestAt,
+  userTz,
+}: {
+  nextDigestAt: string
+  userTz: string | null
+}) {
+  const target = new Date(nextDigestAt)
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  const relative = formatRelativeUntil(target, now)
+  const localTime = formatLocalTimeOfDay(target, userTz)
+
+  return (
+    <div
+      className="mb-6 flex flex-col gap-3 rounded-card-lg border border-[#2a2a38] bg-ink-soft px-7 py-5 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className="mt-[7px] h-[6px] w-[6px] shrink-0 animate-pulse rounded-full bg-coral"
+          style={{ boxShadow: '0 0 12px var(--color-coral)' }}
+        />
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-accent">
+            Next brief
+          </div>
+          <div className="mt-1 text-base font-semibold leading-[1.3] text-white">
+            On the way {relative}.
+          </div>
+          <div className="mt-1 text-[13px] text-[#a8a8b8]">
+            Lands at <span className="font-mono text-xs text-white">{localTime}</span> · in-app only
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

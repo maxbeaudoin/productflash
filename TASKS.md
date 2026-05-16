@@ -30,7 +30,7 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 15. **#38** — auto-sign-in after `/signup` submit ✅
 16. **#40** — catch-up framing + visible date ranges on digests ✅
 17. **#41** — per-item timestamps when truthful, omit when unknown ✅
-18. **#42** — next-digest banner on `/app/digests` listing
+18. **#42** — next-digest banner on `/app/digests` listing ✅
 19. **#13** — Maxime full FTE dogfood (resume iter 2 after #36–#42 land)
 20. **#32** — `/app/profile` view + edit ✅
 21. **#16** — admin app (`/admin/users/*`) ✅
@@ -332,7 +332,7 @@ Out of scope: client-side relative-time auto-update (server-rendered static is f
 
 **Blocked by:** none
 
-### #42 Next-digest banner on `/app/digests` listing — ☐
+### #42 Next-digest banner on `/app/digests` listing — ✅
 The list page at `/app/digests` shows only past digests, with no indication of when the next one arrives or where it'll land. Dogfood iteration 1 (2026-05-16) flagged this as a missed anticipation/engagement moment.
 
 Above the list, render a card or banner:
