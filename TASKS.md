@@ -247,9 +247,9 @@ Used for personal QA + future beta babysitting.
 ### #36 Admins skip onboarding — ✅
 Admin users hit `/app` and get redirected to `/app/onboarding` because their `profile_confirmed_at` is null — but onboarding is irrelevant to admins, who use the product as operators. Surfaced in dogfood iteration 1 (2026-05-16).
 
-In `src/routes/app/index.tsx`, when the session has `role === 'admin'`, redirect to `/app/digests` regardless of `profile_confirmed_at`. Admins who *also* want a personalized digest can navigate to `/app/onboarding` manually — we just stop forcing it.
+In `src/routes/app/index.tsx`, when the session has `role === 'admin'`, redirect to `/admin` (which itself bounces to `/admin/users`) regardless of `profile_confirmed_at`. Admins who *also* want to dogfood the user-facing app can navigate to `/app/digests` or `/app/onboarding` manually — we just stop dropping them into the onboarding flow.
 
-Validation: log in as an admin with `profile_confirmed_at = NULL`, hit `/`, land on `/app/digests`. Log in as a regular user with the same null state, still land on `/app/onboarding`.
+Validation: log in as an admin with `profile_confirmed_at = NULL`, hit `/app`, land on `/admin/users`. Log in as a regular user with the same null state, still land on `/app/onboarding`.
 
 **Blocked by:** none
 

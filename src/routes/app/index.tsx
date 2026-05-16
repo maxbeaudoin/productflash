@@ -5,14 +5,15 @@ import { users as usersTable } from '~/db/schema'
 import { requireSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 
-// /app is the magic-link callbackURL. Route new users (no profile confirmed
-// yet) to the onboarding view; everyone else lands on /app/digests. Admins
-// always go to /app/digests — onboarding is for end-users.
+// /app is the magic-link callbackURL. Admins go straight to the admin app;
+// unconfirmed users get onboarding; everyone else lands on /app/digests.
 
-const resolveLanding = createServerFn({ method: 'GET' }).handler(async () => {
+type Landing = '/admin' | '/app/digests' | '/app/onboarding'
+
+const resolveLanding = createServerFn({ method: 'GET' }).handler(async (): Promise<{ to: Landing }> => {
   const session = await requireSession()
   if (session.user.role === 'admin') {
-    return { confirmed: true }
+    return { to: '/admin' }
   }
   const db = getDb()
   const [row] = await db
@@ -20,12 +21,12 @@ const resolveLanding = createServerFn({ method: 'GET' }).handler(async () => {
     .from(usersTable)
     .where(eq(usersTable.id, session.user.id))
     .limit(1)
-  return { confirmed: Boolean(row?.profileConfirmedAt) }
+  return { to: row?.profileConfirmedAt ? '/app/digests' : '/app/onboarding' }
 })
 
 export const Route = createFileRoute('/app/')({
   beforeLoad: async () => {
-    const { confirmed } = await resolveLanding()
-    throw redirect({ to: confirmed ? '/app/digests' : '/app/onboarding' })
+    const { to } = await resolveLanding()
+    throw redirect({ to })
   },
 })
