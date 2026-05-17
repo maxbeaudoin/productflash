@@ -3,8 +3,11 @@
 # Runs checks scoped to the *diff between local HEAD and upstream*:
 #   1. vite build           — full production build (cannot be scoped)
 #   2. vitest related       — integration tests touching changed TS/JS
-#   3. playwright test      — e2e suite, only if UI / routes / e2e tests moved
-#   4. smoke                — skipped locally; lives in .github/workflows/smoke.yml
+#   3. smoke                — skipped locally; lives in .github/workflows/smoke.yml
+#
+# E2E is *not* run pre-push — it takes ~30s+ for container boot alone and
+# CI already covers it on every PR. Run it manually with `pnpm test:e2e`
+# when touching landing pages, the FTE flow, auth, or anything user-facing.
 #
 # Exit 0: allow. Exit 2: block + feed stderr back to Claude.
 
@@ -40,13 +43,9 @@ if [[ ${#CHANGED[@]} -eq 0 ]]; then
 fi
 
 TS_JS=()
-UI_OR_E2E_TOUCHED=0
 for f in "${CHANGED[@]}"; do
   case "$f" in
     *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) TS_JS+=("$f") ;;
-  esac
-  case "$f" in
-    src/*|tests/e2e/*|playwright.config.*|public/*) UI_OR_E2E_TOUCHED=1 ;;
   esac
 done
 
@@ -62,16 +61,7 @@ if [[ ${#TS_JS[@]} -gt 0 ]]; then
     || fail "integration tests failed"
 fi
 
-# 3. E2E — Playwright has no built-in "related tests" mode, so we gate on
-#    a coarse heuristic: only run when src/, tests/e2e/, playwright config,
-#    or public/ moved. Docs-only diffs skip the suite entirely.
-if [[ "$UI_OR_E2E_TOUCHED" -eq 1 ]]; then
-  pnpm test:e2e || fail "playwright e2e failed"
-else
-  echo "pre-push: no src/ or e2e changes, skipping playwright" >&2
-fi
-
-# 4. Smoke — .github/workflows/smoke.yml pings PRODUCTION_URL/healthz on
+# 3. Smoke — .github/workflows/smoke.yml pings PRODUCTION_URL/healthz on
 #    a schedule. Nothing to run locally pre-push.
 
 exit 0
