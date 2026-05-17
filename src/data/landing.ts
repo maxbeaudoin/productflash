@@ -199,6 +199,6 @@ export const WAITLIST = {
   label: "Join the waitlist",
   title: "Get the brief while seats are still open.",
   body: "We're letting new teams in on a rolling basis. Drop your email and we'll be in touch when a seat opens up.",
-  positions: ["Head of Product", "Product Manager", "Product Marketing", "Founder / CEO", "Other"],
+  positions: ["Head of Product", "Product Manager", "Product Marketing", "Founder / CEO"],
   success: "Got it — we'll be in touch.",
 };

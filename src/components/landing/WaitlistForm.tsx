@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { WAITLIST } from "~/data/landing";
+import { normalizeUrl } from "~/lib/url";
 
 type State = "idle" | "submitting" | "done" | "error";
 
@@ -9,11 +10,24 @@ export function WaitlistForm({ source }: { source: string }) {
   const [companyUrl, setCompanyUrl] = useState("");
   const [state, setState] = useState<State>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setState("submitting");
     setError(null);
+    setUrlError(null);
+
+    let normalizedUrl: string | undefined;
+    if (companyUrl.trim()) {
+      const result = normalizeUrl(companyUrl);
+      if (!result) {
+        setUrlError("That doesn't look like a URL — try something like acme.com.");
+        return;
+      }
+      normalizedUrl = result;
+    }
+
+    setState("submitting");
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
@@ -21,7 +35,7 @@ export function WaitlistForm({ source }: { source: string }) {
         body: JSON.stringify({
           email,
           position: position || undefined,
-          companyUrl: companyUrl || undefined,
+          companyUrl: normalizedUrl,
           source,
         }),
       });
@@ -68,29 +82,39 @@ export function WaitlistForm({ source }: { source: string }) {
       <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
         <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/70">
           Role
-          <select
+          <input
+            type="text"
+            list="waitlist-roles"
+            autoComplete="organization-title"
+            maxLength={120}
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            className="h-11 rounded-md border-[1.5px] border-ink/20 bg-paper px-3 text-sm font-normal normal-case tracking-normal text-ink outline-none focus:border-ink"
-          >
-            <option value="">Optional</option>
+            className="h-11 rounded-md border-[1.5px] border-ink/20 bg-paper px-3 text-sm font-normal normal-case tracking-normal text-ink outline-none placeholder:text-ink/40 focus:border-ink"
+            placeholder="Head of Product"
+          />
+          <datalist id="waitlist-roles">
             {WAITLIST.positions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
+              <option key={p} value={p} />
             ))}
-          </select>
+          </datalist>
         </label>
 
         <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/70">
           Company URL
           <input
-            type="url"
+            type="text"
+            inputMode="url"
+            autoComplete="url"
             value={companyUrl}
             onChange={(e) => setCompanyUrl(e.target.value)}
             className="h-11 rounded-md border-[1.5px] border-ink/20 bg-paper px-3 text-sm font-normal normal-case tracking-normal text-ink outline-none placeholder:text-ink/40 focus:border-ink"
-            placeholder="https://acme.com"
+            placeholder="acme.com"
           />
+          {urlError ? (
+            <span className="text-xs font-medium normal-case tracking-normal text-coral">
+              {urlError}
+            </span>
+          ) : null}
         </label>
       </div>
 
@@ -104,8 +128,8 @@ export function WaitlistForm({ source }: { source: string }) {
 
       {state === "error" ? (
         <p className="text-sm font-medium text-coral">
-          {error === "invalid_input"
-            ? "Please check your email and company URL."
+          {error === "invalid_email"
+            ? "That email doesn't look right — double-check and resubmit."
             : "Couldn't reach the server — try again in a moment."}
         </p>
       ) : null}
