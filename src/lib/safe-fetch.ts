@@ -108,10 +108,19 @@ async function assertSafeUrl(url: string, allowPrivate: boolean): Promise<void> 
   // If the host is a literal IP, validate it directly — skip the DNS lookup
   // (which would otherwise round-trip and may not behave predictably for
   // numeric input depending on system resolver).
-  const family = isIP(parsed.hostname)
+  //
+  // WHATWG URL keeps IPv6 hosts wrapped in `[...]` (e.g. `[::1]`), and
+  // `isIP` doesn't accept that bracket form. Strip the brackets before the
+  // IP check so `http://[::1]/` is recognized as a literal IPv6 — without
+  // this, the function falls through to DNS, where lookup happens to fail
+  // and the user sees `dns_failure` instead of the correct `private_address`.
+  const literal = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
+    ? parsed.hostname.slice(1, -1)
+    : parsed.hostname
+  const family = isIP(literal)
   if (family !== 0) {
-    if (!allowPrivateEffective && isPrivateAddress(parsed.hostname, family)) {
-      throw new SafeFetchError('private_address', url, `safeFetch: ${parsed.hostname} is a private address`)
+    if (!allowPrivateEffective && isPrivateAddress(literal, family)) {
+      throw new SafeFetchError('private_address', url, `safeFetch: ${literal} is a private address`)
     }
     return
   }
@@ -161,10 +170,29 @@ function isPrivateAddress(addr: string, family: number): boolean {
     if (lower.startsWith('fc') || lower.startsWith('fd')) return true
     if (lower.startsWith('ff')) return true
     if (lower.startsWith('::ffff:')) {
-      const v4 = lower.slice('::ffff:'.length)
-      if (isIP(v4) === 4) return isPrivateAddress(v4, 4)
+      const tail = lower.slice('::ffff:'.length)
+      // Node's WHATWG URL normalizes the embedded v4 from dotted form
+      // (`::ffff:10.0.0.1`) to compact hex (`::ffff:a00:1`), so both forms
+      // arrive here. Resolve either back to dotted v4 before delegating
+      // to the v4 check.
+      const dotted = ipv4MappedToDotted(tail)
+      if (dotted) return isPrivateAddress(dotted, 4)
     }
     return false
   }
   return true
+}
+
+function ipv4MappedToDotted(tail: string): string | null {
+  if (isIP(tail) === 4) return tail
+  // Hex form: up to two `:`-separated 16-bit groups encoding the 32-bit v4.
+  // Either "a00:1" (full) or "1" (when leading zeros compress). Accept both.
+  const groups = tail.split(':')
+  if (groups.length > 2) return null
+  if (groups.some((g) => g === '' || !/^[0-9a-f]{1,4}$/.test(g))) return null
+  const padded = groups.length === 1 ? ['0', groups[0]!] : groups
+  const hi = parseInt(padded[0]!, 16)
+  const lo = parseInt(padded[1]!, 16)
+  if (Number.isNaN(hi) || Number.isNaN(lo)) return null
+  return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff].join('.')
 }
