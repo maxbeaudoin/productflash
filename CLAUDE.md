@@ -1,22 +1,56 @@
 # Product Flash
 
-Daily AI-curated competitive intelligence digest for SaaS product leaders. Currently in **PoC phase** — validating demand with 5–10 beta users over a 2–3 week build. No code yet at time of writing; planning artifacts only.
+Daily AI-curated competitive intelligence digest for SaaS product leaders. Currently in **PoC phase** — validating demand with 5–10 beta users.
 
-## Start here
+## Reference docs
 
-- **`SCOPE.md`** — full PoC plan: goal, in/out of scope, sources, architecture, design system, daily pipeline, milestones, success criteria, risks. Source of truth for _what we're building_.
-- **`TASKS.md`** — 22 work items with descriptions, dependencies, and statuses. Source of truth for _what's left to do_.
 - **`docs/`** — vendor API knowledge base (PH, Firehose, Firecrawl, RSS). Read the relevant file BEFORE writing or modifying that source adapter — captures verified schema, rate limits, working/broken query patterns. Not auto-loaded; consult on demand.
-- **`MEMORY.md`** index in `~/.claude/...` — pointers to locked decisions (scope, stack, ingestion principle).
+- **`SCOPE.md`** / **`TASKS.md`** — historical planning artifacts. Useful for context on _why_ a decision was made, but not load-bearing for day-to-day work. Don't treat them as a queue or a contract.
+- **`MEMORY.md`** index in `~/.claude/...` — locked decisions (scope, stack, ingestion principle).
 
-## Workflow
+## Before you start a new task
 
-- When picking up work: read `TASKS.md` first, find an unblocked task, do it.
-- **Update task status in `TASKS.md`** as you progress (☐ → ⏳ → ✅). Commit status changes alongside the work.
-- The in-session task list (`TaskCreate`/`TaskUpdate`) is a per-session scratchpad. `TASKS.md` is the durable source of truth — they will drift if you only update one.
-- Default branch is `main`. Commit messages are concise; explain the _why_ when non-obvious.
+1. Make sure you understand the requirements, ask multi-choice questions, and flag blockers.
+2. Checkout a new branch from main and make sure your local main is up to date:
 
-## Stack (locked — see `SCOPE.md` §4 for rationale)
+```
+git checkout main
+git status --porcelain
+git pull --ff-only
+git checkout -b feat|fix|chore|docs|refactor|test/<branch-name>
+```
+
+## Validate your own work
+
+1. Write tests for your code and make sure they pass.
+2. Start the development server and test your changes in the browser with `mcp__chrome-devtools__`.
+3. Query the database to verify that your changes are reflected correctly.
+4. Use `curl` to test your API endpoints if applicable.
+5. Check the console for any errors or warnings and address them.
+6. Write tmp ts scripts to validate more intricate changes if necessary.
+
+**Required proofs of work:**
+- [ ] Screenshots of UI changes (approved by the user)
+- [ ] Database queries showing expected results
+- [ ] Postman or curl responses showing expected results
+
+## Definition of done
+
+Using the `gh` and `railway` CLIs:
+
+1. Open a pull request and request a review from Github Copilot.
+2. Address any comments from the review and make sure all checks have passed.
+3. Merge the code into main.
+4. Monitor the deployment to production and verify that it was successful.
+
+**Checklist:**
+- [ ] Code is complete and you validated your own work
+- [ ] User has approved screenshots and feedback is incorporated (if applicable)
+- [ ] PR is reviewed by Github Copilot, comments are resolved, all checks have passed
+- [ ] Code is merged into main
+- [ ] Code has deployed to production successfully
+
+## Stack
 
 - TanStack Start + Drizzle + pg-boss + Neon Postgres, deployed on Railway (web service + long-running worker)
 - Anthropic SDK direct: `claude-sonnet-4-6` (synthesis) + `claude-haiku-4-5-20251001` (classification fan-out)
@@ -29,9 +63,9 @@ Daily AI-curated competitive intelligence digest for SaaS product leaders. Curre
 - **Use existing APIs for ingestion** — Firehose, Firecrawl, RSS, Product Hunt. No custom crawlers. User has Firehose + Firecrawl procured.
 - **pg-boss for all scheduling** — NOT Railway cron, NOT Redis/BullMQ. One long-running worker handles cron + retries + per-user fan-out queue.
 - **Shared design tokens** — `src/design/tokens.ts` is the single source of truth for brand. Tailwind `@theme` consumes it; React Email components import it for inline styles. Web UI and email must look identical.
-- **Don't broaden scope** — competitor-moves pillar only. Market signal + VoC pillars are explicitly deferred (`SCOPE.md` §2). Push back if asked to add them without a scope conversation.
+- **Competitor-moves pillar only** — market signal + VoC pillars are explicitly deferred. Push back if asked to add them without a scope conversation.
 
-## Common commands (once stack is bootstrapped)
+## Common commands
 
 ```
 pnpm dev              # TanStack Start dev server
