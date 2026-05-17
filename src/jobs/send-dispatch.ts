@@ -182,7 +182,7 @@ export async function runSendDispatch(
 // Intl.DateTimeFormat is the cleanest way to project a UTC instant into
 // an IANA zone without pulling in date-fns-tz. Returns hour as 0–23 and
 // weekday as 0=Sunday … 6=Saturday (matches Date.prototype.getDay).
-function computeLocal(now: Date, tz: string): { hour: number; weekday: number } {
+export function computeLocal(now: Date, tz: string): { hour: number; weekday: number } {
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     hour12: false,
