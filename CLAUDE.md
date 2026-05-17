@@ -36,9 +36,9 @@ Using `mcp__chrome-devtools__`, and the `psql` and `curl` CLIs:
 
 ## Definition of done
 
-Using the `gh` and `railway` CLIs:
+Using the `gh` CLIs:
 
-1. Open a pull request and request a review from Github Copilot.
+1. Open a pull request and request a review from Github Copilot (`copilot-pull-request-reviewer[bot]`).
 2. Address any comments from the review and make sure all checks have passed.
 3. Merge the code into main.
 4. Monitor the deployment to production and verify that it was successful.
@@ -48,7 +48,8 @@ Using the `gh` and `railway` CLIs:
 - [ ] User has approved screenshots and feedback is incorporated (if applicable)
 - [ ] PR is reviewed by Github Copilot, comments are resolved, all checks have passed
 - [ ] Code is merged into main
-- [ ] Code has deployed to production successfully
+
+* Use `Monitor` to watch for Copilot reviews and checks: 1m cadence, 5m timeout.
 
 ## Stack
 
