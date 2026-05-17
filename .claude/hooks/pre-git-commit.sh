@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # PreToolUse hook for Bash, gated to `git commit`.
-# Runs scoped checks against the *staged* set:
+# Runs scoped checks against the *staged* set — only the FAST ones, so a
+# commit never feels slow. CI is the gate of record for typecheck and tests.
 #   1. oxfmt   — format staged files (auto-fix + re-stage)
 #   2. .only guard — block focused tests from being committed
 #   3. oxlint  — lint staged TS/JS files
 #   4. gitleaks — secret scan on staged diff (skip with warning if missing)
-#   5. tsgo    — project-wide typecheck (cannot be safely scoped)
-#   6. drizzle-kit check — only if schema or drizzle/ changed
-#   7. vitest related — unit tests touching staged TS/JS files
+#   5. drizzle-kit check — only if schema or drizzle/ changed (gated)
+#   6. env:lint — only if env files / modules moved (gated)
+#
+# Dropped (CI covers both, locally they add ~10-30s each per commit):
+#   - tsgo --noEmit project-wide typecheck
+#   - vitest related (unit tests for staged TS/JS)
+# Run them manually before pushing if you want extra confidence.
 #
 # Exit 0: allow. Exit 2: block + feed stderr back to Claude.
 
@@ -100,26 +105,16 @@ else
   echo "pre-commit: gitleaks unavailable — skipping secret scan" >&2
 fi
 
-# 5. Typecheck — tsgo needs the full project graph, can't be safely scoped.
-if [[ ${#TS_JS[@]} -gt 0 ]]; then
-  pnpm typecheck || fail "tsgo typecheck failed"
-fi
-
-# 6. Drizzle migration sanity check — only when schema or migrations moved.
+# 5. Drizzle migration sanity check — only when schema or migrations moved.
 if [[ "$SCHEMA_TOUCHED" -eq 1 ]]; then
   pnpm exec drizzle-kit check || fail "drizzle-kit check failed"
 fi
 
-# 6b. Env cross-check — only when any of the env files / env modules moved.
-# Catches drift between .env.example, .env.production and the Zod schema before
-# it lands in main and breaks a deploy.
+# 6. Env cross-check — only when any of the env files / env modules moved.
+# Catches drift between .env.example, .env.production and the Zod schema
+# before it lands in main and breaks a deploy.
 if [[ "$ENV_TOUCHED" -eq 1 ]]; then
   pnpm env:lint || fail "env-lint reported issues"
-fi
-
-# 7. Unit tests related to staged TS/JS files.
-if [[ ${#TS_JS[@]} -gt 0 ]]; then
-  pnpm exec vitest related --run "${TS_JS[@]}" || fail "unit tests failed"
 fi
 
 exit 0
