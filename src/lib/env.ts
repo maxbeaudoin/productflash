@@ -38,7 +38,20 @@ const hasProd = existsSync(ENV_PROD);
 // here at all; rely on file presence and let `override: true` make
 // .env.production deterministic regardless of what stale or empty
 // NODE_ENV state the runtime happens to start with.
-if (hasLocal) {
+// Reflect.get avoids Vite's static `process.env.NODE_ENV` replacement at
+// build time — same trick as the diagnostic block below.
+const preExistingNodeEnv = Reflect.get(process.env, "NODE_ENV");
+
+if (preExistingNodeEnv === "test") {
+  // Test runner (vitest) sets NODE_ENV=test in process.env before this
+  // module loads and provides its own env stubs (vitest.config.ts +
+  // vitest.integration.config.ts). Skip dotenv entirely so a committed
+  // .env.production (which carries NODE_ENV=production) can't clobber
+  // the test environment via override:true. Without this guard, CI
+  // checkouts that include .env.production fail integration tests with
+  // "X is required in production" because the override flips the env
+  // back to prod-validation mode.
+} else if (hasLocal) {
   // Local dev: .env is authoritative. Don't touch .env.production —
   // its NODE_ENV=production would silently flip dev into prod-validation
   // mode (.env.production loaded with override would clobber).

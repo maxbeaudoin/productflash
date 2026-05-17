@@ -109,7 +109,7 @@ function AdminWaitlistPage() {
           </p>
         ) : (
           <ul className="divide-y divide-ink-line rounded-2xl border border-ink-line bg-paper-warm">
-            {rows.map((row) => (
+            {rows.map((row: WaitlistRow) => (
               <WaitlistRowItem key={row.id} row={row} />
             ))}
           </ul>

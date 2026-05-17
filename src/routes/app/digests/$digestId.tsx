@@ -152,7 +152,7 @@ function DigestDetailPage() {
               <div className="mb-6 text-sm text-[#888]">
                 {greetingFor(digest.items.length, period.kind, period.daysBack)}
               </div>
-              {digest.items.map((item, idx) => (
+              {digest.items.map((item: DigestItemView, idx: number) => (
                 <DigestItemCard
                   key={item.id}
                   item={item}
