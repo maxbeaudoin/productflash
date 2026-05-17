@@ -143,7 +143,7 @@ function AdminUsersListPage() {
           </p>
         ) : (
           <ul className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-paper-warm">
-            {rows.map((row) => (
+            {rows.map((row: UserRow) => (
               <UserRowItem key={row.id} row={row} />
             ))}
           </ul>

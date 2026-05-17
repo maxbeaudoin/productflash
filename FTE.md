@@ -134,8 +134,16 @@ bare `/signup` shows an invite gate that points you back here.
    CTA section).
 2. Fill in:
    - **Email** (required) — the address the invite + magic link will land at.
-   - **Role** (optional) — picks from Head of Product, PM Lead, Founder, etc.
-   - **Company URL** (optional) — gives the admin context when issuing invites.
+   - **Role** (optional) — free-text with suggestions (Head of Product,
+     PM, Product Marketing, Founder / CEO); type anything that fits.
+   - **Company URL** (optional) — bare domains work (`acme.com`); the
+     server normalizes the value and runs a short HEAD verify to capture
+     the canonical URL. If verification fails (timeout, bot block, 4xx),
+     we silently store the normalized form so the form never punishes
+     the visitor for a flaky upstream. Strict policy: http(s) only,
+     real domains only — ports, IP literals, `localhost`, credentials,
+     and non-http(s) schemes (`mailto:`, `javascript:`, …) are all
+     rejected as suspicious before the row is written.
 3. Submit. You'll see _"Got it — we'll be in touch"_ inline. No
    confirmation email is sent at this stage.
 
@@ -145,6 +153,10 @@ a row into `waitlist` (or silently no-ops on duplicate email).
 **What can go wrong:**
 
 - _"Couldn't reach the server"_ — network blip; retry.
+- _"That doesn't look like a URL — try something like acme.com."_ inline
+  under the Company URL field — fires only when the input has no TLD
+  (e.g. `acme` alone). Add a `.com` or similar.
+- _"That email doesn't look right"_ — typo in the email; fix and resubmit.
 - Re-submitting the same email looks identical to a first submit; that's
   by design — admins see one row.
 

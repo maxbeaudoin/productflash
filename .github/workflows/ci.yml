@@ -31,6 +31,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # routeTree.gen.ts is gitignored and only generated as a side effect of
+      # the Vite plugin during dev/build. typecheck doesn't trigger Vite, so
+      # without this step it errors on "Cannot find module './routeTree.gen'".
+      - run: pnpm routes:gen
+
       - run: pnpm typecheck
 
       - run: pnpm test
@@ -55,6 +60,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # Same reason as the fast job — generate routeTree.gen.ts before any
+      # downstream step might import code that references it transitively.
+      - run: pnpm routes:gen
 
       # Cache Playwright browsers — saves ~80MB download on every run.
       # Key by the @playwright/test version so a bump invalidates cleanly.

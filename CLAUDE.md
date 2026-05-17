@@ -22,17 +22,17 @@ git checkout -b feat|fix|chore|docs|refactor|test/<branch-name>
 
 ## Validate your own work
 
+Using `mcp__chrome-devtools__`, and the `psql` and `curl` CLIs: 
+
 1. Write tests for your code and make sure they pass.
-2. Start the development server and test your changes in the browser with `mcp__chrome-devtools__`.
+2. Start the development server and test your changes in the browser.
 3. Query the database to verify that your changes are reflected correctly.
-4. Use `curl` to test your API endpoints if applicable.
+4. Send requests to test your API endpoints if applicable.
 5. Check the console for any errors or warnings and address them.
 6. Write tmp ts scripts to validate more intricate changes if necessary.
 
-**Required proofs of work:**
-- [ ] Screenshots of UI changes (approved by the user)
-- [ ] Database queries showing expected results
-- [ ] Postman or curl responses showing expected results
+* Only run relevant e2e tests locally (they can be slow); the full suite will run in CI.
+* Always ask the user to validate the screenshots and provide feedback before moving to the PR stage.
 
 ## Definition of done
 

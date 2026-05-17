@@ -40,8 +40,11 @@ test("landing form: visitor submits → row written with lowercased email + sour
   await form.scrollIntoViewIfNeeded();
 
   await form.getByLabel("Email").fill(TEST_EMAIL);
-  await form.getByLabel("Role").selectOption("Head of Product");
-  await form.getByLabel("Company URL").fill("https://acme.com");
+  await form.getByLabel("Role").fill("Head of Product");
+  // Bare-domain submission exercises client-side normalizeUrl end-to-end.
+  // The stored value tolerates either the normalized form (verify failed,
+  // silent fallback) or a www. canonical (HEAD verify followed a redirect).
+  await form.getByLabel("Company URL").fill("acme.com");
 
   await form.getByRole("button", { name: /join the waitlist/i }).click();
 
@@ -56,7 +59,7 @@ test("landing form: visitor submits → row written with lowercased email + sour
   const row = rows[0]!;
   expect(row.email).toBe(LOWER_EMAIL);
   expect(row.position).toBe("Head of Product");
-  expect(row.companyUrl).toBe("https://acme.com");
+  expect(row.companyUrl).toMatch(/^https:\/\/(www\.)?acme\.com$/);
   expect(row.source).toBe("cta-section");
 });
 
@@ -94,23 +97,54 @@ test("duplicate email: second submission is a no-op via onConflictDoNothing", as
   expect(rows[0]!.companyUrl).toBe("https://first.example");
 });
 
-test("invalid input: server rejects bad email + bad URL with 400, no row written", async ({
+test("invalid email: server rejects with 400 invalid_email, no row written", async ({
   request,
 }) => {
   const db = drizzle(pool);
 
   const res = await request.post("/api/waitlist", {
-    data: {
-      email: "not-an-email",
-      companyUrl: "not-a-url",
-      source: "cta-section",
-    },
+    data: { email: "not-an-email", source: "cta-section" },
   });
   expect(res.status()).toBe(400);
   const body = (await res.json()) as { ok: boolean; error: string };
   expect(body.ok).toBe(false);
-  expect(body.error).toBe("invalid_input");
+  expect(body.error).toBe("invalid_email");
 
   const rows = await db.select().from(waitlist);
   expect(rows).toHaveLength(0);
+});
+
+test("invalid url: structurally broken URL → 400 invalid_url (server-side defensive guard)", async ({
+  request,
+}) => {
+  // Client-side normalizeUrl short-circuits this case before POST. The server
+  // returns invalid_url anyway when called directly (e.g. via curl) so the
+  // contract is unambiguous.
+  const db = drizzle(pool);
+
+  const res = await request.post("/api/waitlist", {
+    data: { email: "ok@example.com", companyUrl: "not a url", source: "cta-section" },
+  });
+  expect(res.status()).toBe(400);
+  const body = (await res.json()) as { ok: boolean; error: string };
+  expect(body.error).toBe("invalid_url");
+
+  const rows = await db.select().from(waitlist);
+  expect(rows).toHaveLength(0);
+});
+
+test("bare domain via API: server normalizes acme.com → https://acme.com (verify may fall back)", async ({
+  request,
+}) => {
+  const db = drizzle(pool);
+  const email = "bare-domain@example.com";
+
+  const res = await request.post("/api/waitlist", {
+    data: { email, companyUrl: "acme.com", source: "cta-section" },
+  });
+  expect(res.status()).toBe(200);
+
+  const rows = await db.select().from(waitlist).where(eq(waitlist.email, email));
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.companyUrl).toMatch(/^https:\/\/(www\.)?acme\.com$/);
 });
