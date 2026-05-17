@@ -42,6 +42,27 @@ async function deliverMagicLink({ email, url }: { email: string; url: string }) 
   }
 }
 
+// Google OAuth is opt-in via env — when the client ID/secret are unset
+// (typical local dev), the social provider is simply not registered, so
+// the /api/auth/sign-in/social route 404s instead of throwing at boot.
+// In prod both vars are required-in-prod (env-keys.ts), so a deploy
+// without them fails fast at env.ts validation.
+const googleProvider =
+  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+    ? {
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID,
+          clientSecret: env.GOOGLE_CLIENT_SECRET,
+          // Private beta: same rule as the magic-link plugin. A successful
+          // Google OAuth callback for an email that has no `users` row is
+          // rejected — the admin invite (#34) remains the only path to a
+          // row. Returning users (row exists, no `accounts` link yet) ARE
+          // allowed in; the row matching happens via accountLinking below.
+          disableSignUp: true,
+        },
+      }
+    : undefined;
+
 export const auth = betterAuth({
   secret: requireEnv("BETTER_AUTH_SECRET"),
   baseURL: env.BETTER_AUTH_URL,
@@ -51,6 +72,19 @@ export const auth = betterAuth({
     usePlural: true,
     schema,
   }),
+  // First-time Google sign-in for an invited user finds an existing
+  // `users` row (pre-created by admin invite) with no matching `accounts`
+  // row. Better Auth's default is to refuse the link — anti-hijacking
+  // guard for unverified emails. Google verifies the email at the IdP, so
+  // listing it as a trusted provider tells Better Auth the email match is
+  // sufficient proof of ownership and the account auto-links.
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
+  ...(googleProvider ? { socialProviders: googleProvider } : {}),
   // Postgres `.defaultRandom()` already supplies UUIDs — tell Better Auth
   // not to generate IDs itself, so inserts omit `id` and the DB default
   // fires.

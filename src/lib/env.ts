@@ -94,6 +94,13 @@ const baseSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
 
+  // Google OAuth client (web app) for "Continue with Google" sign-in.
+  // Required in prod alongside magic-link — beta is invite-only, so the
+  // Google provider runs with `disableSignUp: true` and only signs in
+  // emails that already have a `users` row from an admin invite (#34).
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   // Opt-in switch for the daily ingestion + score crons. Off by default so a
   // deploy never auto-fires real API calls — flip to "1" only when dogfooding
   // / real users are ready. Manual triggers (`pnpm ingest:run` or

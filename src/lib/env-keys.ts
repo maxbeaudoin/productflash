@@ -31,6 +31,8 @@ export const ENV_KEYS = [
   "INVITE_TOKEN_SECRET",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
   "INGEST_SCHEDULE_ENABLED",
 ] as const;
 
@@ -49,4 +51,6 @@ export const ENV_REQUIRED_IN_PROD = [
   "INVITE_TOKEN_SECRET",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
 ] as const satisfies readonly EnvKey[];

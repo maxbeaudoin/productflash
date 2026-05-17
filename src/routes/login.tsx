@@ -6,6 +6,12 @@ import { signIn } from "~/lib/auth-client";
 
 const searchSchema = z.object({
   reason: z.enum(["unauthenticated"]).optional(),
+  // Populated by Better Auth when a social sign-in fails — most often
+  // `signup_disabled` for an email that's not on the private beta. We
+  // surface a single friendly message regardless of the underlying code;
+  // the exact reason matters less to the visitor than the next step
+  // (join the waitlist).
+  error: z.string().optional(),
 });
 
 export const Route = createFileRoute("/login")({
@@ -14,10 +20,11 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { reason } = Route.useSearch();
+  const { reason, error: oauthError } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [googleState, setGoogleState] = useState<"idle" | "redirecting">("idle");
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,6 +37,20 @@ function LoginPage() {
       return;
     }
     setState("sent");
+  }
+
+  async function onGoogle() {
+    setGoogleState("redirecting");
+    // The success path is a full redirect to Google → /api/auth/callback/google
+    // → /app, so we never return here on success. On failure (most likely
+    // `disableSignUp` for an uninvited email) Better Auth redirects to
+    // errorCallbackURL with `?error=...` and we re-render with the banner.
+    await signIn.social({
+      provider: "google",
+      callbackURL: "/app",
+      errorCallbackURL: "/login?error=oauth",
+    });
+    setGoogleState("idle");
   }
 
   return (
@@ -50,41 +71,98 @@ function LoginPage() {
       {state === "sent" ? (
         <SentCard email={email} onReset={() => setState("idle")} />
       ) : (
-        <form onSubmit={onSubmit} className="grid gap-4">
-          <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
-            Email
-            <input
-              type="email"
-              required
-              autoFocus
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-            />
-          </label>
+        <div className="grid gap-4">
+          {oauthError ? (
+            <div className="rounded-md border border-coral/40 bg-coral/10 px-4 py-3 text-sm text-coral">
+              <p className="font-semibold">That email isn't on the private beta yet.</p>
+              <p className="mt-1 text-coral/80">
+                Product Flash is invite-only.{" "}
+                <Link to="/" hash="waitlist" className="underline-offset-4 hover:underline">
+                  Join the waitlist
+                </Link>{" "}
+                and we'll be in touch when a seat opens.
+              </p>
+            </div>
+          ) : null}
 
           <button
-            type="submit"
-            disabled={state === "sending"}
-            className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+            type="button"
+            onClick={onGoogle}
+            disabled={googleState === "redirecting"}
+            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-md border-[1.5px] border-[#2a2a38] bg-white px-4 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
           >
-            {state === "sending" ? "Sending…" : "Send magic link"}
-            <span
-              aria-hidden
-              className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
-            >
-              →
-            </span>
+            <GoogleG />
+            {googleState === "redirecting" ? "Redirecting…" : "Continue with Google"}
           </button>
 
-          {state === "error" && error ? (
-            <p className="text-sm font-medium text-coral">{error}</p>
-          ) : null}
-        </form>
+          <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#5a5a6a]">
+            <span className="h-px flex-1 bg-[#2a2a38]" />
+            or
+            <span className="h-px flex-1 bg-[#2a2a38]" />
+          </div>
+
+          <form onSubmit={onSubmit} className="grid gap-4">
+            <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
+              Email
+              <input
+                type="email"
+                required
+                autoFocus
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={state === "sending"}
+              className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+            >
+              {state === "sending" ? "Sending…" : "Send magic link"}
+              <span
+                aria-hidden
+                className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
+              >
+                →
+              </span>
+            </button>
+
+            {state === "error" && error ? (
+              <p className="text-sm font-medium text-coral">{error}</p>
+            ) : null}
+          </form>
+        </div>
       )}
     </AuthShell>
+  );
+}
+
+// Official Google "G" mark — required by Google's branding guidelines on
+// any "Sign in with Google" button. Lucide has no exact equivalent.
+function GoogleG() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden focusable="false">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+      <path fill="none" d="M0 0h48v48H0z" />
+    </svg>
   );
 }
 
