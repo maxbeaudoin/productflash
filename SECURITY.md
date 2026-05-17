@@ -231,10 +231,3 @@ Full audit on commit `b6bbf9e`. 13 findings: 0 Critical / 3 High /
   `src/agents/fte/agent.ts`
 - Response headers: `server/middleware/security-headers.ts`,
   `vite.config.ts`
-
-## Reporting a vulnerability (external)
-
-If you're outside the team and want to report something: email
-**beaudoin.maxime@gmail.com** with `[security]` in the subject. We
-acknowledge within 72 hours and aim to ship a fix within 14 days for
-High/Critical. Please don't share findings publicly until then.
