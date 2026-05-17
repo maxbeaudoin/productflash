@@ -1,26 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { waitlist } from "~/db/schema";
 import { getDb } from "~/lib/db";
 import { logger } from "~/lib/logger";
-import { normalizeUrl } from "~/lib/url";
 import { verifyAndCanonicalize } from "~/lib/url-server";
-
-const bodySchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(320),
-  name: z.string().trim().max(160).optional(),
-  position: z.string().trim().max(120).optional(),
-  companyUrl: z
-    .string()
-    .trim()
-    .max(500)
-    .optional()
-    .transform((v) => (v ? normalizeUrl(v) : undefined))
-    .refine((v) => v !== null, { message: "invalid_url" })
-    .transform((v) => v ?? undefined)
-    .or(z.literal("").transform(() => undefined)),
-  source: z.string().trim().max(64).optional(),
-});
+import { waitlistApiSchema } from "~/lib/validation/waitlist";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -39,7 +22,7 @@ export const Route = createFileRoute("/api/waitlist")({
         } catch {
           return json({ ok: false, error: "invalid_json" }, 400);
         }
-        const parsed = bodySchema.safeParse(payload);
+        const parsed = waitlistApiSchema.safeParse(payload);
         if (!parsed.success) {
           const issues = parsed.error.issues;
           const isEmail = issues.some((i) => i.path[0] === "email");

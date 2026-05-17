@@ -45,6 +45,11 @@ describe("normalizeUrl", () => {
     ["localhost", "localhost"],
     ["http://localhost", "localhost with scheme"],
     ["http://localhost:3000", "localhost with port"],
+    ["acme.com,foo.com", "comma in hostname — two domains in one field"],
+    ["acme.com;foo.com", "semicolon in hostname"],
+    ["-acme.com", "hostname label starts with hyphen"],
+    ["acme-.com", "hostname label ends with hyphen"],
+    ["acme..com", "empty hostname label"],
   ])("rejects %j (%s) → null", (input) => {
     expect(normalizeUrl(input)).toBeNull();
   });

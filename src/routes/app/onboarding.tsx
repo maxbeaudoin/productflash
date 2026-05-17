@@ -1,8 +1,11 @@
+import { useForm } from "@tanstack/react-form";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
+import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
 import {
   competitors as competitorsTable,
   fteEvents,
@@ -15,6 +18,8 @@ import { getBoss } from "~/lib/boss";
 import { getDb } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { captureServerEvent } from "~/lib/posthog";
+import { addCompetitorFormSchema } from "~/lib/validation/competitor";
+import { onboardingProfileFormSchema } from "~/lib/validation/profile";
 import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // /app/onboarding (#29). First stop after the magic-link click.
@@ -142,12 +147,8 @@ const loadOnboarding = createServerFn({ method: "GET" }).handler(
   },
 );
 
-const editSchema = z.object({
-  position: z.string().trim().min(2).max(120),
-  companyName: z.string().trim().min(1).max(160),
-  ultimateGoal: z.string().trim().min(8).max(400),
-  focusAreas: z.array(z.string().trim().min(1).max(80)).min(1).max(8),
-});
+// Shared with the ProfileEditor form below — see src/lib/validation/profile.ts.
+const editSchema = onboardingProfileFormSchema;
 
 const editProfile = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => editSchema.parse(data))
@@ -167,10 +168,8 @@ const editProfile = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-const addCompetitorSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  homepageUrl: z.string().trim().url().max(500),
-});
+// Shared with the AddCompetitorForm below — see src/lib/validation/competitor.ts.
+const addCompetitorSchema = addCompetitorFormSchema;
 
 const addCompetitor = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => addCompetitorSchema.parse(data))
@@ -1081,6 +1080,27 @@ function ProfileCard({
   );
 }
 
+// Focus areas is stored on the user as `string[]` but typed as a comma-separated
+// string in the form for ergonomics. Validate the parsed array, not the raw
+// string — so the schema sees `["a","b"]`, not `"a, b"`.
+const profileEditFormSchema = onboardingProfileFormSchema.extend({
+  focusAreas: z.string().transform((v, ctx) => {
+    const parsed = v
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const result = onboardingProfileFormSchema.shape.focusAreas.safeParse(parsed);
+    if (!result.success) {
+      ctx.addIssue({
+        code: "custom",
+        message: result.error.issues[0]?.message ?? "Add at least one focus area.",
+      });
+      return z.NEVER;
+    }
+    return result.data;
+  }),
+});
+
 function ProfileEditor({
   initial,
   onCancel,
@@ -1090,50 +1110,45 @@ function ProfileEditor({
   onCancel: () => void;
   onSave: (next: ProfileView) => Promise<void> | void;
 }) {
-  const [position, setPosition] = useState(initial.position ?? "");
-  const [companyName, setCompanyName] = useState(initial.companyName ?? "");
-  const [ultimateGoal, setUltimateGoal] = useState(initial.ultimateGoal ?? "");
-  const [focusAreas, setFocusAreas] = useState((initial.focusAreas ?? []).join(", "));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useForm({
+    defaultValues: {
+      position: initial.position ?? "",
+      companyName: initial.companyName ?? "",
+      ultimateGoal: initial.ultimateGoal ?? "",
+      focusAreas: (initial.focusAreas ?? []).join(", "),
+    },
+    validators: { onChange: profileEditFormSchema },
+    onSubmit: async ({ value }) => {
+      const parsed = profileEditFormSchema.safeParse(value);
+      if (!parsed.success) return;
+      try {
+        await onSave({
+          ...initial,
+          position: parsed.data.position,
+          companyName: parsed.data.companyName,
+          ultimateGoal: parsed.data.ultimateGoal,
+          focusAreas: parsed.data.focusAreas,
+        });
+      } catch {
+        toast.error("Could not save changes. Try again.");
+        throw new Error("save_failed");
+      }
+    },
+  });
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    const parsedFocus = focusAreas
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const result = editSchema.safeParse({
-      position,
-      companyName,
-      ultimateGoal,
-      focusAreas: parsedFocus,
-    });
-    if (!result.success) {
-      setError(result.error.issues[0]?.message ?? "Please fill in every field.");
-      setSaving(false);
-      return;
-    }
-    try {
-      await onSave({
-        ...initial,
-        position: result.data.position,
-        companyName: result.data.companyName,
-        ultimateGoal: result.data.ultimateGoal,
-        focusAreas: result.data.focusAreas,
-      });
-    } catch {
-      setError("Could not save changes. Try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const labelClass = "text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]";
+  const inputClass =
+    "h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent aria-invalid:border-coral aria-invalid:focus:border-coral";
+  const textareaClass =
+    "min-h-[88px] w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 py-3 text-base text-white outline-none transition-colors focus:border-accent aria-invalid:border-coral aria-invalid:focus:border-coral";
 
   return (
     <form
-      onSubmit={onSubmit}
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        void form.handleSubmit();
+      }}
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
       style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
     >
@@ -1143,56 +1158,102 @@ function ProfileEditor({
       </div>
 
       <div className="grid gap-5 px-7 py-7">
-        <EditField label="Role">
-          <input
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-            className="h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent"
-          />
-        </EditField>
-        <EditField label="Company">
-          <input
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            className="h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent"
-          />
-        </EditField>
-        <EditField label="Goal">
-          <textarea
-            rows={3}
-            value={ultimateGoal}
-            onChange={(e) => setUltimateGoal(e.target.value)}
-            className="min-h-[88px] w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 py-3 text-base text-white outline-none transition-colors focus:border-accent"
-          />
-        </EditField>
-        <EditField label="Focus areas" hint="comma separated">
-          <input
-            value={focusAreas}
-            onChange={(e) => setFocusAreas(e.target.value)}
-            className="h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent"
-          />
-        </EditField>
-        {error ? <p className="text-sm font-medium text-coral">{error}</p> : null}
+        <form.Field name="position">
+          {(field) => (
+            <FieldShell field={field} labelClassName={labelClass} label="Role">
+              <input
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
+        <form.Field name="companyName">
+          {(field) => (
+            <FieldShell field={field} labelClassName={labelClass} label="Company">
+              <input
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
+        <form.Field name="ultimateGoal">
+          {(field) => (
+            <FieldShell field={field} labelClassName={labelClass} label="Goal">
+              <textarea
+                id={field.name}
+                rows={3}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={textareaClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
+        <form.Field name="focusAreas">
+          {(field) => (
+            <FieldShell field={field} labelClassName={labelClass} label={<FocusAreasLabel />}>
+              <input
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex h-11 items-center gap-2 rounded-pill bg-accent px-6 text-sm font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+        <form.Subscribe
+          selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}
         >
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="inline-flex h-11 items-center gap-2 rounded-pill border border-[#2a2a38] px-5 text-sm font-semibold text-white hover:bg-ink/40 disabled:opacity-50"
-        >
-          Cancel
-        </button>
+          {({ canSubmit, isSubmitting }) => (
+            <>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="inline-flex h-11 items-center gap-2 rounded-pill bg-accent px-6 text-sm font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSubmitting ? "Saving…" : "Save changes"}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isSubmitting}
+                className="inline-flex h-11 items-center gap-2 rounded-pill border border-[#2a2a38] px-5 text-sm font-semibold text-white hover:bg-ink/40 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </form.Subscribe>
       </div>
     </form>
+  );
+}
+
+function FocusAreasLabel() {
+  return (
+    <span className="inline-flex items-center gap-2">
+      Focus areas
+      <span className="rounded-pill bg-accent/10 px-2 py-[2px] font-mono text-[10px] normal-case tracking-normal text-accent">
+        comma separated
+      </span>
+    </span>
   );
 }
 
@@ -1327,99 +1388,98 @@ function AddCompetitorForm({
   onCancel: () => void;
   onSubmit: (input: { name: string; homepageUrl: string }) => Promise<void>;
 }) {
-  const [name, setName] = useState("");
-  const [homepageUrl, setHomepageUrl] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useForm({
+    defaultValues: { name: "", homepageUrl: "" },
+    validators: { onChange: addCompetitorFormSchema },
+    onSubmit: async ({ value, formApi }) => {
+      try {
+        await onSubmit(value);
+        formApi.reset();
+      } catch {
+        toast.error("Could not add competitor. Try again.");
+        throw new Error("add_competitor_failed");
+      }
+    },
+  });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const parsed = addCompetitorSchema.safeParse({ name, homepageUrl });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Enter a name and a homepage URL.");
-      setSubmitting(false);
-      return;
-    }
-    try {
-      await onSubmit(parsed.data);
-      setName("");
-      setHomepageUrl("");
-    } catch {
-      setError("Could not add competitor. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const inputClass =
+    "h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent aria-invalid:border-coral aria-invalid:focus:border-coral";
 
   return (
     <form
-      onSubmit={handleSubmit}
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        void form.handleSubmit();
+      }}
       className="grid gap-3 rounded-md border border-[#2a2a38] bg-ink/40 px-4 py-4"
     >
       <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
-        <input
-          type="text"
-          placeholder="Notion"
-          value={name}
-          autoFocus
-          onChange={(e) => setName(e.target.value)}
-          className="h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent"
-        />
-        <input
-          type="url"
-          placeholder="https://notion.so"
-          value={homepageUrl}
-          onChange={(e) => setHomepageUrl(e.target.value)}
-          className="h-11 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink px-4 text-base text-white outline-none transition-colors focus:border-accent"
-        />
+        <form.Field name="name">
+          {(field) => (
+            <FieldShell field={field} label="" labelClassName="sr-only">
+              <input
+                id={field.name}
+                type="text"
+                placeholder="Notion"
+                value={field.state.value}
+                autoFocus
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                aria-label="Competitor name"
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
+        <form.Field name="homepageUrl">
+          {(field) => (
+            <FieldShell field={field} label="" labelClassName="sr-only">
+              <input
+                id={field.name}
+                type="text"
+                inputMode="url"
+                placeholder="https://notion.so"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                aria-label="Competitor homepage URL"
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
       </div>
-      {error ? <p className="text-sm text-coral">{error}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="inline-flex h-10 items-center gap-2 rounded-pill bg-accent px-5 text-sm font-semibold text-ink hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+        <form.Subscribe
+          selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}
         >
-          {submitting ? "Adding…" : "Add competitor"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={submitting}
-          className="inline-flex h-10 items-center gap-2 rounded-pill border border-[#2a2a38] px-4 text-sm font-semibold text-white hover:bg-ink/40 disabled:opacity-50"
-        >
-          Cancel
-        </button>
+          {({ canSubmit, isSubmitting }) => (
+            <>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="inline-flex h-10 items-center gap-2 rounded-pill bg-accent px-5 text-sm font-semibold text-ink hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSubmitting ? "Adding…" : "Add competitor"}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isSubmitting}
+                className="inline-flex h-10 items-center gap-2 rounded-pill border border-[#2a2a38] px-4 text-sm font-semibold text-white hover:bg-ink/40 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </form.Subscribe>
         <span className="text-[11px] uppercase tracking-[0.1em] text-[#666]">
           we'll auto-detect RSS
         </span>
       </div>
     </form>
-  );
-}
-
-function EditField({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
-      <span className="inline-flex items-center gap-2">
-        {label}
-        {hint ? (
-          <span className="rounded-pill bg-accent/10 px-2 py-[2px] font-mono text-[10px] normal-case tracking-normal text-accent">
-            {hint}
-          </span>
-        ) : null}
-      </span>
-      {children}
-    </label>
   );
 }

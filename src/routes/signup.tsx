@@ -1,10 +1,13 @@
+import { useForm } from "@tanstack/react-form";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { eq, sql } from "drizzle-orm";
 import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 import { enqueueFteRun } from "~/agents/fte/job";
 import { AuthShell } from "~/components/auth/AuthShell";
+import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
 import { users as usersTable, waitlist as waitlistTable } from "~/db/schema";
 import { issueAutoSignInUrl } from "~/lib/auth-server";
 import { getBoss } from "~/lib/boss";
@@ -12,6 +15,7 @@ import { getDb } from "~/lib/db";
 import { verifyInviteToken } from "~/lib/invite-token";
 import { logger } from "~/lib/logger";
 import { captureServerEvent } from "~/lib/posthog";
+import { signupFormSchema, signupServerSchema } from "~/lib/validation/signup";
 
 // The public funnel is invite-only (see #33/#34). Admins issue signed
 // `?invite=<token>` URLs from /admin/waitlist; a bare /signup or a tampered
@@ -58,19 +62,12 @@ const verifyInvite = createServerFn({ method: "GET" })
     };
   });
 
-const submitSchema = z.object({
-  inviteToken: z.string().min(1),
-  companyUrl: z.string().trim().url().max(500),
-  position: z.string().trim().min(2).max(120),
-  ultimateGoal: z.string().trim().min(8).max(400),
-  // IANA tz name captured from the browser (`Intl.DateTimeFormat().
-  // resolvedOptions().timeZone`). Feeds the per-TZ send dispatcher (#17)
-  // so we mail the digest at the user's local 7am instead of UTC. Optional
-  // because the form fallback (when the browser refuses or returns an
-  // empty string) shouldn't block the signup — the user just gets the
-  // dispatcher's UTC fallback until they update their profile.
-  tz: z.string().trim().min(1).max(64).optional(),
-});
+// Re-exported from src/lib/validation/signup.ts so the client form and this
+// server fn share the same zod schema. tz is captured from
+// `Intl.DateTimeFormat().resolvedOptions().timeZone` and feeds the per-TZ
+// send dispatcher (#17) so we mail at the user's local 7am, not UTC. It's
+// optional because a browser that fails the Intl call shouldn't block signup.
+const submitSchema = signupServerSchema;
 
 type SubmitError = "invalid_invite" | "already_confirmed" | "user_insert_failed" | "session_failed";
 type SubmitResult =
@@ -236,41 +233,42 @@ function FteSignupForm({
   inviteToken: string;
   defaults: { position: string; companyUrl: string } | null;
 }) {
-  const [companyUrl, setCompanyUrl] = useState(defaults?.companyUrl ?? "");
-  const [position, setPosition] = useState(defaults?.position ?? "");
-  const [ultimateGoal, setUltimateGoal] = useState("");
-  const [state, setState] = useState<"idle" | "submitting" | "redirecting" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setState("submitting");
-    setError(null);
-    const parsed = submitSchema.safeParse({
-      inviteToken,
-      companyUrl,
-      position,
-      ultimateGoal,
-      tz: detectBrowserTz(),
-    });
-    if (!parsed.success) {
-      const first = parsed.error.issues[0];
-      setError(first?.message ?? "Please fill in every field.");
-      setState("error");
-      return;
-    }
-    const res = await submitSignup({ data: parsed.data });
-    if (!res.ok) {
-      setError(messageForError(res.error));
-      setState("error");
-      return;
-    }
-    // Full-page nav so Better Auth's redirect + Set-Cookie land naturally.
-    // The verify URL is single-use and expires in 60s; consuming it now
-    // creates the session and routes to /app → /app/onboarding.
-    setState("redirecting");
-    window.location.href = res.signInUrl;
-  }
+  const form = useForm({
+    defaultValues: {
+      companyUrl: defaults?.companyUrl ?? "",
+      position: defaults?.position ?? "",
+      ultimateGoal: "",
+    },
+    validators: { onChange: signupFormSchema },
+    onSubmit: async ({ value }) => {
+      const res = await submitSignup({
+        data: {
+          inviteToken,
+          companyUrl: value.companyUrl,
+          position: value.position,
+          ultimateGoal: value.ultimateGoal,
+          tz: detectBrowserTz(),
+        },
+      });
+      if (!res.ok) {
+        toast.error(messageForError(res.error));
+        throw new Error("signup_failed");
+      }
+      // Full-page nav so Better Auth's redirect + Set-Cookie land naturally.
+      // The verify URL is single-use and expires in 60s; consuming it now
+      // creates the session and routes to /app → /app/onboarding.
+      setRedirecting(true);
+      window.location.href = res.signInUrl;
+    },
+  });
+
+  const labelClass = "text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]";
+  const inputClass =
+    "h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent aria-invalid:border-coral aria-invalid:focus:border-coral";
+  const textareaClass =
+    "min-h-[96px] w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 py-3 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent aria-invalid:border-coral aria-invalid:focus:border-coral";
 
   return (
     <AuthShell
@@ -287,8 +285,15 @@ function FteSignupForm({
         </span>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-4">
-        <Field label="Email" hint="locked to invite">
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          void form.handleSubmit();
+        }}
+        className="grid gap-4"
+      >
+        <FieldLabel label="Email" hint="locked to invite">
           <input
             type="email"
             value={email}
@@ -296,72 +301,104 @@ function FteSignupForm({
             autoComplete="email"
             className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink/60 px-4 text-base font-normal normal-case tracking-normal text-white outline-none cursor-not-allowed"
           />
-        </Field>
+        </FieldLabel>
 
-        <Field label="Company URL">
-          <input
-            type="url"
-            required
-            autoFocus={!defaults?.companyUrl}
-            autoComplete="url"
-            placeholder="https://yourcompany.com"
-            value={companyUrl}
-            onChange={(e) => setCompanyUrl(e.target.value)}
-            className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-          />
-        </Field>
+        <form.Field name="companyUrl">
+          {(field) => (
+            <FieldShell
+              field={field}
+              labelClassName={labelClass}
+              label={<FieldLabelText label="Company URL" />}
+            >
+              <input
+                id={field.name}
+                type="url"
+                autoFocus={!defaults?.companyUrl}
+                autoComplete="url"
+                placeholder="https://yourcompany.com"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
 
-        <Field label="Your role">
-          <input
-            type="text"
-            required
-            autoComplete="organization-title"
-            placeholder="Head of Product, PM Lead, …"
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-            className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-          />
-        </Field>
+        <form.Field name="position">
+          {(field) => (
+            <FieldShell
+              field={field}
+              labelClassName={labelClass}
+              label={<FieldLabelText label="Your role" />}
+            >
+              <input
+                id={field.name}
+                type="text"
+                autoComplete="organization-title"
+                placeholder="Head of Product, PM Lead, …"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={inputClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
 
-        <Field label="What's your goal" hint="one sentence">
-          <textarea
-            required
-            rows={3}
-            autoFocus={!!defaults?.companyUrl}
-            placeholder="Catch every competitor launch / pricing change so I can react before my CEO asks."
-            value={ultimateGoal}
-            onChange={(e) => setUltimateGoal(e.target.value)}
-            className="min-h-[96px] w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 py-3 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-          />
-        </Field>
+        <form.Field name="ultimateGoal">
+          {(field) => (
+            <FieldShell
+              field={field}
+              labelClassName={labelClass}
+              label={<FieldLabelText label="What's your goal" hint="one sentence" />}
+            >
+              <textarea
+                id={field.name}
+                rows={3}
+                autoFocus={!!defaults?.companyUrl}
+                placeholder="Catch every competitor launch / pricing change so I can react before my CEO asks."
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={fieldHasError(field)}
+                className={textareaClass}
+              />
+            </FieldShell>
+          )}
+        </form.Field>
 
-        <button
-          type="submit"
-          disabled={state === "submitting" || state === "redirecting"}
-          className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+        <form.Subscribe
+          selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}
         >
-          {state === "submitting"
-            ? "Kicking it off…"
-            : state === "redirecting"
-              ? "Signing you in…"
-              : "Start onboarding"}
-          <span
-            aria-hidden
-            className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
-          >
-            →
-          </span>
-        </button>
-
-        {state === "error" && error ? (
-          <p className="text-sm font-medium text-coral">{error}</p>
-        ) : null}
+          {({ canSubmit, isSubmitting }) => (
+            <button
+              type="submit"
+              disabled={!canSubmit || redirecting}
+              className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+            >
+              {isSubmitting
+                ? "Kicking it off…"
+                : redirecting
+                  ? "Signing you in…"
+                  : "Start onboarding"}
+              <span
+                aria-hidden
+                className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
+              >
+                →
+              </span>
+            </button>
+          )}
+        </form.Subscribe>
       </form>
     </AuthShell>
   );
 }
 
-function Field({
+function FieldLabel({
   label,
   hint,
   children,
@@ -372,16 +409,22 @@ function Field({
 }) {
   return (
     <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
-      <span className="inline-flex items-center gap-2">
-        {label}
-        {hint ? (
-          <span className="rounded-pill bg-accent/15 px-2 py-[2px] font-mono text-[10px] normal-case tracking-normal text-accent">
-            {hint}
-          </span>
-        ) : null}
-      </span>
+      <FieldLabelText label={label} hint={hint} />
       {children}
     </label>
+  );
+}
+
+function FieldLabelText({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {label}
+      {hint ? (
+        <span className="rounded-pill bg-accent/15 px-2 py-[2px] font-mono text-[10px] normal-case tracking-normal text-accent">
+          {hint}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

@@ -2,7 +2,6 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import { AppHeader } from "~/components/app/AppHeader";
-import { Toaster } from "~/components/ui/sonner";
 import { requireSession } from "~/lib/auth-server";
 import { identifyPostHog } from "~/lib/posthog-client";
 
@@ -39,7 +38,6 @@ function AppLayout() {
     <div className="min-h-screen bg-ink text-white antialiased">
       <AppHeader email={user.email} />
       <Outlet />
-      <Toaster theme="dark" />
     </div>
   );
 }
