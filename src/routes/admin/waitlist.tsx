@@ -145,11 +145,12 @@ function AdminWaitlistPage() {
   const { state: stateFilter } = Route.useSearch();
   const counts = {
     all: rows.length,
-    waitlist: rows.filter((r) => r.state === "waitlist").length,
-    invited: rows.filter((r) => r.state === "invited").length,
-    accepted: rows.filter((r) => r.state === "accepted").length,
+    waitlist: rows.filter((r: WaitlistRow) => r.state === "waitlist").length,
+    invited: rows.filter((r: WaitlistRow) => r.state === "invited").length,
+    accepted: rows.filter((r: WaitlistRow) => r.state === "accepted").length,
   };
-  const filtered = stateFilter === "all" ? rows : rows.filter((r) => r.state === stateFilter);
+  const filtered =
+    stateFilter === "all" ? rows : rows.filter((r: WaitlistRow) => r.state === stateFilter);
 
   return (
     <main className="px-6 py-12">
