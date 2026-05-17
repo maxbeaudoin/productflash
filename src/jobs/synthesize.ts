@@ -386,7 +386,7 @@ async function recordSynthesisUsage(
   )
 }
 
-function buildDigestItemRow(
+export function buildDigestItemRow(
   userId: string,
   s: SynthesizedItem,
   byId: Map<string, { category: string; score: number; publishedAt: Date | null }>,
@@ -466,7 +466,7 @@ async function upsertDigest(
 // flat 60% concentration on the highest-volume competitor (caps fill, then
 // the relaxed second pass falls back to top-score = all leader). Cap=3 at
 // 10 items lands closer to a 50/30/20 split.
-function selectDiverseCandidates<
+export function selectDiverseCandidates<
   T extends { rawItemId: string; competitorName: string },
 >(pool: T[], maxItems: number, maxPerCompetitor: number): T[] {
   const selected: T[] = []
@@ -511,7 +511,7 @@ function toReaderProfile(user: {
   }
 }
 
-function startOfUtcDay(now: Date): Date {
+export function startOfUtcDay(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 }
 
