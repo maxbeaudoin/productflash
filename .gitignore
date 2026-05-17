@@ -10,6 +10,9 @@ dist
 .nitro
 .tanstack
 
+# project-local tool binaries (gitleaks, etc. — installed via scripts/install-*.sh)
+bin/
+
 .DS_Store
 *.log
 .idea

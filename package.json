@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "postinstall": "bash scripts/install-gitleaks.sh",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
     "worker": "tsx --watch src/worker/index.ts",
