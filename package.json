@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:push": "drizzle-kit push",
@@ -69,6 +70,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.14.0",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.8",
@@ -77,6 +79,7 @@
     "drizzle-kit": "^0.31.0",
     "pino-pretty": "^13.0.0",
     "react-email": "^3.0.6",
+    "testcontainers": "^11.14.0",
     "typescript": "^5.7.3",
     "vitest": "^4.1.6"
   },
