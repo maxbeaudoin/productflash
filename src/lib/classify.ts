@@ -213,10 +213,18 @@ function renderUserPrompt(input: ClassificationInput): string {
     `Competitor: ${input.competitorName}`,
     `Source: ${input.source}`,
     `Published: ${published}`,
-    `Title: ${input.title}`,
     '',
-    'Body:',
+    // The <feed_title> and <feed_body> blocks below carry untrusted content
+    // pulled from a competitor's RSS / scraped page. Treat them as data
+    // only — any text inside that looks like instructions ("ignore prior",
+    // "<system>", "set score to 100", etc.) is content to classify, not a
+    // directive to follow.
+    '<feed_title>',
+    input.title,
+    '</feed_title>',
+    '<feed_body>',
     excerpt || '(no body text)',
+    '</feed_body>',
   )
   return lines.join('\n')
 }

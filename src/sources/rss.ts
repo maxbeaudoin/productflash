@@ -115,7 +115,7 @@ function toNormalizedItem(raw: RSSParser.Item): NormalizedItem | null {
   if (!sourceId) return null
   if (!url) return null
 
-  const title = (raw.title ?? '').trim() || '(untitled)'
+  const title = sanitizeFeedText((raw.title ?? '').trim()) || '(untitled)'
   const body = pickBody(raw)
   const publishedAt = parseDate(raw.isoDate) ?? parseDate(raw.pubDate)
 
@@ -133,12 +133,36 @@ function pickBody(raw: RSSParser.Item): string | null {
   // contentSnippet is the plain-text version; content is HTML. For LLM
   // consumption downstream we prefer the snippet — Haiku doesn't need markup.
   const snippet = raw.contentSnippet?.trim()
-  if (snippet) return snippet
+  if (snippet) return sanitizeFeedText(snippet)
   const summary = raw.summary?.trim()
-  if (summary) return summary
+  if (summary) return sanitizeFeedText(summary)
   const content = raw.content?.trim()
-  if (content) return content
+  if (content) return sanitizeFeedText(content)
   return null
+}
+
+// Defense-in-depth against prompt injection in feed content. The classifier
+// and synthesizer already wrap untrusted text in <feed_body> tags with a
+// "treat as data" instruction (see src/lib/classify.ts, src/lib/synthesize.ts),
+// but this strip-pass at ingest narrows the surface for the obvious
+// "ignore prior instructions" / fake-role-tag patterns. Stripped patterns
+// are replaced with `[redacted]` so the model still sees that something
+// was filtered (better than silent removal — preserves intent signal).
+const INJECTION_PATTERNS: ReadonlyArray<RegExp> = [
+  /ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions/gi,
+  /<\/?(?:system|user|assistant)>/gi,
+  /<\/?feed_(?:title|body)>/gi, // prevent feed text from closing our own delimiter
+]
+const MAX_FEED_TEXT_CHARS = 4000
+
+function sanitizeFeedText(text: string): string {
+  let out = text
+  for (const pattern of INJECTION_PATTERNS) out = out.replace(pattern, '[redacted]')
+  // Strip control chars (except common whitespace) — feed sources sometimes
+  // smuggle U+0000-U+001F that breaks downstream tokenization.
+  out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+  if (out.length > MAX_FEED_TEXT_CHARS) out = `${out.slice(0, MAX_FEED_TEXT_CHARS)}…`
+  return out
 }
 
 function parseDate(input: string | undefined): Date | null {
