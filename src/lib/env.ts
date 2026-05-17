@@ -22,20 +22,33 @@ import { ENV_KEYS, ENV_REQUIRED_IN_PROD } from "./env-keys";
 // conditionally `.env.production` to back-fill prod defaults.
 
 const ROOT = process.cwd();
-
-// Local overrides first. Doesn't override Railway-set vars in prod (since
-// .env isn't shipped in the deployed image), and gives a developer's .env
-// the chance to declare NODE_ENV before we decide whether to load .env.production.
 const ENV_LOCAL = resolve(ROOT, ".env");
-if (existsSync(ENV_LOCAL)) loadDotenv({ path: ENV_LOCAL });
-
-// Committed production defaults — loaded ONLY when NODE_ENV is already
-// "production" at this point. Either set by Railway before the process
-// starts, or set explicitly by a developer who wants to dry-run prod
-// locally. Avoids accidentally flipping local dev into strict-prod-validation
-// mode just because .env.production is on disk.
 const ENV_PROD = resolve(ROOT, ".env.production");
-if (process.env.NODE_ENV === "production" && existsSync(ENV_PROD)) {
+const hasLocal = existsSync(ENV_LOCAL);
+const hasProd = existsSync(ENV_PROD);
+
+// Some platforms (Railway included, when a variable is removed via the
+// dashboard) leave NODE_ENV="" in the process env instead of deleting
+// the key. dotenv treats an empty string as "already set" and refuses
+// to fill it from a file — which would block .env.production's
+// NODE_ENV=production from taking effect. Normalize empty to absent
+// before loading so the file's default applies.
+if (process.env.NODE_ENV === "") delete process.env.NODE_ENV;
+
+// Local overrides first. In deployed images .env is absent so this is a
+// no-op; in dev it dominates so a developer's local secrets/overrides win.
+if (hasLocal) loadDotenv({ path: ENV_LOCAL });
+
+// Load .env.production when EITHER:
+//   1. NODE_ENV is already "production" (dev dry-running prod, or a
+//      platform that does set NODE_ENV at runtime), OR
+//   2. No .env file exists (deployed image — Railway, Docker, etc.).
+// The .env-absence heuristic removes the chicken-and-egg where
+// .env.production was the source of NODE_ENV=production but only
+// loaded if NODE_ENV was already "production". dotenv defaults to NOT
+// overriding process.env, so platform-injected secrets still win — the
+// file only fills gaps.
+if (hasProd && (process.env.NODE_ENV === "production" || !hasLocal)) {
   loadDotenv({ path: ENV_PROD });
 }
 
@@ -157,15 +170,24 @@ const schema = baseSchema.superRefine((data, ctx) => {
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
-  // Group by field so the operator sees one block per offending var instead
-  // of a wall of Zod issue noise.
-  const errors = parsed.error.flatten().fieldErrors;
+  // Iterate issues (not flatten().fieldErrors) so we can include the
+  // RECEIVED value alongside the message — flatten drops it, leaving
+  // operators with "Invalid option" and no clue what the actual value
+  // was. Long values are truncated so a malformed secret doesn't dump
+  // its full contents to deploy logs.
   // eslint-disable-next-line no-console
   console.error("[env] validation failed:");
-  for (const [field, messages] of Object.entries(errors)) {
-    if (!messages?.length) continue;
+  for (const issue of parsed.error.issues) {
+    const field = issue.path.join(".") || "<root>";
+    let received = "";
+    if ("input" in issue && issue.input !== undefined && issue.input !== null) {
+      const raw = typeof issue.input === "string" ? issue.input : JSON.stringify(issue.input);
+      const safe =
+        raw.length > 64 ? `${raw.slice(0, 64)}… (${raw.length} chars)` : JSON.stringify(raw);
+      received = ` (received: ${safe})`;
+    }
     // eslint-disable-next-line no-console
-    console.error(`  ${field}: ${messages.join("; ")}`);
+    console.error(`  ${field}: ${issue.message}${received}`);
   }
   throw new Error(
     "Environment validation failed — fix the vars above before starting. " +
