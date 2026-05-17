@@ -33,7 +33,7 @@ export function WaitlistForm({ source }: { source: string }) {
           code === "invalid_email"
             ? "That email doesn't look right."
             : code === "invalid_url"
-              ? "We couldn't reach that URL — double-check and resubmit."
+              ? "That URL doesn't look right — double-check and resubmit."
               : "Couldn't reach the server — try again in a moment.",
         );
         throw new Error("submit_failed");

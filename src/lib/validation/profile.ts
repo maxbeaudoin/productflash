@@ -22,7 +22,7 @@ export type OnboardingProfileFormValues = z.output<typeof onboardingProfileFormS
 export const settingsProfileFormSchema = z.object({
   position: positionSchema,
   companyName: companyNameSchema,
-  companyUrl: requiredUrlSchema,
+  companyUrl: requiredUrlSchema("Enter your company URL."),
   ultimateGoal: ultimateGoalSchema,
   focusAreas: focusAreasSchema,
 });

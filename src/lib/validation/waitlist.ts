@@ -8,7 +8,7 @@ import { emailSchema, positionSchema, requiredUrlSchema } from "~/lib/validation
 export const waitlistFormSchema = z.object({
   email: emailSchema,
   position: positionSchema,
-  companyUrl: requiredUrlSchema,
+  companyUrl: requiredUrlSchema("Enter your company URL."),
 });
 
 export type WaitlistFormInput = z.input<typeof waitlistFormSchema>;
@@ -20,7 +20,7 @@ export type WaitlistFormValues = z.output<typeof waitlistFormSchema>;
 export const waitlistApiSchema = z.object({
   email: emailSchema,
   position: positionSchema,
-  companyUrl: requiredUrlSchema,
+  companyUrl: requiredUrlSchema("Enter your company URL."),
   name: z.string().trim().max(160).optional(),
   source: z.string().trim().max(64).optional(),
 });

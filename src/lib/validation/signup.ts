@@ -4,7 +4,7 @@ import { positionSchema, requiredUrlSchema, ultimateGoalSchema } from "~/lib/val
 // FTE invited-signup form. Shared by the form and the submitSignup server fn.
 // The email is locked to the invite token and never travels with form data.
 export const signupFormSchema = z.object({
-  companyUrl: requiredUrlSchema,
+  companyUrl: requiredUrlSchema("Enter your company URL."),
   position: positionSchema,
   ultimateGoal: ultimateGoalSchema,
 });

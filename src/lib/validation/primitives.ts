@@ -15,22 +15,29 @@ export const emailSchema = z
 // Required URL field. Trims, normalizes, rejects malformed input
 // (commas, missing TLD, ports, credentials, IP literals, etc.).
 // Outputs the canonical https:// form.
-export const requiredUrlSchema = z
-  .string()
-  .trim()
-  .min(1, { message: "Enter your company URL." })
-  .max(500, { message: "URL is too long." })
-  .transform((v, ctx) => {
-    const normalized = normalizeUrl(v);
-    if (!normalized) {
-      ctx.addIssue({
-        code: "custom",
-        message: "That doesn't look like a URL.",
-      });
-      return z.NEVER;
-    }
-    return normalized;
-  });
+//
+// Factory rather than a constant so each call site can supply a
+// context-appropriate empty-field message — e.g. "Enter your company URL."
+// for the waitlist vs "Enter the competitor's homepage URL." for add-
+// competitor. The normalization rules are identical.
+export function requiredUrlSchema(emptyMessage: string) {
+  return z
+    .string()
+    .trim()
+    .min(1, { message: emptyMessage })
+    .max(500, { message: "URL is too long." })
+    .transform((v, ctx) => {
+      const normalized = normalizeUrl(v);
+      if (!normalized) {
+        ctx.addIssue({
+          code: "custom",
+          message: "That doesn't look like a URL.",
+        });
+        return z.NEVER;
+      }
+      return normalized;
+    });
+}
 
 // Optional URL field — empty string is allowed and becomes undefined.
 // Anything else must normalize cleanly. Input type is `string` (not
