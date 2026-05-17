@@ -72,7 +72,11 @@ const submitSchema = z.object({
   tz: z.string().trim().min(1).max(64).optional(),
 })
 
-type SubmitError = 'invalid_invite' | 'user_insert_failed' | 'session_failed'
+type SubmitError =
+  | 'invalid_invite'
+  | 'already_confirmed'
+  | 'user_insert_failed'
+  | 'session_failed'
 type SubmitResult =
   | { ok: true; email: string; signInUrl: string }
   | { ok: false; error: SubmitError }
@@ -90,6 +94,21 @@ const submitSignup = createServerFn({ method: 'POST' })
 
     const email = payload.email.toLowerCase()
     const db = getDb()
+
+    // Refuse replay on a confirmed account: once the user has stamped
+    // profile_confirmed_at, the invite has served its purpose and any
+    // further /signup hit on that email is a leaked-URL replay that would
+    // otherwise clobber the active profile + mint a new session for the
+    // submitter. Re-running before confirmation is still allowed (legitimate
+    // case: user wants to retry an expired magic link).
+    const [existing] = await db
+      .select({ profileConfirmedAt: usersTable.profileConfirmedAt })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1)
+    if (existing?.profileConfirmedAt) {
+      return { ok: false, error: 'already_confirmed' }
+    }
 
     // Re-running /signup with the same invite should re-seed profile inputs
     // and re-kick the agent — useful when the magic link expires or the
@@ -383,6 +402,8 @@ function messageForError(code: SubmitError) {
   switch (code) {
     case 'invalid_invite':
       return 'This invite link looks invalid or expired. Ask for a fresh one.'
+    case 'already_confirmed':
+      return 'This invite has already been used. Sign in instead, or ask for a fresh invite.'
     case 'user_insert_failed':
       return 'We couldn\'t set up your account. Try again in a moment.'
     case 'session_failed':

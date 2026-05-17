@@ -41,15 +41,18 @@ export async function requireAdminSession(): Promise<AppSession> {
 // the session, sets the signed `session_token` cookie via `tanstackStartCookies`,
 // and follows the callbackURL. Used on /signup (#38) where the invite token's
 // HMAC is already proof of ownership — so the magic-link email is redundant
-// friction. Window is short (60s) because the URL ships in the server-fn
-// response payload over HTTPS and is consumed by the very next navigation.
+// friction.
+//
+// Window is intentionally short (15s) — the URL is single-use and is consumed
+// by the very next navigation, so a longer window only widens the
+// shoulder-surf / log-scrape exposure. Never log the returned URL.
 export async function issueAutoSignInUrl(email: string, callbackURL = '/app'): Promise<string> {
   const token = randomBytes(32).toString('base64url')
   const db = getDb()
   await db.insert(verifications).values({
     identifier: token,
     value: JSON.stringify({ email }),
-    expiresAt: new Date(Date.now() + 60_000),
+    expiresAt: new Date(Date.now() + 15_000),
   })
   const params = new URLSearchParams({ token, callbackURL })
   return `/api/auth/magic-link/verify?${params.toString()}`

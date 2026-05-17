@@ -19,6 +19,11 @@ type InvitePayload = {
 
 type EncodedPayload = InvitePayload & { iat: number }
 
+// Invite links auto-expire so a leaked URL (Slack archive, forwarded email,
+// screenshot) can't be redeemed indefinitely. 14d matches the manual outreach
+// cadence — admins re-issue if a beta user takes longer to redeem.
+const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000
+
 function compute(serialized: string): string {
   const secret = requireEnv('INVITE_TOKEN_SECRET')
   return createHmac('sha256', secret).update(serialized).digest('base64url')
@@ -69,10 +74,12 @@ export function verifyInviteToken(token: string): InvitePayload | null {
     !parsed ||
     typeof parsed !== 'object' ||
     typeof (parsed as { id?: unknown }).id !== 'string' ||
-    typeof (parsed as { email?: unknown }).email !== 'string'
+    typeof (parsed as { email?: unknown }).email !== 'string' ||
+    typeof (parsed as { iat?: unknown }).iat !== 'number'
   ) {
     return null
   }
-  const { id, email } = parsed as EncodedPayload
+  const { id, email, iat } = parsed as EncodedPayload
+  if (Date.now() - iat > INVITE_TTL_MS) return null
   return { id, email }
 }
