@@ -84,7 +84,6 @@ export function WaitlistForm({ source }: { source: string }) {
           Role
           <input
             type="text"
-            list="waitlist-roles"
             autoComplete="organization-title"
             maxLength={120}
             value={position}
@@ -92,11 +91,6 @@ export function WaitlistForm({ source }: { source: string }) {
             className="h-11 rounded-md border-[1.5px] border-ink/20 bg-paper px-3 text-sm font-normal normal-case tracking-normal text-ink outline-none placeholder:text-ink/40 focus:border-ink"
             placeholder="Head of Product"
           />
-          <datalist id="waitlist-roles">
-            {WAITLIST.positions.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
         </label>
 
         <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/70">

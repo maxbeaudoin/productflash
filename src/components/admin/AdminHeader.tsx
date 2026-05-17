@@ -29,6 +29,7 @@ export function AdminHeader({ email }: Props) {
           </Link>
           <Link
             to="/admin/waitlist"
+            search={{ state: "all" }}
             className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-accent hover:text-white"
             activeProps={{ className: "border-accent text-white" }}
           >
