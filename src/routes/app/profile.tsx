@@ -352,7 +352,7 @@ function ProfileEditor({
       ultimateGoal: initial.ultimateGoal ?? "",
       focusAreas: (initial.focusAreas ?? []).join(", "),
     },
-    validators: { onChange: profileEditFormSchema, onBlur: profileEditFormSchema },
+    validators: { onChange: profileEditFormSchema },
     onSubmit: async ({ value }) => {
       const parsed = profileEditFormSchema.safeParse(value);
       if (!parsed.success) return;
@@ -672,7 +672,7 @@ function AddCompetitorForm({
 }) {
   const form = useForm({
     defaultValues: { name: "", homepageUrl: "" },
-    validators: { onChange: addCompetitorFormSchema, onBlur: addCompetitorFormSchema },
+    validators: { onChange: addCompetitorFormSchema },
     onSubmit: async ({ value, formApi }) => {
       try {
         await onSubmit(value);

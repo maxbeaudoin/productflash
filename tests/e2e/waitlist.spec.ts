@@ -123,7 +123,12 @@ test("invalid url: structurally broken URL → 400 invalid_url (server-side defe
   const db = drizzle(pool);
 
   const res = await request.post("/api/waitlist", {
-    data: { email: "ok@example.com", companyUrl: "not a url", source: "cta-section" },
+    data: {
+      email: "ok@example.com",
+      position: "Head of Product",
+      companyUrl: "not a url",
+      source: "cta-section",
+    },
   });
   expect(res.status()).toBe(400);
   const body = (await res.json()) as { ok: boolean; error: string };
@@ -140,7 +145,7 @@ test("bare domain via API: server normalizes acme.com → https://acme.com (veri
   const email = "bare-domain@example.com";
 
   const res = await request.post("/api/waitlist", {
-    data: { email, companyUrl: "acme.com", source: "cta-section" },
+    data: { email, position: "Head of Product", companyUrl: "acme.com", source: "cta-section" },
   });
   expect(res.status()).toBe(200);
 

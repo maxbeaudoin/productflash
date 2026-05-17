@@ -241,7 +241,7 @@ function FteSignupForm({
       position: defaults?.position ?? "",
       ultimateGoal: "",
     },
-    validators: { onChange: signupFormSchema, onBlur: signupFormSchema },
+    validators: { onChange: signupFormSchema },
     onSubmit: async ({ value }) => {
       const res = await submitSignup({
         data: {

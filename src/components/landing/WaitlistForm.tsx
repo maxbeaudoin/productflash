@@ -12,7 +12,7 @@ const labelClass = "text-[11px] font-semibold uppercase tracking-[0.12em] text-i
 export function WaitlistForm({ source }: { source: string }) {
   const form = useForm({
     defaultValues: { email: "", position: "", companyUrl: "" },
-    validators: { onChange: waitlistFormSchema, onBlur: waitlistFormSchema },
+    validators: { onChange: waitlistFormSchema },
     onSubmit: async ({ value }) => {
       const parsed = waitlistFormSchema.safeParse(value);
       if (!parsed.success) return;
@@ -41,97 +41,100 @@ export function WaitlistForm({ source }: { source: string }) {
     },
   });
 
-  const isDone = form.state.isSubmitSuccessful;
-  if (isDone) {
-    return (
-      <div className="mx-auto mt-2 max-w-[520px] rounded-2xl border-[1.5px] border-ink/20 bg-ink/5 px-6 py-5 text-left text-ink">
-        <p className="font-semibold">{WAITLIST.success}</p>
-        <p className="mt-1 text-sm text-ink/70">
-          We'll reach out from <span className="font-mono">hello@productflash.io</span> when a seat
-          opens.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <form
-      noValidate
-      onSubmit={(e) => {
-        e.preventDefault();
-        void form.handleSubmit();
-      }}
-      className="mx-auto mt-2 grid max-w-[520px] gap-3 text-left"
-    >
-      <form.Field name="email">
-        {(field) => (
-          <FieldShell field={field} label="Email" labelClassName={labelClass}>
-            <input
-              id={field.name}
-              type="email"
-              autoComplete="email"
-              value={field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(e) => field.handleChange(e.target.value)}
-              aria-invalid={fieldHasError(field)}
-              className={inputClass}
-              placeholder="you@company.com"
-            />
-          </FieldShell>
-        )}
-      </form.Field>
-
-      <div className="grid grid-cols-2 items-start gap-3 max-md:grid-cols-1">
-        <form.Field name="position">
-          {(field) => (
-            <FieldShell field={field} label="Role" labelClassName={labelClass}>
-              <input
-                id={field.name}
-                type="text"
-                autoComplete="organization-title"
-                maxLength={120}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-                aria-invalid={fieldHasError(field)}
-                className={inputClass}
-                placeholder="Head of Product"
-              />
-            </FieldShell>
-          )}
-        </form.Field>
-
-        <form.Field name="companyUrl">
-          {(field) => (
-            <FieldShell field={field} label="Company URL" labelClassName={labelClass}>
-              <input
-                id={field.name}
-                type="text"
-                inputMode="url"
-                autoComplete="url"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-                aria-invalid={fieldHasError(field)}
-                className={inputClass}
-                placeholder="acme.com"
-              />
-            </FieldShell>
-          )}
-        </form.Field>
-      </div>
-
-      <form.Subscribe selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}>
-        {({ canSubmit, isSubmitting }) => (
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-ink px-8 text-base font-semibold text-white transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+    <form.Subscribe selector={(s) => s.isSubmitSuccessful}>
+      {(isDone) =>
+        isDone ? (
+          <div className="mx-auto mt-2 max-w-[520px] rounded-2xl border-[1.5px] border-ink/20 bg-ink/5 px-6 py-5 text-left text-ink">
+            <p className="font-semibold">{WAITLIST.success}</p>
+            <p className="mt-1 text-sm text-ink/70">
+              We'll reach out from <span className="font-mono">hello@productflash.io</span> when a
+              seat opens.
+            </p>
+          </div>
+        ) : (
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void form.handleSubmit();
+            }}
+            className="mx-auto mt-2 grid max-w-[520px] gap-3 text-left"
           >
-            {isSubmitting ? "Sending…" : WAITLIST.label}
-          </button>
-        )}
-      </form.Subscribe>
-    </form>
+            <form.Field name="email">
+              {(field) => (
+                <FieldShell field={field} label="Email" labelClassName={labelClass}>
+                  <input
+                    id={field.name}
+                    type="email"
+                    autoComplete="email"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    aria-invalid={fieldHasError(field)}
+                    className={inputClass}
+                    placeholder="you@company.com"
+                  />
+                </FieldShell>
+              )}
+            </form.Field>
+
+            <div className="grid grid-cols-2 items-start gap-3 max-md:grid-cols-1">
+              <form.Field name="position">
+                {(field) => (
+                  <FieldShell field={field} label="Role" labelClassName={labelClass}>
+                    <input
+                      id={field.name}
+                      type="text"
+                      autoComplete="organization-title"
+                      maxLength={120}
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      aria-invalid={fieldHasError(field)}
+                      className={inputClass}
+                      placeholder="Head of Product"
+                    />
+                  </FieldShell>
+                )}
+              </form.Field>
+
+              <form.Field name="companyUrl">
+                {(field) => (
+                  <FieldShell field={field} label="Company URL" labelClassName={labelClass}>
+                    <input
+                      id={field.name}
+                      type="text"
+                      inputMode="url"
+                      autoComplete="url"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      aria-invalid={fieldHasError(field)}
+                      className={inputClass}
+                      placeholder="acme.com"
+                    />
+                  </FieldShell>
+                )}
+              </form.Field>
+            </div>
+
+            <form.Subscribe
+              selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}
+            >
+              {({ canSubmit, isSubmitting }) => (
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-ink px-8 text-base font-semibold text-white transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSubmitting ? "Sending…" : WAITLIST.label}
+                </button>
+              )}
+            </form.Subscribe>
+          </form>
+        )
+      }
+    </form.Subscribe>
   );
 }

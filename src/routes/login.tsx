@@ -30,7 +30,7 @@ function LoginPage() {
 
   const form = useForm({
     defaultValues: { email: "" },
-    validators: { onChange: magicLinkFormSchema, onBlur: magicLinkFormSchema },
+    validators: { onChange: magicLinkFormSchema },
     onSubmit: async ({ value }) => {
       const { error } = await signIn.magicLink({ email: value.email, callbackURL: "/app" });
       if (error) {
