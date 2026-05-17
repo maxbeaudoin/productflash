@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.production
 
 node_modules
 .pnpm-store

@@ -39,6 +39,7 @@ pnpm db:push          # Drizzle schema push (dev branch on Neon)
 pnpm db:migrate       # Generate + apply migration
 pnpm worker           # Run the pg-boss worker locally
 pnpm typecheck        # tsc --noEmit
+pnpm env:lint         # cross-check .env / .env.example / .env.production vs schema
 pnpm test             # Vitest unit suite (one-shot)
 pnpm test:watch       # Vitest in watch mode
 pnpm test:integration # Vitest integration suite (needs Docker; ~20s container boot first run)

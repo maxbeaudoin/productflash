@@ -1,7 +1,52 @@
-import "dotenv/config";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
+import { ENV_KEYS, ENV_REQUIRED_IN_PROD } from "./env-keys";
 
-const schema = z.object({
+// --- Env file loading -------------------------------------------------------
+//
+// Two-file model (kept in sync by `pnpm env:lint`):
+//
+//   .env             Local dev secrets + overrides. Gitignored.
+//   .env.production  Committed *non-secret* production defaults. Loaded
+//                    by both Vite (at build time, for VITE_* bundling)
+//                    and by this module (at server runtime). Actual
+//                    secrets are injected by Railway at deploy and
+//                    ALWAYS win — dotenv refuses to override values
+//                    already present in process.env, and Vite layers
+//                    process.env on top of parsed files for the same
+//                    effect during bundling.
+//
+// We load `.env` first so a developer's local file dominates, then
+// conditionally `.env.production` to back-fill prod defaults.
+
+const ROOT = process.cwd();
+
+// Local overrides first. Doesn't override Railway-set vars in prod (since
+// .env isn't shipped in the deployed image), and gives a developer's .env
+// the chance to declare NODE_ENV before we decide whether to load .env.production.
+const ENV_LOCAL = resolve(ROOT, ".env");
+if (existsSync(ENV_LOCAL)) loadDotenv({ path: ENV_LOCAL });
+
+// Committed production defaults — loaded ONLY when NODE_ENV is already
+// "production" at this point. Either set by Railway before the process
+// starts, or set explicitly by a developer who wants to dry-run prod
+// locally. Avoids accidentally flipping local dev into strict-prod-validation
+// mode just because .env.production is on disk.
+const ENV_PROD = resolve(ROOT, ".env.production");
+if (process.env.NODE_ENV === "production" && existsSync(ENV_PROD)) {
+  loadDotenv({ path: ENV_PROD });
+}
+
+// --- Schema ----------------------------------------------------------------
+//
+// The set of known keys + the required-in-prod subset live in
+// `./env-keys.ts` so `scripts/env-lint.ts` can read them without importing
+// this file (which would trigger dotenv side effects and the startup
+// validation throw).
+
+const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
@@ -45,12 +90,9 @@ const schema = z.object({
 
   // Better Auth — secret signs sessions + magic-link tokens; URL is the
   // canonical base for callback links (dev: http://localhost:3000,
-  // prod: the Railway-issued domain).
+  // prod: the Railway-issued domain or productflash.ai).
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
-
-  ADMIN_USER: z.string().default("admin"),
-  ADMIN_PASSWORD: z.string().optional(),
 
   // Opt-in switch for the daily ingestion + score crons. Off by default so a
   // deploy never auto-fires real API calls — flip to "1" only when dogfooding
@@ -63,15 +105,69 @@ const schema = z.object({
     .transform((v) => v === "1" || v === "true"),
 });
 
+// Drift guard — if a key is added/removed from the Zod schema above without
+// updating env-keys.ts (which the linter relies on), boot fails loudly here
+// instead of letting the linter silently miss the change.
+{
+  const shapeKeys = Object.keys(baseSchema.shape).sort();
+  const declaredKeys: string[] = [...ENV_KEYS].sort();
+  const onlyInShape = shapeKeys.filter((k) => !declaredKeys.includes(k));
+  const onlyInDeclared = declaredKeys.filter((k) => !shapeKeys.includes(k));
+  if (onlyInShape.length || onlyInDeclared.length) {
+    throw new Error(
+      `[env] schema/env-keys drift — update src/lib/env-keys.ts:` +
+        (onlyInShape.length ? ` missing from ENV_KEYS: ${onlyInShape.join(", ")};` : "") +
+        (onlyInDeclared.length ? ` missing from schema: ${onlyInDeclared.join(", ")};` : ""),
+    );
+  }
+}
+
+// `production` adds the fail-fast gate. In dev/test, missing values stay
+// callable via `requireEnv()` (which throws lazily on first use).
+const schema = baseSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV !== "production") return;
+  for (const key of ENV_REQUIRED_IN_PROD) {
+    const value = data[key];
+    if (value === undefined || value === null || value === "") {
+      ctx.addIssue({
+        code: "custom",
+        path: [key],
+        message: `${key} is required in production (currently missing/empty)`,
+      });
+    }
+  }
+  // localhost URLs would 404 every magic-link in prod — catch the
+  // forgot-to-set-it case before Better Auth signs unusable callbacks.
+  if (data.BETTER_AUTH_URL.includes("localhost")) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["BETTER_AUTH_URL"],
+      message: `BETTER_AUTH_URL must not point at localhost in production (got ${data.BETTER_AUTH_URL})`,
+    });
+  }
+});
+
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("Invalid environment variables:", parsed.error.flatten().fieldErrors);
-  throw new Error("Environment validation failed — see errors above");
+  // Group by field so the operator sees one block per offending var instead
+  // of a wall of Zod issue noise.
+  const errors = parsed.error.flatten().fieldErrors;
+  // eslint-disable-next-line no-console
+  console.error("[env] validation failed:");
+  for (const [field, messages] of Object.entries(errors)) {
+    if (!messages?.length) continue;
+    // eslint-disable-next-line no-console
+    console.error(`  ${field}: ${messages.join("; ")}`);
+  }
+  throw new Error(
+    "Environment validation failed — fix the vars above before starting. " +
+      "Run `pnpm env:lint` to cross-check .env / .env.production / .env.example.",
+  );
 }
 
 export const env = parsed.data;
-export type Env = z.infer<typeof schema>;
+export type Env = z.infer<typeof baseSchema>;
 
 export function requireEnv<K extends keyof Env>(key: K): NonNullable<Env[K]> {
   const value = env[key];

@@ -36,6 +36,7 @@ TS_JS=()
 FORMATTABLE=()
 TEST_FILES=()
 SCHEMA_TOUCHED=0
+ENV_TOUCHED=0
 for f in "${STAGED[@]}"; do
   [[ -f "$f" ]] || continue
   case "$f" in
@@ -52,6 +53,11 @@ for f in "${STAGED[@]}"; do
   esac
   case "$f" in
     src/db/*|drizzle/*|drizzle.config.ts) SCHEMA_TOUCHED=1 ;;
+  esac
+  case "$f" in
+    .env|.env.example|.env.production|src/lib/env.ts|src/lib/env-keys.ts|scripts/env-lint.ts)
+      ENV_TOUCHED=1
+      ;;
   esac
 done
 
@@ -102,6 +108,13 @@ fi
 # 6. Drizzle migration sanity check — only when schema or migrations moved.
 if [[ "$SCHEMA_TOUCHED" -eq 1 ]]; then
   pnpm exec drizzle-kit check || fail "drizzle-kit check failed"
+fi
+
+# 6b. Env cross-check — only when any of the env files / env modules moved.
+# Catches drift between .env.example, .env.production and the Zod schema before
+# it lands in main and breaks a deploy.
+if [[ "$ENV_TOUCHED" -eq 1 ]]; then
+  pnpm env:lint || fail "env-lint reported issues"
 fi
 
 # 7. Unit tests related to staged TS/JS files.
