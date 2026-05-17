@@ -140,6 +140,52 @@ transcript; the audit playbook lives at
 - We do not enable Dependabot in the repo today; re-run `pnpm audit
   --prod` before each deploy and before adding a new dep.
 
+## External exposure
+
+What an unauthenticated attacker can reach from the public internet, and
+the bound on what they can do with it.
+
+| Surface | Reachable | What an attacker can do | Bound |
+|---|---|---|---|
+| `/` (landing) | public | render the page | static; no DB write |
+| `/login`, `/signup` (HTML) | public | render the form | gated by invite token for /signup; no user row created without admin pre-creation |
+| `/api/auth/*` | public | start a magic-link flow, sign in if they hold a valid magic link, sign out | `disableSignUp: true`, 3/60s rate limit on magic-link, 30/60s default elsewhere |
+| `/api/waitlist` (POST) | public | append an email to the waitlist | `onConflictDoNothing` on email; pollution only — no other side effects. No rate limit (accepted gap) |
+| `/healthz` | public | observe up/down + uptime | response is `{ ok, db: { ok }, uptimeSeconds }` only — no error string |
+| `/api/email/open/:digestId.gif` | public | mark someone's digest as opened, fire a PostHog event | digestId is an unguessable UUID; if forged, only inflates open counts; first-open semantic preserved by `WHERE openedAt IS NULL` |
+| `/r/:itemId/:rating` | public | record up/down feedback on a digest item | requires an HMAC `?t=` token tied to (itemId, rating); forging requires `FEEDBACK_SIGNING_SECRET` |
+| `/logout` (POST) | public | sign yourself out | POST-only, no CSRF concern |
+| `/app/*`, `/admin/*`, `/debug/*`, `/api/onboarding/stream` | gated | — | `requireSession` / `requireAdminSession` on every entry |
+| Worker service | **not** public | — | Railway-internal only; reachable only via pg-boss queue rows in the shared Postgres |
+
+The worker process has the same DB credentials as the web service but
+intentionally exposes no HTTP surface. If we ever add one (debug
+console, metrics endpoint), it must be Railway-internal-only or
+admin-gated.
+
+## Vendor trust
+
+What we delegate to each third party, and the practical blast radius if
+that vendor is compromised. Severity is what *we* would face, not what
+the vendor sees globally.
+
+| Vendor | What we trust them with | If compromised |
+|---|---|---|
+| **Neon** (Postgres) | All user data, sessions, llm_usage, feedback | Full data exposure. Sessions are signed cookies; rotating `BETTER_AUTH_SECRET` invalidates everything. Backups + PITR live on Neon. |
+| **Railway** (host + secrets) | Every env var (DB URL, Anthropic key, Resend key, HMAC secrets) | Full takeover. Mitigation is incident response, not prevention — rotate every secret in `.env.example`, re-deploy. |
+| **Better Auth** (npm package) | Session signing, magic-link flow, admin role enforcement, rate limiter | Auth bypass / role escalation. Audit the package on every minor bump; pinned at 1.6.11. |
+| **Anthropic** | Synthesizer + classifier prompts (include reader name + role + goal + focus areas + competitor feed content) | Prompt content leaks. No raw secrets in prompts. Rotating ANTHROPIC_API_KEY caps spend post-incident. |
+| **Resend** | Outbound email content, recipient addresses | Email-flow compromise: spoofed digest, harvested addresses. DMARC/DKIM/SPF on `productflash.ai` is the primary defense — verify in DNS. |
+| **Firecrawl** | URLs the FTE agent / pricing scraper hand it; receives our API key | Returned markdown could be tampered → poisoned LLM input. Bounded by prompt-injection delimiters + ingest sanitization (F-004). |
+| **Firehose** | Rule set; receives our tap token | Same as Firecrawl. Currently deferred for the PoC — adapter is a no-op (`[[project_firehose_deferred]]`). |
+| **Product Hunt** | API token; no user data sent | Tampered post stream → poisoned LLM input. Same containment as Firecrawl. |
+| **PostHog** | Event names + user IDs + email + a few event properties (no secrets, no message bodies) | Funnel/identity analytics exposed. No direct user impact. |
+| **GitHub** | Source, commit history, PR review | Supply-chain takeover via force-push or branch protection bypass. Branch protection on `main` should require PR + status checks for non-owner pushes — verify in repo settings. |
+
+The two highest blast-radius dependencies are **Neon** and **Railway**.
+For both, the only practical defense is the vendor's own security
+posture; our part is rotating secrets and minimizing what's stored.
+
 ## Known gaps / accepted risk
 
 - **No CSP.** Deferred from F-013. We'll ship
@@ -173,6 +219,34 @@ transcript; the audit playbook lives at
 - **Every dep bump:** `pnpm audit --prod`.
 - **Quarterly:** review this file end-to-end; remove stale entries;
   re-verify the "Known gaps" list is still accepted, not forgotten.
+
+## Changelog
+
+Each row is one audit round. "Closed" = code change merged. "Accepted" =
+gap documented with a written rationale above; no code change.
+
+### 2026-05-17 — Audit 1 (`b6bbf9e..ce35589`)
+
+Full audit run via `.claude/skills/security-audit/SKILL.md` on commit
+`b6bbf9e`. 13 findings: 0 Critical, 3 High, 4 Medium, 3 Low, 3 Info.
+
+| ID | Severity | What | Outcome | Commit |
+|---|---|---|---|---|
+| F-001 | High | Invite tokens never expired; `/signup` replay clobbered confirmed accounts | Closed: 14d TTL + refuse-replay on confirmed accounts | `6173983` |
+| F-002 | High | SSRF via `addCompetitor` → `autodetectRSSForHomepage` with `redirect: follow` | Closed: `src/lib/safe-fetch.ts` with DNS-resolved private-IP rejection + manual redirects | `2fe9276` |
+| F-003 | High | Global `competitors` table allowed cross-tenant tampering of `name` + `rss_url` | Closed: user-facing handlers switched to insert-or-link (`onConflictDoNothing`) | `4e8b0e8` |
+| F-004 | Medium | Untrusted RSS body fed into classifier + synthesizer prompts unbounded | Closed: `<feed_title>`/`<feed_body>` delimiters + treat-as-data instruction + ingest sanitization | `7bf35ae` |
+| F-005 | Medium | `/healthz` leaked DB error message | Closed: response trimmed; full error in server logs only | `710a6d6` |
+| F-006 | Medium | `/logout` was a GET (cross-site `<img>` sign-out) | Closed: POST-only, header buttons switched to form submit | `710a6d6` |
+| F-007 | Medium | No rate limit on magic-link send | Closed: Better Auth limiter on; 3/60s on magic-link | `42115a9` |
+| F-008 | Low | Auto-sign-in URL had 60s window | Closed: dropped to 15s | `6173983` |
+| F-009 | Low | Transitive moderate advisories (postcss/prismjs/esbuild) | Closed: pnpm overrides pin patched versions | `d91092b` |
+| F-010 | Low | `/debug/*` gated by NODE_ENV only | Closed: swapped to `requireAdminSession` | `710a6d6` |
+| F-011 | Info | Shared global `competitors` table is a tenancy smell | Accepted: documented in `src/db/schema.ts`; fix is per-user table if we move off per-user tenancy | `566424d` |
+| F-012 | Info | Better Auth `/api/auth/admin/*` enforcement assumed, not verified | Accepted: post-deploy verification task | — |
+| F-013 | Info | No HSTS/X-Frame/X-Content-Type-Options/Referrer-Policy/CSP | Closed (4 of 5): Nitro middleware ships HSTS + X-Frame-Options + X-Content-Type-Options + Referrer-Policy. CSP accepted as deferred (report-only rollout pending) | `c8842f2` |
+
+Posture documentation: `ce35589` (this file + project-local skill copy).
 
 ## Where to look
 
