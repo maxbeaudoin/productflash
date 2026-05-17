@@ -27,29 +27,30 @@ const ENV_PROD = resolve(ROOT, ".env.production");
 const hasLocal = existsSync(ENV_LOCAL);
 const hasProd = existsSync(ENV_PROD);
 
-// Some platforms (Railway included, when a variable is removed via the
-// dashboard) leave NODE_ENV="" in the process env instead of deleting
-// the key. dotenv treats an empty string as "already set" and refuses
-// to fill it from a file — which would block .env.production's
-// NODE_ENV=production from taking effect. Normalize empty to absent
-// before loading so the file's default applies.
-if (process.env.NODE_ENV === "") delete process.env.NODE_ENV;
-
-// Local overrides first. In deployed images .env is absent so this is a
-// no-op; in dev it dominates so a developer's local secrets/overrides win.
-if (hasLocal) loadDotenv({ path: ENV_LOCAL });
-
-// Load .env.production when EITHER:
-//   1. NODE_ENV is already "production" (dev dry-running prod, or a
-//      platform that does set NODE_ENV at runtime), OR
-//   2. No .env file exists (deployed image — Railway, Docker, etc.).
-// The .env-absence heuristic removes the chicken-and-egg where
-// .env.production was the source of NODE_ENV=production but only
-// loaded if NODE_ENV was already "production". dotenv defaults to NOT
-// overriding process.env, so platform-injected secrets still win — the
-// file only fills gaps.
-if (hasProd && (process.env.NODE_ENV === "production" || !hasLocal)) {
-  loadDotenv({ path: ENV_PROD });
+// .env presence is the dev/deployed signal: developers always have a
+// .env; the deployed image (Railway, Docker, etc.) ships without one.
+//
+// This file is also bundled by Vite for the production server, and Vite
+// inlines every `process.env.NODE_ENV` reference at build time as a
+// literal string. That dead-code-eliminates any runtime NODE_ENV check
+// in this module — by the time the bundled code runs, it's frozen to
+// whatever NODE_ENV was at build. Avoid touching process.env.NODE_ENV
+// here at all; rely on file presence and let `override: true` make
+// .env.production deterministic regardless of what stale or empty
+// NODE_ENV state the runtime happens to start with.
+if (hasLocal) {
+  // Local dev: .env is authoritative. Don't touch .env.production —
+  // its NODE_ENV=production would silently flip dev into prod-validation
+  // mode (.env.production loaded with override would clobber).
+  loadDotenv({ path: ENV_LOCAL });
+} else if (hasProd) {
+  // Deployed image: no .env present. Load .env.production with
+  // override:true so its values (notably NODE_ENV=production and
+  // BETTER_AUTH_URL) win over any platform-set or platform-bequeathed
+  // value in process.env. Safe because .env.production only contains
+  // @public / @private values — @secret keys are forbidden by env-lint,
+  // so override:true can't clobber a Railway-managed secret.
+  loadDotenv({ path: ENV_PROD, override: true });
 }
 
 // --- Schema ----------------------------------------------------------------
@@ -177,6 +178,18 @@ if (!parsed.success) {
   // its full contents to deploy logs.
   // eslint-disable-next-line no-console
   console.error("[env] validation failed:");
+  // Diagnostic context — invaluable when the failure is platform-shaped
+  // (file missing from deployed image, surprising cwd, NODE_ENV
+  // bequeathed by base image, etc.) rather than a code mistake.
+  // Read via Reflect.get so Vite's static `process.env.NODE_ENV`
+  // replacement can't inline it at build time — bracket access alone
+  // also gets folded, but a dynamic property read defeats the analysis.
+  const runtimeNodeEnv = Reflect.get(process.env, "NODE_ENV");
+  // eslint-disable-next-line no-console
+  console.error(
+    `[env] context: cwd=${ROOT} hasLocal=${hasLocal} hasProd=${hasProd} ` +
+      `NODE_ENV=${JSON.stringify(runtimeNodeEnv)}`,
+  );
   for (const issue of parsed.error.issues) {
     const field = issue.path.join(".") || "<root>";
     let received = "";
