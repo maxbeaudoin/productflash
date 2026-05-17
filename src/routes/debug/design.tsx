@@ -1,6 +1,8 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { Button } from '~/components/ui/button'
+import { requireAdminSession } from '~/lib/auth-server'
 import {
   Dialog,
   DialogClose,
@@ -14,9 +16,15 @@ import {
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 
+// Admin-gated so a missing NODE_ENV on a deploy slot doesn't accidentally
+// expose the page (and the design-smoke artifacts) to the public.
+const ensureAdmin = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdminSession()
+})
+
 export const Route = createFileRoute('/debug/design')({
-  beforeLoad: () => {
-    if (process.env.NODE_ENV === 'production') throw notFound()
+  beforeLoad: async () => {
+    await ensureAdmin()
   },
   component: DesignSmokePage,
 })

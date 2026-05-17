@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { auth } from '~/lib/auth'
 
-// Hard sign-out via direct GET on /logout. We forward the response Better
-// Auth produces (it already carries the Set-Cookie clears via the
-// tanstack-start cookie plugin) and rewrite the Location header to point
-// back to the landing page.
+// POST-only sign-out. A GET handler would let any cross-site `<img>` /
+// `<iframe>` silently log the user out — top-level GETs ship cookies even
+// with SameSite=lax. Form-submit POST is harmless because browsers don't
+// cross-site auto-submit forms, and our cookies plugin handles the clears.
 export const Route = createFileRoute('/logout')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      POST: async ({ request }) => {
         const response = await auth.api.signOut({
           headers: request.headers,
           asResponse: true,

@@ -7,16 +7,18 @@ import { digestItems, digests, feedback, rawItems, users } from '~/db/schema'
 import type { DigestTag } from '~/design/tokens'
 import { runScoringForUser } from '~/jobs/score'
 import { runSynthesisForUser } from '~/jobs/synthesize'
+import { requireAdminSession } from '~/lib/auth-server'
 import { getDb } from '~/lib/db'
 import { deriveDigestPeriod } from '~/lib/digest-period'
 import { signFeedbackToken } from '~/lib/feedback-token'
 
-// Dev-only digest preview that bypasses Better Auth (#25). Renders the most
-// recent digest for any user_id via the same components as
-// /app/digests/:id, so prompt-tuning iterations don't need to log in as the
-// target user. `?refresh=1` re-runs score → synthesize against the last
-// 24h of raw_items first — useful for replaying a batch after editing a
-// prompt without waiting for the 05:00 UTC cron.
+// Admin-only digest preview (#25). Renders the most recent digest for any
+// user_id via the same components as /app/digests/:id, so prompt-tuning
+// iterations don't need to log in as the target user. `?refresh=1` re-runs
+// score → synthesize against the last 24h of raw_items first — useful for
+// replaying a batch after editing a prompt without waiting for the 05:00
+// UTC cron. Was previously NODE_ENV-gated; an admin-session gate is more
+// robust against a misconfigured deploy slot.
 
 type DebugDigestView = {
   userId: string
@@ -38,7 +40,7 @@ const inputSchema = z.object({
 const loadDebugDigest = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => inputSchema.parse(data))
   .handler(async ({ data }): Promise<DebugDigestView> => {
-    if (process.env.NODE_ENV === 'production') throw notFound()
+    await requireAdminSession()
 
     const db = getDb()
 
@@ -120,9 +122,13 @@ const searchSchema = z.object({
     .optional(),
 })
 
+const ensureAdmin = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdminSession()
+})
+
 export const Route = createFileRoute('/debug/digest/$userId')({
-  beforeLoad: () => {
-    if (process.env.NODE_ENV === 'production') throw notFound()
+  beforeLoad: async () => {
+    await ensureAdmin()
   },
   validateSearch: (search) => searchSchema.parse(search),
   loaderDeps: ({ search }) => ({

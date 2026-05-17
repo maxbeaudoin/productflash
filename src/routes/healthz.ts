@@ -14,11 +14,14 @@ export const Route = createFileRoute('/healthz')({
             uptimeSeconds: Math.round(process.uptime()),
           })
         } catch (err) {
+          // Server-side has the full err for paging; the response stays
+          // generic so a probing client can't harvest connection-string
+          // fragments or schema hints from the DB driver's message.
           logger.error({ err }, '/healthz db ping failed')
           return Response.json(
             {
               ok: false,
-              db: { ok: false, error: err instanceof Error ? err.message : String(err) },
+              db: { ok: false },
               uptimeSeconds: Math.round(process.uptime()),
             },
             { status: 503 },

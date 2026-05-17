@@ -25,12 +25,15 @@ export function AppHeader({ email }: Props) {
             Profile
           </Link>
           <span className="hidden font-mono text-[#8a8a98] sm:inline">{email}</span>
-          <a
-            href="/logout"
-            className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-coral hover:text-white"
-          >
-            Sign out
-          </a>
+          {/* POST-form sign-out — see src/routes/logout.ts for the why. */}
+          <form method="post" action="/logout" className="inline-flex">
+            <button
+              type="submit"
+              className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-coral hover:text-white"
+            >
+              Sign out
+            </button>
+          </form>
         </div>
       </div>
     </header>
