@@ -1,8 +1,12 @@
+import { useForm } from "@tanstack/react-form";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 import { AuthShell } from "~/components/auth/AuthShell";
+import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
 import { signIn } from "~/lib/auth-client";
+import { magicLinkFormSchema } from "~/lib/validation/auth";
 
 // Better Auth appends `?error=<code>` to the social errorCallbackURL.
 // Known codes worth differentiating: `signup_disabled` (uninvited email →
@@ -21,23 +25,21 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const { reason, error: oauthError } = Route.useSearch();
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [sentEmail, setSentEmail] = useState<string | null>(null);
   const [googleState, setGoogleState] = useState<"idle" | "redirecting">("idle");
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setState("sending");
-    setError(null);
-    const { error } = await signIn.magicLink({ email, callbackURL: "/app" });
-    if (error) {
-      setError(error.message ?? "Something went wrong");
-      setState("error");
-      return;
-    }
-    setState("sent");
-  }
+  const form = useForm({
+    defaultValues: { email: "" },
+    validators: { onChange: magicLinkFormSchema, onBlur: magicLinkFormSchema },
+    onSubmit: async ({ value }) => {
+      const { error } = await signIn.magicLink({ email: value.email, callbackURL: "/app" });
+      if (error) {
+        toast.error(error.message ?? "Couldn't send the magic link. Try again in a moment.");
+        throw new Error("magic_link_failed");
+      }
+      setSentEmail(value.email);
+    },
+  });
 
   async function onGoogle() {
     setGoogleState("redirecting");
@@ -72,8 +74,14 @@ function LoginPage() {
         </span>
       }
     >
-      {state === "sent" ? (
-        <SentCard email={email} onReset={() => setState("idle")} />
+      {sentEmail ? (
+        <SentCard
+          email={sentEmail}
+          onReset={() => {
+            setSentEmail(null);
+            form.reset();
+          }}
+        />
       ) : (
         <div className="grid gap-4">
           {oauthError === "signup_disabled" ? (
@@ -110,38 +118,56 @@ function LoginPage() {
             <span className="h-px flex-1 bg-[#2a2a38]" />
           </div>
 
-          <form onSubmit={onSubmit} className="grid gap-4">
-            <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
-              Email
-              <input
-                type="email"
-                required
-                autoFocus
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent"
-              />
-            </label>
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void form.handleSubmit();
+            }}
+            className="grid gap-4"
+          >
+            <form.Field name="email">
+              {(field) => (
+                <FieldShell
+                  field={field}
+                  label="Email"
+                  labelClassName="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]"
+                >
+                  <input
+                    id={field.name}
+                    type="email"
+                    autoFocus
+                    autoComplete="email"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    aria-invalid={fieldHasError(field)}
+                    placeholder="you@company.com"
+                    className="h-12 w-full rounded-md border-[1.5px] border-[#2a2a38] bg-ink-soft px-4 text-base font-normal normal-case tracking-normal text-white outline-none placeholder:text-[#5a5a6a] transition-colors focus:border-accent aria-invalid:border-coral aria-invalid:focus:border-coral"
+                  />
+                </FieldShell>
+              )}
+            </form.Field>
 
-            <button
-              type="submit"
-              disabled={state === "sending"}
-              className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+            <form.Subscribe
+              selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}
             >
-              {state === "sending" ? "Sending…" : "Send magic link"}
-              <span
-                aria-hidden
-                className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
-              >
-                →
-              </span>
-            </button>
-
-            {state === "error" && error ? (
-              <p className="text-sm font-medium text-coral">{error}</p>
-            ) : null}
+              {({ canSubmit, isSubmitting }) => (
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                >
+                  {isSubmitting ? "Sending…" : "Send magic link"}
+                  <span
+                    aria-hidden
+                    className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
+                  >
+                    →
+                  </span>
+                </button>
+              )}
+            </form.Subscribe>
           </form>
         </div>
       )}

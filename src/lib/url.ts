@@ -36,6 +36,16 @@ export function normalizeUrl(input: string): string | null {
   // Reject localhost and bare-word hosts — must be a real domain.
   if (parsed.hostname === "localhost") return null;
   if (!parsed.hostname.includes(".")) return null;
+  // Enforce strict DNS-label hostname (after IDN → punycode via URL parser).
+  // Without this, `new URL("https://acme.com,foo.com")` parses with hostname
+  // `acme.com,foo.com` — a single field, two domains — and slips through every
+  // other check. RFC 1035 labels: letters, digits, hyphens (not at boundary).
+  if (
+    !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(
+      parsed.hostname,
+    )
+  )
+    return null;
   parsed.protocol = parsed.protocol.toLowerCase();
   parsed.hostname = parsed.hostname.toLowerCase();
   let out = parsed.toString();

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { DefaultCatchBoundary } from "~/components/DefaultCatchBoundary";
 import { NotFound } from "~/components/NotFound";
 import { PostHogTracker } from "~/components/PostHogTracker";
+import { Toaster } from "~/components/ui/sonner";
 import appCss from "~/styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -33,6 +34,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       <body>
         <PostHogTracker />
         {children}
+        <Toaster theme="dark" />
         {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-right" /> : null}
         <Scripts />
       </body>
