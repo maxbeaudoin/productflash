@@ -4,13 +4,13 @@ import { z } from "zod";
 import { AuthShell } from "~/components/auth/AuthShell";
 import { signIn } from "~/lib/auth-client";
 
+// Better Auth appends `?error=<code>` to the social errorCallbackURL.
+// Known codes worth differentiating: `signup_disabled` (uninvited email →
+// route to waitlist), everything else (generic "try again"). Accept any
+// string so an unknown code still routes to the generic branch instead
+// of 500-ing the loader.
 const searchSchema = z.object({
   reason: z.enum(["unauthenticated"]).optional(),
-  // Populated by Better Auth when a social sign-in fails — most often
-  // `signup_disabled` for an email that's not on the private beta. We
-  // surface a single friendly message regardless of the underlying code;
-  // the exact reason matters less to the visitor than the next step
-  // (join the waitlist).
   error: z.string().optional(),
 });
 
@@ -45,10 +45,14 @@ function LoginPage() {
     // → /app, so we never return here on success. On failure (most likely
     // `disableSignUp` for an uninvited email) Better Auth redirects to
     // errorCallbackURL with `?error=...` and we re-render with the banner.
+    // errorCallbackURL must NOT have a query string — Better Auth appends
+    // its own `&error=<code>` (e.g. `signup_disabled`), so passing
+    // `/login?error=oauth` produces `/login?error=oauth&error=signup_disabled`
+    // which the loader's Zod schema parses as an array and 500s.
     await signIn.social({
       provider: "google",
       callbackURL: "/app",
-      errorCallbackURL: "/login?error=oauth",
+      errorCallbackURL: "/login",
     });
     setGoogleState("idle");
   }
@@ -72,7 +76,7 @@ function LoginPage() {
         <SentCard email={email} onReset={() => setState("idle")} />
       ) : (
         <div className="grid gap-4">
-          {oauthError ? (
+          {oauthError === "signup_disabled" ? (
             <div className="rounded-md border border-coral/40 bg-coral/10 px-4 py-3 text-sm text-coral">
               <p className="font-semibold">That email isn't on the private beta yet.</p>
               <p className="mt-1 text-coral/80">
@@ -82,6 +86,11 @@ function LoginPage() {
                 </Link>{" "}
                 and we'll be in touch when a seat opens.
               </p>
+            </div>
+          ) : oauthError ? (
+            <div className="rounded-md border border-coral/40 bg-coral/10 px-4 py-3 text-sm text-coral">
+              <p className="font-semibold">Couldn't complete Google sign-in.</p>
+              <p className="mt-1 text-coral/80">Try again, or use the email magic link below.</p>
             </div>
           ) : null}
 
@@ -186,8 +195,14 @@ function SentCard({ email, onReset }: { email: string; onReset: () => void }) {
       <div className="px-6 py-7">
         <p className="text-lg font-semibold text-white">Check your inbox.</p>
         <p className="mt-2 text-sm text-[#b8b8c8]">
-          We sent a sign-in link to <span className="font-mono text-white">{email}</span>. Click it
-          from the same browser and you'll land in the app.
+          If <span className="font-mono text-white">{email}</span> is on the private beta, we just
+          sent a sign-in link. Click it from the same browser and you'll land in the app.
+        </p>
+        <p className="mt-3 text-sm text-[#8a8a98]">
+          Not on the list yet?{" "}
+          <Link to="/" hash="waitlist" className="text-white underline-offset-4 hover:underline">
+            Join the waitlist →
+          </Link>
         </p>
         <button
           type="button"

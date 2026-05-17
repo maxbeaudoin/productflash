@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, magicLink } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { env, requireEnv } from "./env";
 import { getDb } from "./db";
@@ -19,7 +20,27 @@ function getResend(): Resend {
 // digest template (#11) is a separate React Email component. Auth mails
 // are transactional and short-lived; deliverability matters more than
 // branding here.
+//
+// Private-beta guard: Better Auth's magic-link plugin calls sendMagicLink
+// unconditionally at /sign-in/magic-link — `disableSignUp` only fires at
+// verify time. Without this guard, any email posted to the endpoint
+// would burn a Resend send + leak beta existence + open an email-bomb
+// vector. We silently no-op for unknown emails (still returning success
+// up the stack) so an attacker can't enumerate beta members via timing
+// or error-shape differences.
 async function deliverMagicLink({ email, url }: { email: string; url: string }) {
+  const normalized = email.toLowerCase();
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(schema.users.email, normalized))
+    .limit(1);
+  if (!existing) {
+    logger.warn({ email: normalized }, "magic-link suppressed (no users row — uninvited)");
+    return;
+  }
+
   if (env.NODE_ENV !== "production" && !env.RESEND_API_KEY) {
     logger.info({ email, url }, "magic-link (no Resend key — printed only)");
     return;
@@ -78,10 +99,19 @@ export const auth = betterAuth({
   // guard for unverified emails. Google verifies the email at the IdP, so
   // listing it as a trusted provider tells Better Auth the email match is
   // sufficient proof of ownership and the account auto-links.
+  //
+  // `requireLocalEmailVerified: false` is required because admin invite
+  // creates the users row with `email_verified=false` (only magic-link
+  // verification flips it to true). Without this, an invited user trying
+  // Google SSO as their FIRST sign-in would be rejected with
+  // "account not linked" even though Google has fully verified them at
+  // the IdP. The admin invite is the trust anchor for the email's
+  // legitimacy; the OAuth round-trip is the trust anchor for ownership.
   account: {
     accountLinking: {
       enabled: true,
       trustedProviders: ["google"],
+      requireLocalEmailVerified: false,
     },
   },
   ...(googleProvider ? { socialProviders: googleProvider } : {}),
