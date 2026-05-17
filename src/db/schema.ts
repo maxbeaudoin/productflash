@@ -106,6 +106,15 @@ export const verifications = pgTable('verifications', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// `competitors` is a globally-shared dedupe namespace by intent — the daily
+// ingestion cron fetches each row's RSS/PH/Firecrawl feeds ONCE regardless
+// of how many users track it (see src/jobs/ingest.ts). The trade-off is that
+// the row is cross-tenant state: user-facing addCompetitor handlers
+// (src/routes/app/profile.tsx, src/routes/app/onboarding.tsx) therefore
+// MUST be insert-or-link only (onConflictDoNothing) so one beta user can't
+// overwrite another's view. The FTE agent's add_competitor tool is the only
+// legitimate writer of fields on existing rows; it runs in a privileged
+// signup context. If we move off per-user tenancy, revisit this model.
 export const competitors = pgTable(
   'competitors',
   {
