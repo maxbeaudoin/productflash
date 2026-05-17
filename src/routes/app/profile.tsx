@@ -131,26 +131,31 @@ const addCompetitor = createServerFn({ method: 'POST' })
       rssUrl = null
     }
 
-    const [c] = await db
+    // First-writer-wins on the competitors row: insert if the URL is new,
+    // do nothing if it already exists. User-facing add MUST NOT overwrite
+    // name/rss_url on an existing row — otherwise an authed user can
+    // mutate every other user's view of "Notion" or repoint the shared
+    // RSS feed at an attacker-controlled URL. The link from this user to
+    // the (existing or newly-inserted) row goes through user_competitors.
+    await db
       .insert(competitorsTable)
       .values({
         name: data.name,
         homepageUrl: data.homepageUrl,
         rssUrl,
       })
-      .onConflictDoUpdate({
-        target: competitorsTable.homepageUrl,
-        set: {
-          name: sql`excluded.name`,
-          rssUrl: sql`coalesce(excluded.rss_url, ${competitorsTable.rssUrl})`,
-        },
-      })
-      .returning({
+      .onConflictDoNothing({ target: competitorsTable.homepageUrl })
+
+    const [c] = await db
+      .select({
         id: competitorsTable.id,
         name: competitorsTable.name,
         homepageUrl: competitorsTable.homepageUrl,
         rssUrl: competitorsTable.rssUrl,
       })
+      .from(competitorsTable)
+      .where(eq(competitorsTable.homepageUrl, data.homepageUrl))
+      .limit(1)
     if (!c) throw new Error('competitor_upsert_failed')
 
     await db
