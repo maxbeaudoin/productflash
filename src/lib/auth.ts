@@ -58,6 +58,32 @@ export const auth = betterAuth({
     database: {
       generateId: false,
     },
+    // Railway sits behind their edge proxy — the runtime sees Railway's
+    // internal address as remoteAddress, so the rate limiter must read the
+    // forwarded client IP from the header instead, or it'll bucket every
+    // request together and fall open.
+    ipAddress: {
+      ipAddressHeaders: ['x-forwarded-for'],
+    },
+  },
+  // Better Auth's built-in rate limiter — auto-disabled in dev, on in prod.
+  // Memory storage is fine at private-beta scale (counters reset on deploy,
+  // which we do rarely). Upgrade to 'database' if rate-limit evasion across
+  // deploys becomes a concern.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 30,
+    storage: 'memory',
+    customRules: {
+      // Magic-link sends a real email per call → email-bomb / Resend-quota
+      // burn vector. 3 attempts per minute per IP is plenty for a real user
+      // mistyping their address; an attacker can't refill a target's inbox.
+      '/sign-in/magic-link': { window: 60, max: 3 },
+      // Bound the blast radius of a stolen admin cookie on the mutating
+      // admin-plugin endpoints (ban-user, set-role, impersonate, …).
+      '/admin/*': { window: 60, max: 20 },
+    },
   },
   // Magic-link is the only sign-in surface in v1. Email/password is
   // disabled (not in the plugin list).
