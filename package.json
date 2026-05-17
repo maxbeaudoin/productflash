@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "worker": "tsx --watch src/worker/index.ts",
     "worker:start": "tsx src/worker/index.ts",
+    "routes:gen": "tsr generate",
     "typecheck": "tsgo --noEmit",
     "env:lint": "tsx scripts/env-lint.ts",
     "lint": "oxlint",
@@ -74,6 +75,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "@tanstack/router-cli": "^1.167.5",
     "@testcontainers/postgresql": "^11.14.0",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
