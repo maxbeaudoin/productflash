@@ -1,5 +1,6 @@
 import RSSParser from 'rss-parser'
 import { logger } from '~/lib/logger'
+import { safeFetchText, SafeFetchError } from '~/lib/safe-fetch'
 import type { CompetitorRef, NormalizedItem } from './types'
 
 // RSS / Atom source adapter.
@@ -255,25 +256,42 @@ async function fetchFeedXml(url: string, options: RSSFetchOptions): Promise<stri
   return fetchText(url, options, 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5')
 }
 
+// All RSS fetches funnel through safeFetchText — the URL originates from a
+// user-supplied homepage (addCompetitor) or an autodetect probe based on one,
+// so it MUST be guarded against pointing at Railway-internal addresses.
+// `options.fetchImpl` is preserved for tests that want to inject a stub; that
+// path bypasses the safe wrapper because tests run with controlled fixture
+// URLs.
 async function fetchText(url: string, options: RSSFetchOptions, accept = '*/*'): Promise<string> {
-  const fetchImpl = options.fetchImpl ?? fetch
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const ua = options.userAgent ?? DEFAULT_UA
+  const headers = { 'User-Agent': ua, Accept: accept }
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetchImpl(url, {
-      method: 'GET',
-      headers: { 'User-Agent': ua, Accept: accept },
-      redirect: 'follow',
-      signal: controller.signal,
-    })
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} for ${url}`)
+  if (options.fetchImpl) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await options.fetchImpl(url, {
+        method: 'GET',
+        headers,
+        redirect: 'follow',
+        signal: controller.signal,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
+      return await res.text()
+    } finally {
+      clearTimeout(timer)
     }
-    return await res.text()
-  } finally {
-    clearTimeout(timer)
+  }
+
+  try {
+    return await safeFetchText(url, { headers, timeoutMs })
+  } catch (err) {
+    if (err instanceof SafeFetchError) {
+      // Surface as a generic "fetch failed" so the autodetect path can log +
+      // skip without leaking the specific reject reason to a probing user.
+      throw new Error(`HTTP fetch blocked for ${url} (${err.code})`)
+    }
+    throw err
   }
 }

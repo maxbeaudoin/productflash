@@ -176,6 +176,10 @@ async function runFetchUrl(
   }
 
   try {
+    // The outbound target is the fixed Firecrawl SaaS endpoint, not
+    // user-controlled — safeFetch is unnecessary at this hop. The
+    // model-supplied `url` rides in the body; Firecrawl runs externally
+    // and applies its own SSRF protections to that payload.
     const res = await fetch(FIRECRAWL_ENDPOINT, {
       method: 'POST',
       headers: {

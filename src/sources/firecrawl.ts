@@ -144,6 +144,10 @@ async function firecrawlScrape(
   url: string,
   options: FirecrawlScrapeOptions,
 ): Promise<string> {
+  // The outbound HTTP target here is a fixed Firecrawl SaaS endpoint, not
+  // user-controlled — safeFetch is unnecessary at this hop. The user-
+  // controlled value is the `url` we POST in the body; Firecrawl runs
+  // externally and applies its own SSRF protections to that payload.
   const apiKey = requireEnv('FIRECRAWL_API_KEY')
   const fetchImpl = options.fetchImpl ?? fetch
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
