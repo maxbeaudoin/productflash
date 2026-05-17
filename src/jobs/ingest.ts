@@ -184,7 +184,7 @@ function rowToRef(r: typeof competitorsTable.$inferSelect): CompetitorRef {
   }
 }
 
-function settleToFanoutMetrics(
+export function settleToFanoutMetrics(
   result: PromiseSettledResult<Map<string, NormalizedItem[]>>,
   source: SourceName,
 ): SourceMetrics {
@@ -197,7 +197,7 @@ function settleToFanoutMetrics(
   return { fetched, inserted: 0, errored: false }
 }
 
-function collectFanout(
+export function collectFanout(
   result: PromiseSettledResult<Map<string, NormalizedItem[]>>,
   out: NewRawItem[],
 ): void {
