@@ -1,6 +1,6 @@
-import { ErrorComponentProps } from '@tanstack/react-router'
-import { useEffect } from 'react'
-import { captureClientException } from '~/lib/posthog-client'
+import { ErrorComponentProps } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { captureClientException } from "~/lib/posthog-client";
 
 export function DefaultCatchBoundary({ error, info }: ErrorComponentProps) {
   useEffect(() => {
@@ -9,15 +9,13 @@ export function DefaultCatchBoundary({ error, info }: ErrorComponentProps) {
     // ship to PostHog Error Tracking (#51) before rendering the fallback.
     captureClientException(error, {
       component_stack: info?.componentStack ?? null,
-    })
-  }, [error, info?.componentStack])
+    });
+  }, [error, info?.componentStack]);
 
   return (
     <div className="p-8">
       <h1 className="text-2xl font-semibold">Something went wrong</h1>
-      <pre className="mt-4 overflow-auto rounded bg-black/5 p-3 text-xs">
-        {error.message}
-      </pre>
+      <pre className="mt-4 overflow-auto rounded bg-black/5 p-3 text-xs">{error.message}</pre>
     </div>
-  )
+  );
 }

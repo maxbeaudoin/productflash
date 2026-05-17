@@ -1,11 +1,11 @@
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { migrate } from 'drizzle-orm/node-postgres/migrator'
-import { Pool } from 'pg'
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
-import { spawn, type ChildProcessByStdio } from 'node:child_process'
-import type { Readable, Writable } from 'node:stream'
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { Pool } from "pg";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable, Writable } from "node:stream";
 
 // Boots the full stack for the Playwright suite:
 //   1. Postgres container (testcontainers).
@@ -20,117 +20,116 @@ import type { Readable, Writable } from 'node:stream'
 // The returned function is Playwright's teardown — kills the dev server
 // process group and stops the container.
 
-const MIGRATIONS_FOLDER = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../drizzle',
-)
+const MIGRATIONS_FOLDER = resolve(dirname(fileURLToPath(import.meta.url)), "../../drizzle");
 
-const PORT = Number(process.env.PLAYWRIGHT_PORT ?? '3100')
+const PORT = Number(process.env.PLAYWRIGHT_PORT ?? "3100");
 
 async function waitForHealthz(timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  let lastErr: unknown
+  const deadline = Date.now() + timeoutMs;
+  let lastErr: unknown;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`http://localhost:${PORT}/healthz`)
-      if (res.ok) return
-      lastErr = `status ${res.status}`
+      const res = await fetch(`http://localhost:${PORT}/healthz`);
+      if (res.ok) return;
+      lastErr = `status ${res.status}`;
     } catch (err) {
-      lastErr = err
+      lastErr = err;
     }
-    await new Promise((r) => setTimeout(r, 1000))
+    await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error(`e2e: dev server did not respond to /healthz within ${timeoutMs}ms (last: ${String(lastErr)})`)
+  throw new Error(
+    `e2e: dev server did not respond to /healthz within ${timeoutMs}ms (last: ${String(lastErr)})`,
+  );
 }
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   // eslint-disable-next-line no-console
-  console.log('[e2e] booting Postgres container…')
+  console.log("[e2e] booting Postgres container…");
   const container: StartedPostgreSqlContainer = await new PostgreSqlContainer(
-    'postgres:16-alpine',
-  ).start()
-  const url = container.getConnectionUri()
+    "postgres:16-alpine",
+  ).start();
+  const url = container.getConnectionUri();
 
-  const pool = new Pool({ connectionString: url, max: 1 })
+  const pool = new Pool({ connectionString: url, max: 1 });
   try {
-    await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_FOLDER })
+    await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_FOLDER });
   } finally {
-    await pool.end()
+    await pool.end();
   }
   // eslint-disable-next-line no-console
-  console.log(`[e2e] Postgres ready at ${url}`)
+  console.log(`[e2e] Postgres ready at ${url}`);
 
   const devEnv: NodeJS.ProcessEnv = {
     ...process.env,
     DATABASE_URL: url,
     DATABASE_URL_DIRECT: url,
-    NODE_ENV: 'test',
-    LOG_LEVEL: 'warn',
+    NODE_ENV: "test",
+    LOG_LEVEL: "warn",
     // Overwrite any values the developer's .env happens to have set —
     // a token signed with the test secret in this process MUST verify
     // against the same secret in the dev server.
-    INVITE_TOKEN_SECRET: 'test-invite-secret-xxxxxxxxxxxxxxxxxxxx',
-    FEEDBACK_SIGNING_SECRET: 'test-feedback-secret-xxxxxxxxxxxxxxxx',
-    BETTER_AUTH_SECRET: 'test-better-auth-secret-xxxxxxxxxxxxxxx',
+    INVITE_TOKEN_SECRET: "test-invite-secret-xxxxxxxxxxxxxxxxxxxx",
+    FEEDBACK_SIGNING_SECRET: "test-feedback-secret-xxxxxxxxxxxxxxxx",
+    BETTER_AUTH_SECRET: "test-better-auth-secret-xxxxxxxxxxxxxxx",
     BETTER_AUTH_URL: `http://localhost:${PORT}`,
-    INGEST_SCHEDULE_ENABLED: '0',
-  }
+    INGEST_SCHEDULE_ENABLED: "0",
+  };
 
   // Propagate so the test specs themselves see the same secrets when
   // they import ~/lib/invite-token to sign tokens.
   for (const [k, v] of Object.entries(devEnv)) {
-    if (v !== undefined) process.env[k] = v
+    if (v !== undefined) process.env[k] = v;
   }
 
   // eslint-disable-next-line no-console
-  console.log(`[e2e] spawning pnpm dev on port ${PORT}…`)
+  console.log(`[e2e] spawning pnpm dev on port ${PORT}…`);
   const devServer: ChildProcessByStdio<Writable | null, Readable, Readable> = spawn(
-    'pnpm',
-    ['dev', '--port', String(PORT)],
+    "pnpm",
+    ["dev", "--port", String(PORT)],
     {
       env: devEnv,
       detached: true, // own process group so SIGTERM reaches vite + nitro children
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ["ignore", "pipe", "pipe"],
     },
-  )
+  );
   // Surface server errors during the wait — silent crashes here are the
   // hardest e2e bugs to diagnose.
-  devServer.stderr?.on('data', (buf) => process.stderr.write(`[dev] ${buf}`))
-  devServer.on('exit', (code, signal) => {
-    if (code !== 0 && signal !== 'SIGTERM') {
+  devServer.stderr?.on("data", (buf) => process.stderr.write(`[dev] ${buf}`));
+  devServer.on("exit", (code, signal) => {
+    if (code !== 0 && signal !== "SIGTERM") {
       // eslint-disable-next-line no-console
-      console.error(`[e2e] dev server exited unexpectedly (code=${code} signal=${signal})`)
+      console.error(`[e2e] dev server exited unexpectedly (code=${code} signal=${signal})`);
     }
-  })
+  });
 
   try {
-    await waitForHealthz(180_000)
+    await waitForHealthz(180_000);
   } catch (err) {
-    devServer.kill('SIGKILL')
-    await container.stop()
-    throw err
+    devServer.kill("SIGKILL");
+    await container.stop();
+    throw err;
   }
   // eslint-disable-next-line no-console
-  console.log('[e2e] dev server is ready')
+  console.log("[e2e] dev server is ready");
 
   return async () => {
     // eslint-disable-next-line no-console
-    console.log('[e2e] tearing down dev server + Postgres…')
+    console.log("[e2e] tearing down dev server + Postgres…");
     if (devServer.pid && !devServer.killed) {
       try {
         // Negative pid → signal the whole process group, killing vite + nitro.
-        process.kill(-devServer.pid, 'SIGTERM')
+        process.kill(-devServer.pid, "SIGTERM");
       } catch {
         // already gone
       }
       // Give it 2s, then force kill if still alive.
-      await new Promise((r) => setTimeout(r, 2000))
+      await new Promise((r) => setTimeout(r, 2000));
       try {
-        if (devServer.pid) process.kill(-devServer.pid, 'SIGKILL')
+        if (devServer.pid) process.kill(-devServer.pid, "SIGKILL");
       } catch {
         // already gone
       }
     }
-    await container.stop()
-  }
+    await container.stop();
+  };
 }

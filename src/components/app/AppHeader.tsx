@@ -1,9 +1,9 @@
-import { Link } from '@tanstack/react-router'
-import { BrandMark } from '~/components/landing/BrandMark'
+import { Link } from "@tanstack/react-router";
+import { BrandMark } from "~/components/landing/BrandMark";
 
 type Props = {
-  email: string
-}
+  email: string;
+};
 
 export function AppHeader({ email }: Props) {
   return (
@@ -20,7 +20,7 @@ export function AppHeader({ email }: Props) {
           <Link
             to="/app/profile"
             className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-accent hover:text-white"
-            activeProps={{ className: 'border-accent text-white' }}
+            activeProps={{ className: "border-accent text-white" }}
           >
             Profile
           </Link>
@@ -37,5 +37,5 @@ export function AppHeader({ email }: Props) {
         </div>
       </div>
     </header>
-  )
+  );
 }

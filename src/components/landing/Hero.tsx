@@ -1,7 +1,7 @@
-import { HERO } from '~/data/landing'
+import { HERO } from "~/data/landing";
 
 const HERO_GRADIENT =
-  'radial-gradient(circle at 85% 20%, rgba(217,255,58,0.12), transparent 50%), radial-gradient(circle at 10% 90%, rgba(255,91,58,0.08), transparent 50%)'
+  "radial-gradient(circle at 85% 20%, rgba(217,255,58,0.12), transparent 50%), radial-gradient(circle at 10% 90%, rgba(255,91,58,0.08), transparent 50%)";
 
 export function Hero() {
   return (
@@ -16,18 +16,18 @@ export function Hero() {
           <span
             aria-hidden
             className="h-[6px] w-[6px] rounded-full bg-accent"
-            style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+            style={{ boxShadow: "0 0 12px var(--color-accent)" }}
           />
           {HERO.eyebrow}
         </div>
 
         <h1 className="mb-7 max-w-[980px] text-[clamp(40px,6vw,84px)] font-extrabold leading-[1.02] tracking-[-0.035em]">
-          {HERO.headlineLead}{' '}
+          {HERO.headlineLead}{" "}
           <span
             className="bg-clip-text text-transparent"
             style={{
               backgroundImage:
-                'linear-gradient(120deg, var(--color-accent) 0%, var(--color-accent-warm) 100%)',
+                "linear-gradient(120deg, var(--color-accent) 0%, var(--color-accent-warm) 100%)",
             }}
           >
             {HERO.headlineAccent}
@@ -57,13 +57,11 @@ export function Hero() {
               <span className="text-[11px] uppercase tracking-[0.12em] text-[#6a6a7a]">
                 {item.label}
               </span>
-              <span className="text-base font-medium text-white">
-                {item.value}
-              </span>
+              <span className="text-base font-medium text-white">{item.value}</span>
             </div>
           ))}
         </div>
       </div>
     </header>
-  )
+  );
 }

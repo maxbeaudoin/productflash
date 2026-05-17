@@ -1,17 +1,17 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { eq, sql } from 'drizzle-orm'
-import { useState } from 'react'
-import { z } from 'zod'
-import { enqueueFteRun } from '~/agents/fte/job'
-import { AuthShell } from '~/components/auth/AuthShell'
-import { users as usersTable, waitlist as waitlistTable } from '~/db/schema'
-import { issueAutoSignInUrl } from '~/lib/auth-server'
-import { getBoss } from '~/lib/boss'
-import { getDb } from '~/lib/db'
-import { verifyInviteToken } from '~/lib/invite-token'
-import { logger } from '~/lib/logger'
-import { captureServerEvent } from '~/lib/posthog'
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { eq, sql } from "drizzle-orm";
+import { useState } from "react";
+import { z } from "zod";
+import { enqueueFteRun } from "~/agents/fte/job";
+import { AuthShell } from "~/components/auth/AuthShell";
+import { users as usersTable, waitlist as waitlistTable } from "~/db/schema";
+import { issueAutoSignInUrl } from "~/lib/auth-server";
+import { getBoss } from "~/lib/boss";
+import { getDb } from "~/lib/db";
+import { verifyInviteToken } from "~/lib/invite-token";
+import { logger } from "~/lib/logger";
+import { captureServerEvent } from "~/lib/posthog";
 
 // The public funnel is invite-only (see #33/#34). Admins issue signed
 // `?invite=<token>` URLs from /admin/waitlist; a bare /signup or a tampered
@@ -23,7 +23,7 @@ import { captureServerEvent } from '~/lib/posthog'
 // the client navigates to — establishing the Better Auth session cookie.
 const searchSchema = z.object({
   invite: z.string().min(1).optional(),
-})
+});
 
 // HMAC verification runs server-side because INVITE_TOKEN_SECRET must never
 // reach the client. On a valid token the loader also fetches the matching
@@ -31,32 +31,32 @@ const searchSchema = z.object({
 // user already typed on the landing waitlist (task #37). Defaults are
 // returned to the client; the form lets the user revise them.
 type InviteVerification = {
-  email: string | null
-  defaults: { position: string; companyUrl: string } | null
-}
+  email: string | null;
+  defaults: { position: string; companyUrl: string } | null;
+};
 
-const verifyInvite = createServerFn({ method: 'GET' })
+const verifyInvite = createServerFn({ method: "GET" })
   .inputValidator((data: { token?: string }) => data)
   .handler(async ({ data }): Promise<InviteVerification> => {
-    if (!data.token) return { email: null, defaults: null }
-    const payload = verifyInviteToken(data.token)
-    if (!payload) return { email: null, defaults: null }
+    if (!data.token) return { email: null, defaults: null };
+    const payload = verifyInviteToken(data.token);
+    if (!payload) return { email: null, defaults: null };
 
-    const db = getDb()
+    const db = getDb();
     const [row] = await db
       .select({ position: waitlistTable.position, companyUrl: waitlistTable.companyUrl })
       .from(waitlistTable)
       .where(eq(waitlistTable.id, payload.id))
-      .limit(1)
+      .limit(1);
 
     return {
       email: payload.email,
       defaults: {
-        position: row?.position ?? '',
-        companyUrl: row?.companyUrl ?? '',
+        position: row?.position ?? "",
+        companyUrl: row?.companyUrl ?? "",
       },
-    }
-  })
+    };
+  });
 
 const submitSchema = z.object({
   inviteToken: z.string().min(1),
@@ -70,30 +70,26 @@ const submitSchema = z.object({
   // empty string) shouldn't block the signup — the user just gets the
   // dispatcher's UTC fallback until they update their profile.
   tz: z.string().trim().min(1).max(64).optional(),
-})
+});
 
-type SubmitError =
-  | 'invalid_invite'
-  | 'already_confirmed'
-  | 'user_insert_failed'
-  | 'session_failed'
+type SubmitError = "invalid_invite" | "already_confirmed" | "user_insert_failed" | "session_failed";
 type SubmitResult =
   | { ok: true; email: string; signInUrl: string }
-  | { ok: false; error: SubmitError }
+  | { ok: false; error: SubmitError };
 
 // Server fn: re-verifies the invite token, upserts the user with the AI-
 // profile seed fields the user typed, enqueues the FTE agent, then mints a
 // one-shot magic-link verify URL the client navigates to (auto-sign-in). The
 // user row MUST exist before the verify URL is hit because magic-link runs
 // with `disableSignUp: true` (private beta).
-const submitSignup = createServerFn({ method: 'POST' })
+const submitSignup = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => submitSchema.parse(data))
   .handler(async ({ data }): Promise<SubmitResult> => {
-    const payload = verifyInviteToken(data.inviteToken)
-    if (!payload) return { ok: false, error: 'invalid_invite' }
+    const payload = verifyInviteToken(data.inviteToken);
+    if (!payload) return { ok: false, error: "invalid_invite" };
 
-    const email = payload.email.toLowerCase()
-    const db = getDb()
+    const email = payload.email.toLowerCase();
+    const db = getDb();
 
     // Refuse replay on a confirmed account: once the user has stamped
     // profile_confirmed_at, the invite has served its purpose and any
@@ -105,9 +101,9 @@ const submitSignup = createServerFn({ method: 'POST' })
       .select({ profileConfirmedAt: usersTable.profileConfirmedAt })
       .from(usersTable)
       .where(eq(usersTable.email, email))
-      .limit(1)
+      .limit(1);
     if (existing?.profileConfirmedAt) {
-      return { ok: false, error: 'already_confirmed' }
+      return { ok: false, error: "already_confirmed" };
     }
 
     // Re-running /signup with the same invite should re-seed profile inputs
@@ -119,7 +115,7 @@ const submitSignup = createServerFn({ method: 'POST' })
       .insert(usersTable)
       .values({
         email,
-        status: 'onboarding',
+        status: "onboarding",
         companyUrl: data.companyUrl,
         position: data.position,
         ultimateGoal: data.ultimateGoal,
@@ -139,14 +135,14 @@ const submitSignup = createServerFn({ method: 'POST' })
           updatedAt: new Date(),
         },
       })
-      .returning({ id: usersTable.id, email: usersTable.email })
+      .returning({ id: usersTable.id, email: usersTable.email });
 
-    if (!user) return { ok: false, error: 'user_insert_failed' }
+    if (!user) return { ok: false, error: "user_insert_failed" };
 
     // Best-effort enqueue. `singletonKey: userId` makes a double-submit a
     // no-op; if the FTE worker is down the row is still queued and will
     // pick up when it comes back.
-    const boss = await getBoss()
+    const boss = await getBoss();
     const enqueueRes = await enqueueFteRun(boss, user.id, {
       signup: {
         email: user.email,
@@ -154,48 +150,48 @@ const submitSignup = createServerFn({ method: 'POST' })
         position: data.position,
         ultimateGoal: data.ultimateGoal,
       },
-    })
+    });
     logger.info(
       { userId: user.id, runId: enqueueRes.runId, enqueued: enqueueRes.enqueued },
-      'signup: fte enqueued',
-    )
+      "signup: fte enqueued",
+    );
 
-    captureServerEvent(user.id, 'signup_started', {
+    captureServerEvent(user.id, "signup_started", {
       email: user.email,
       company_url: data.companyUrl,
       position: data.position,
       fte_enqueued: enqueueRes.enqueued,
       run_id: enqueueRes.runId,
-    })
+    });
 
     // Mint a one-shot verify URL — the client navigates to it to consume the
     // pre-seeded verification row, which lands the Better Auth session cookie
     // on the response. /app routes admin → /admin, unconfirmed → onboarding.
-    let signInUrl: string
+    let signInUrl: string;
     try {
-      signInUrl = await issueAutoSignInUrl(user.email, '/app')
+      signInUrl = await issueAutoSignInUrl(user.email, "/app");
     } catch (err) {
-      logger.error({ err, userId: user.id }, 'signup: auto-sign-in url failed')
-      return { ok: false, error: 'session_failed' }
+      logger.error({ err, userId: user.id }, "signup: auto-sign-in url failed");
+      return { ok: false, error: "session_failed" };
     }
 
-    return { ok: true, email: user.email, signInUrl }
-  })
+    return { ok: true, email: user.email, signInUrl };
+  });
 
-export const Route = createFileRoute('/signup')({
+export const Route = createFileRoute("/signup")({
   validateSearch: searchSchema,
   loaderDeps: ({ search: { invite } }) => ({ invite }),
   loader: async ({ deps }) => {
-    const { email, defaults } = await verifyInvite({ data: { token: deps.invite } })
-    return { email, defaults, inviteToken: deps.invite ?? null }
+    const { email, defaults } = await verifyInvite({ data: { token: deps.invite } });
+    return { email, defaults, inviteToken: deps.invite ?? null };
   },
   component: SignupPage,
-})
+});
 
 function SignupPage() {
-  const { email, defaults, inviteToken } = Route.useLoaderData()
-  if (!email || !inviteToken) return <InviteGate />
-  return <FteSignupForm email={email} inviteToken={inviteToken} defaults={defaults} />
+  const { email, defaults, inviteToken } = Route.useLoaderData();
+  if (!email || !inviteToken) return <InviteGate />;
+  return <FteSignupForm email={email} inviteToken={inviteToken} defaults={defaults} />;
 }
 
 function InviteGate() {
@@ -207,7 +203,7 @@ function InviteGate() {
       sub="New seats open on a rolling basis. Drop your email on the waitlist and we'll be in touch when one frees up."
       footnote={
         <span>
-          Already signed in?{' '}
+          Already signed in?{" "}
           <Link to="/login" className="text-white underline-offset-4 hover:underline">
             Log in →
           </Link>
@@ -228,7 +224,7 @@ function InviteGate() {
         </span>
       </Link>
     </AuthShell>
-  )
+  );
 }
 
 function FteSignupForm({
@@ -236,44 +232,44 @@ function FteSignupForm({
   inviteToken,
   defaults,
 }: {
-  email: string
-  inviteToken: string
-  defaults: { position: string; companyUrl: string } | null
+  email: string;
+  inviteToken: string;
+  defaults: { position: string; companyUrl: string } | null;
 }) {
-  const [companyUrl, setCompanyUrl] = useState(defaults?.companyUrl ?? '')
-  const [position, setPosition] = useState(defaults?.position ?? '')
-  const [ultimateGoal, setUltimateGoal] = useState('')
-  const [state, setState] = useState<'idle' | 'submitting' | 'redirecting' | 'error'>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const [companyUrl, setCompanyUrl] = useState(defaults?.companyUrl ?? "");
+  const [position, setPosition] = useState(defaults?.position ?? "");
+  const [ultimateGoal, setUltimateGoal] = useState("");
+  const [state, setState] = useState<"idle" | "submitting" | "redirecting" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setState('submitting')
-    setError(null)
+    event.preventDefault();
+    setState("submitting");
+    setError(null);
     const parsed = submitSchema.safeParse({
       inviteToken,
       companyUrl,
       position,
       ultimateGoal,
       tz: detectBrowserTz(),
-    })
+    });
     if (!parsed.success) {
-      const first = parsed.error.issues[0]
-      setError(first?.message ?? 'Please fill in every field.')
-      setState('error')
-      return
+      const first = parsed.error.issues[0];
+      setError(first?.message ?? "Please fill in every field.");
+      setState("error");
+      return;
     }
-    const res = await submitSignup({ data: parsed.data })
+    const res = await submitSignup({ data: parsed.data });
     if (!res.ok) {
-      setError(messageForError(res.error))
-      setState('error')
-      return
+      setError(messageForError(res.error));
+      setState("error");
+      return;
     }
     // Full-page nav so Better Auth's redirect + Set-Cookie land naturally.
     // The verify URL is single-use and expires in 60s; consuming it now
     // creates the session and routes to /app → /app/onboarding.
-    setState('redirecting')
-    window.location.href = res.signInUrl
+    setState("redirecting");
+    window.location.href = res.signInUrl;
   }
 
   return (
@@ -284,7 +280,7 @@ function FteSignupForm({
       sub="Four lines, then your AI analyst goes to work — researching your space, finding your competitors, and shaping your first brief in real time."
       footnote={
         <span>
-          Not you?{' '}
+          Not you?{" "}
           <Link to="/" hash="waitlist" className="text-white underline-offset-4 hover:underline">
             Join the waitlist instead →
           </Link>
@@ -341,14 +337,14 @@ function FteSignupForm({
 
         <button
           type="submit"
-          disabled={state === 'submitting' || state === 'redirecting'}
+          disabled={state === "submitting" || state === "redirecting"}
           className="group mt-2 inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
         >
-          {state === 'submitting'
-            ? 'Kicking it off…'
-            : state === 'redirecting'
-              ? 'Signing you in…'
-              : 'Start onboarding'}
+          {state === "submitting"
+            ? "Kicking it off…"
+            : state === "redirecting"
+              ? "Signing you in…"
+              : "Start onboarding"}
           <span
             aria-hidden
             className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
@@ -357,12 +353,12 @@ function FteSignupForm({
           </span>
         </button>
 
-        {state === 'error' && error ? (
+        {state === "error" && error ? (
           <p className="text-sm font-medium text-coral">{error}</p>
         ) : null}
       </form>
     </AuthShell>
-  )
+  );
 }
 
 function Field({
@@ -370,9 +366,9 @@ function Field({
   hint,
   children,
 }: {
-  label: string
-  hint?: string
-  children: React.ReactNode
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
 }) {
   return (
     <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
@@ -386,27 +382,27 @@ function Field({
       </span>
       {children}
     </label>
-  )
+  );
 }
 
 function detectBrowserTz(): string | undefined {
   try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    return tz && tz.length > 0 ? tz : undefined
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz && tz.length > 0 ? tz : undefined;
   } catch {
-    return undefined
+    return undefined;
   }
 }
 
 function messageForError(code: SubmitError) {
   switch (code) {
-    case 'invalid_invite':
-      return 'This invite link looks invalid or expired. Ask for a fresh one.'
-    case 'already_confirmed':
-      return 'This invite has already been used. Sign in instead, or ask for a fresh invite.'
-    case 'user_insert_failed':
-      return 'We couldn\'t set up your account. Try again in a moment.'
-    case 'session_failed':
-      return 'We couldn\'t start your session. Try again in a moment.'
+    case "invalid_invite":
+      return "This invite link looks invalid or expired. Ask for a fresh one.";
+    case "already_confirmed":
+      return "This invite has already been used. Sign in instead, or ask for a fresh invite.";
+    case "user_insert_failed":
+      return "We couldn't set up your account. Try again in a moment.";
+    case "session_failed":
+      return "We couldn't start your session. Try again in a moment.";
   }
 }

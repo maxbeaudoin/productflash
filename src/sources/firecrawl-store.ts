@@ -1,30 +1,30 @@
-import { inArray } from 'drizzle-orm'
-import { competitorPricingSnapshots } from '~/db/schema'
-import type { getDb } from '~/lib/db'
-import type { PricingSnapshot } from './firecrawl'
+import { inArray } from "drizzle-orm";
+import { competitorPricingSnapshots } from "~/db/schema";
+import type { getDb } from "~/lib/db";
+import type { PricingSnapshot } from "./firecrawl";
 
-type Db = ReturnType<typeof getDb>
+type Db = ReturnType<typeof getDb>;
 
 export async function loadLatestPricingSnapshots(
   db: Db,
   competitorIds: string[],
 ): Promise<Map<string, PricingSnapshot>> {
-  const out = new Map<string, PricingSnapshot>()
-  if (competitorIds.length === 0) return out
+  const out = new Map<string, PricingSnapshot>();
+  if (competitorIds.length === 0) return out;
 
   const rows = await db
     .select()
     .from(competitorPricingSnapshots)
-    .where(inArray(competitorPricingSnapshots.competitorId, competitorIds))
+    .where(inArray(competitorPricingSnapshots.competitorId, competitorIds));
 
   for (const row of rows) {
     out.set(row.competitorId, {
       content: row.content,
       contentHash: row.contentHash,
       scrapedAt: row.scrapedAt,
-    })
+    });
   }
-  return out
+  return out;
 }
 
 export async function saveLatestPricingSnapshot(
@@ -47,5 +47,5 @@ export async function saveLatestPricingSnapshot(
         contentHash: snapshot.contentHash,
         scrapedAt: snapshot.scrapedAt,
       },
-    })
+    });
 }

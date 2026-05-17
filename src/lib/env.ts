@@ -1,11 +1,9 @@
-import 'dotenv/config'
-import { z } from 'zod'
+import "dotenv/config";
+import { z } from "zod";
 
 const schema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
-    .default('info'),
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
   DATABASE_URL: z.string().url().optional(),
 
@@ -19,7 +17,7 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
 
   RESEND_API_KEY: z.string().optional(),
-  RESEND_FROM: z.string().default('Product Flash <noreply@productflash.ai>'),
+  RESEND_FROM: z.string().default("Product Flash <noreply@productflash.ai>"),
 
   // PostHog uses one "Project API Key" (called the project token in the
   // dashboard) for both server-side capture (posthog-node) and client-side
@@ -27,7 +25,7 @@ const schema = z.object({
   // to inline the value into the browser bundle; Node reads the same env
   // var server-side via process.env, so one variable serves both.
   VITE_POSTHOG_KEY: z.string().optional(),
-  VITE_POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
+  VITE_POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
 
   // Firehose uses two keys: `fhm_...` management key (one-off tap creation
   // via scripts/firehose-bootstrap-tap.ts) and `fh_...` tap token (daily
@@ -49,9 +47,9 @@ const schema = z.object({
   // canonical base for callback links (dev: http://localhost:3000,
   // prod: the Railway-issued domain).
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
-  BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),
+  BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
 
-  ADMIN_USER: z.string().default('admin'),
+  ADMIN_USER: z.string().default("admin"),
   ADMIN_PASSWORD: z.string().optional(),
 
   // Opt-in switch for the daily ingestion + score crons. Off by default so a
@@ -60,25 +58,25 @@ const schema = z.object({
   // `boss.send`) work regardless. Accepts the obvious on/off spellings so the
   // Railway UI can carry a visible toggle.
   INGEST_SCHEDULE_ENABLED: z
-    .enum(['0', '1', 'true', 'false', ''])
+    .enum(["0", "1", "true", "false", ""])
     .optional()
-    .transform((v) => v === '1' || v === 'true'),
-})
+    .transform((v) => v === "1" || v === "true"),
+});
 
-const parsed = schema.safeParse(process.env)
+const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error('Invalid environment variables:', parsed.error.flatten().fieldErrors)
-  throw new Error('Environment validation failed — see errors above')
+  console.error("Invalid environment variables:", parsed.error.flatten().fieldErrors);
+  throw new Error("Environment validation failed — see errors above");
 }
 
-export const env = parsed.data
-export type Env = z.infer<typeof schema>
+export const env = parsed.data;
+export type Env = z.infer<typeof schema>;
 
 export function requireEnv<K extends keyof Env>(key: K): NonNullable<Env[K]> {
-  const value = env[key]
-  if (value === undefined || value === null || value === '') {
-    throw new Error(`Missing required env var: ${key}`)
+  const value = env[key];
+  if (value === undefined || value === null || value === "") {
+    throw new Error(`Missing required env var: ${key}`);
   }
-  return value as NonNullable<Env[K]>
+  return value as NonNullable<Env[K]>;
 }

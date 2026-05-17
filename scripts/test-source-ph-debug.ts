@@ -1,5 +1,5 @@
-import { requireEnv } from '~/lib/env'
-import { getPool } from '~/lib/db'
+import { requireEnv } from "~/lib/env";
+import { getPool } from "~/lib/db";
 
 // PH GraphQL schema introspection probe.
 //
@@ -12,7 +12,7 @@ import { getPool } from '~/lib/db'
 // on 2026-05-14. Re-run and update the doc if anything has changed.
 
 async function main() {
-  const token = requireEnv('PRODUCT_HUNT_TOKEN')
+  const token = requireEnv("PRODUCT_HUNT_TOKEN");
 
   const query = `
     {
@@ -39,51 +39,51 @@ async function main() {
         }
       }
     }
-  `
+  `;
 
-  const res = await fetch('https://api.producthunt.com/v2/api/graphql', {
-    method: 'POST',
+  const res = await fetch("https://api.producthunt.com/v2/api/graphql", {
+    method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify({ query }),
-  })
+  });
 
-  const json: any = await res.json()
+  const json: any = await res.json();
   if (json.errors) {
-    console.error('errors:', JSON.stringify(json.errors, null, 2))
-    process.exit(1)
+    console.error("errors:", JSON.stringify(json.errors, null, 2));
+    process.exit(1);
   }
 
-  console.log('=== Query root fields ===')
+  console.log("=== Query root fields ===");
   for (const f of json.data.Query.fields) {
-    const args = f.args.map((a: any) => `${a.name}: ${typeStr(a.type)}`).join(', ')
-    console.log(`  ${f.name}(${args}) -> ${typeStr(f.type)}`)
+    const args = f.args.map((a: any) => `${a.name}: ${typeStr(a.type)}`).join(", ");
+    console.log(`  ${f.name}(${args}) -> ${typeStr(f.type)}`);
   }
 
-  console.log('\n=== Post fields ===')
+  console.log("\n=== Post fields ===");
   for (const f of json.data.Post.fields) {
-    console.log(`  ${f.name}: ${typeStr(f.type)}`)
+    console.log(`  ${f.name}: ${typeStr(f.type)}`);
   }
 
-  console.log('\n=== User fields ===')
+  console.log("\n=== User fields ===");
   for (const f of json.data.User.fields) {
-    console.log(`  ${f.name}: ${typeStr(f.type)}`)
+    console.log(`  ${f.name}: ${typeStr(f.type)}`);
   }
 }
 
 function typeStr(t: any): string {
-  if (!t) return '?'
-  if (t.kind === 'NON_NULL') return `${typeStr(t.ofType)}!`
-  if (t.kind === 'LIST') return `[${typeStr(t.ofType)}]`
-  return t.name || t.kind
+  if (!t) return "?";
+  if (t.kind === "NON_NULL") return `${typeStr(t.ofType)}!`;
+  if (t.kind === "LIST") return `[${typeStr(t.ofType)}]`;
+  return t.name || t.kind;
 }
 
 main()
   .catch((err) => {
-    console.error('probe failed:', err)
-    process.exit(1)
+    console.error("probe failed:", err);
+    process.exit(1);
   })
-  .finally(() => getPool().end())
+  .finally(() => getPool().end());

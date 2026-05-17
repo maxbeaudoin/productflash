@@ -1,11 +1,11 @@
-import { Link, createFileRoute, notFound, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
-import { useState } from 'react'
-import { z } from 'zod'
-import { enqueueFteRun } from '~/agents/fte/job'
-import { Button } from '~/components/ui/button'
-import { DigestItemCard, type DigestItemView } from '~/components/app/DigestItemCard'
+import { Link, createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { useState } from "react";
+import { z } from "zod";
+import { enqueueFteRun } from "~/agents/fte/job";
+import { Button } from "~/components/ui/button";
+import { DigestItemCard, type DigestItemView } from "~/components/app/DigestItemCard";
 import {
   competitors as competitorsTable,
   digestItems,
@@ -15,15 +15,15 @@ import {
   rawItems,
   userCompetitors,
   users,
-} from '~/db/schema'
-import type { DigestTag } from '~/design/tokens'
-import { enqueueFastPath } from '~/jobs/fast-path'
-import { requireAdminSession } from '~/lib/auth-server'
-import { getBoss } from '~/lib/boss'
-import { getDb } from '~/lib/db'
-import { deriveDigestPeriod } from '~/lib/digest-period'
-import { formatUsd } from '~/lib/llm-cost-format'
-import { logger } from '~/lib/logger'
+} from "~/db/schema";
+import type { DigestTag } from "~/design/tokens";
+import { enqueueFastPath } from "~/jobs/fast-path";
+import { requireAdminSession } from "~/lib/auth-server";
+import { getBoss } from "~/lib/boss";
+import { getDb } from "~/lib/db";
+import { deriveDigestPeriod } from "~/lib/digest-period";
+import { formatUsd } from "~/lib/llm-cost-format";
+import { logger } from "~/lib/logger";
 
 // /admin/users/:id (#16). Operator console for one user. Three jobs:
 //   1. Surface the AI-generated profile + competitor map so we can spot
@@ -34,83 +34,73 @@ import { logger } from '~/lib/logger'
 //   3. Replay the FTE agent's reasoning timeline and expose the two
 //      re-run actions (FTE agent, fast-path digest) for hands-on QA.
 
-const RECENT_DIGEST_LIMIT = 3
+const RECENT_DIGEST_LIMIT = 3;
 
 type ProfileView = {
-  id: string
-  email: string
-  status: string
-  role: string
-  name: string | null
-  tz: string | null
-  position: string | null
-  companyName: string | null
-  companyUrl: string | null
-  ultimateGoal: string | null
-  focusAreas: string[] | null
-  createdAt: string
-  profileConfirmedAt: string | null
-}
+  id: string;
+  email: string;
+  status: string;
+  role: string;
+  name: string | null;
+  tz: string | null;
+  position: string | null;
+  companyName: string | null;
+  companyUrl: string | null;
+  ultimateGoal: string | null;
+  focusAreas: string[] | null;
+  createdAt: string;
+  profileConfirmedAt: string | null;
+};
 
 type CompetitorView = {
-  id: string
-  name: string
-  homepageUrl: string
-  rssUrl: string | null
-}
+  id: string;
+  name: string;
+  homepageUrl: string;
+  rssUrl: string | null;
+};
 
 type DigestView = {
-  id: string
-  createdAt: string
-  periodStart: string | null
-  periodEnd: string | null
-  itemCount: number
-  items: DigestItemView[]
+  id: string;
+  createdAt: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  itemCount: number;
+  items: DigestItemView[];
   // Sum of llm_usage rows tied to this digest (synthesis only — classify
   // is per-(user, raw_item) and not always digest-attributable).
-  costMicroUsd: number
-}
+  costMicroUsd: number;
+};
 
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 type FteEventRow = {
-  id: string
-  runId: string
-  kind: string
-  payload: { [key: string]: JsonValue }
-  ts: string
-}
+  id: string;
+  runId: string;
+  kind: string;
+  payload: { [key: string]: JsonValue };
+  ts: string;
+};
 
 type DetailLoaderData = {
-  profile: ProfileView
-  competitors: CompetitorView[]
-  digests: DigestView[]
-  fteRunId: string | null
-  fteEvents: FteEventRow[]
+  profile: ProfileView;
+  competitors: CompetitorView[];
+  digests: DigestView[];
+  fteRunId: string | null;
+  fteEvents: FteEventRow[];
   // Cost of the latest FTE run (sum of llm_usage rows where kind='fte' and
   // run_id = fteRunId). Null when there are no runs yet.
-  fteRunCostMicroUsd: number | null
-  lifetimeCostMicroUsd: number
-}
+  fteRunCostMicroUsd: number | null;
+  lifetimeCostMicroUsd: number;
+};
 
-const loadUserDetail = createServerFn({ method: 'GET' })
+const loadUserDetail = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => z.object({ userId: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<DetailLoaderData> => {
-    await requireAdminSession()
-    const db = getDb()
+    await requireAdminSession();
+    const db = getDb();
 
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, data.userId))
-      .limit(1)
-    if (!user) throw notFound()
+    const [user] = await db.select().from(users).where(eq(users.id, data.userId)).limit(1);
+    if (!user) throw notFound();
 
     const competitorRows = await db
       .select({
@@ -122,7 +112,7 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       .from(userCompetitors)
       .innerJoin(competitorsTable, eq(userCompetitors.competitorId, competitorsTable.id))
       .where(eq(userCompetitors.userId, user.id))
-      .orderBy(asc(competitorsTable.name))
+      .orderBy(asc(competitorsTable.name));
 
     const digestRows = await db
       .select({
@@ -135,9 +125,9 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       .from(digests)
       .where(eq(digests.userId, user.id))
       .orderBy(desc(digests.createdAt))
-      .limit(RECENT_DIGEST_LIMIT)
+      .limit(RECENT_DIGEST_LIMIT);
 
-    const digestIds = digestRows.map((d) => d.id)
+    const digestIds = digestRows.map((d) => d.id);
     const itemRows = digestIds.length
       ? await db
           .select({
@@ -155,11 +145,11 @@ const loadUserDetail = createServerFn({ method: 'GET' })
           .innerJoin(rawItems, eq(digestItems.rawItemId, rawItems.id))
           .where(eq(digestItems.userId, user.id))
           .orderBy(desc(digestItems.score), asc(digestItems.createdAt))
-      : []
+      : [];
 
-    const itemsByDigest = new Map<string, DigestItemView[]>()
+    const itemsByDigest = new Map<string, DigestItemView[]>();
     for (const row of itemRows) {
-      const list = itemsByDigest.get(row.digestId) ?? []
+      const list = itemsByDigest.get(row.digestId) ?? [];
       list.push({
         id: row.id,
         category: row.category as DigestTag,
@@ -168,8 +158,8 @@ const loadUserDetail = createServerFn({ method: 'GET' })
         impactNote: row.impactNote,
         sourceUrl: row.sourceUrl,
         occurredAt: row.occurredAt ? row.occurredAt.toISOString() : null,
-      })
-      itemsByDigest.set(row.digestId, list)
+      });
+      itemsByDigest.set(row.digestId, list);
     }
 
     const [latestRun] = await db
@@ -177,8 +167,8 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       .from(fteEvents)
       .where(eq(fteEvents.userId, user.id))
       .orderBy(desc(fteEvents.ts))
-      .limit(1)
-    const runId = latestRun?.runId ?? null
+      .limit(1);
+    const runId = latestRun?.runId ?? null;
 
     // Per-digest synthesis cost. classify spend is per (user, raw_item) and
     // doesn't always end up tied to one digest, so the per-digest number is
@@ -194,22 +184,19 @@ const loadUserDetail = createServerFn({ method: 'GET' })
           .where(
             and(
               eq(llmUsage.userId, user.id),
-              eq(llmUsage.kind, 'synthesize'),
-              inArray(
-                llmUsage.digestId,
-                digestIds as [string, ...string[]],
-              ),
+              eq(llmUsage.kind, "synthesize"),
+              inArray(llmUsage.digestId, digestIds as [string, ...string[]]),
             ),
           )
           .groupBy(llmUsage.digestId)
-      : []
-    const digestCostById = new Map<string, number>()
+      : [];
+    const digestCostById = new Map<string, number>();
     for (const row of digestCostRows) {
-      if (row.digestId) digestCostById.set(row.digestId, row.costMicroUsd)
+      if (row.digestId) digestCostById.set(row.digestId, row.costMicroUsd);
     }
 
     const fteRunCostMicroUsd = runId
-      ? (
+      ? ((
           await db
             .select({
               cost: sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`,
@@ -218,12 +205,12 @@ const loadUserDetail = createServerFn({ method: 'GET' })
             .where(
               and(
                 eq(llmUsage.userId, user.id),
-                eq(llmUsage.kind, 'fte'),
+                eq(llmUsage.kind, "fte"),
                 eq(llmUsage.runId, runId),
               ),
             )
-        )[0]?.cost ?? 0
-      : null
+        )[0]?.cost ?? 0)
+      : null;
 
     const lifetimeCostMicroUsd =
       (
@@ -233,7 +220,7 @@ const loadUserDetail = createServerFn({ method: 'GET' })
           })
           .from(llmUsage)
           .where(eq(llmUsage.userId, user.id))
-      )[0]?.cost ?? 0
+      )[0]?.cost ?? 0;
 
     const eventRows: FteEventRow[] = runId
       ? (
@@ -255,7 +242,7 @@ const loadUserDetail = createServerFn({ method: 'GET' })
           payload: (row.payload ?? {}) as { [key: string]: JsonValue },
           ts: row.ts.toISOString(),
         }))
-      : []
+      : [];
 
     return {
       profile: {
@@ -271,9 +258,7 @@ const loadUserDetail = createServerFn({ method: 'GET' })
         ultimateGoal: user.ultimateGoal,
         focusAreas: user.focusAreas,
         createdAt: user.createdAt.toISOString(),
-        profileConfirmedAt: user.profileConfirmedAt
-          ? user.profileConfirmedAt.toISOString()
-          : null,
+        profileConfirmedAt: user.profileConfirmedAt ? user.profileConfirmedAt.toISOString() : null,
       },
       competitors: competitorRows,
       digests: digestRows.map<DigestView>((d) => ({
@@ -289,16 +274,16 @@ const loadUserDetail = createServerFn({ method: 'GET' })
       fteEvents: eventRows,
       fteRunCostMicroUsd,
       lifetimeCostMicroUsd,
-    }
-  })
+    };
+  });
 
-const userIdInput = z.object({ userId: z.string().uuid() })
+const userIdInput = z.object({ userId: z.string().uuid() });
 
-const triggerFte = createServerFn({ method: 'POST' })
+const triggerFte = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => userIdInput.parse(data))
   .handler(async ({ data }) => {
-    const session = await requireAdminSession()
-    const db = getDb()
+    const session = await requireAdminSession();
+    const db = getDb();
     const [user] = await db
       .select({
         id: users.id,
@@ -309,10 +294,10 @@ const triggerFte = createServerFn({ method: 'POST' })
       })
       .from(users)
       .where(eq(users.id, data.userId))
-      .limit(1)
-    if (!user) throw new Error('user_not_found')
+      .limit(1);
+    if (!user) throw new Error("user_not_found");
 
-    const boss = await getBoss()
+    const boss = await getBoss();
     const { runId, enqueued } = await enqueueFteRun(boss, user.id, {
       signup: {
         email: user.email,
@@ -320,72 +305,72 @@ const triggerFte = createServerFn({ method: 'POST' })
         position: user.position,
         ultimateGoal: user.ultimateGoal,
       },
-    })
+    });
     logger.info(
       { admin: session.user.email, target: user.email, runId, enqueued },
-      'admin: fte re-run enqueued',
-    )
-    return { runId, enqueued }
-  })
+      "admin: fte re-run enqueued",
+    );
+    return { runId, enqueued };
+  });
 
-const triggerFastPath = createServerFn({ method: 'POST' })
+const triggerFastPath = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => userIdInput.parse(data))
   .handler(async ({ data }) => {
-    const session = await requireAdminSession()
-    const boss = await getBoss()
-    const { enqueued } = await enqueueFastPath(boss, data.userId)
+    const session = await requireAdminSession();
+    const boss = await getBoss();
+    const { enqueued } = await enqueueFastPath(boss, data.userId);
     logger.info(
       { admin: session.user.email, target: data.userId, enqueued },
-      'admin: fast-path re-run enqueued',
-    )
-    return { enqueued }
-  })
+      "admin: fast-path re-run enqueued",
+    );
+    return { enqueued };
+  });
 
-export const Route = createFileRoute('/admin/users/$userId')({
+export const Route = createFileRoute("/admin/users/$userId")({
   loader: ({ params }) => loadUserDetail({ data: { userId: params.userId } }),
   component: AdminUserDetailPage,
-})
+});
 
 function AdminUserDetailPage() {
-  const data = Route.useLoaderData()
-  const router = useRouter()
-  const [fteState, setFteState] = useState<'idle' | 'running' | 'error'>('idle')
-  const [fastState, setFastState] = useState<'idle' | 'running' | 'error'>('idle')
-  const [actionNote, setActionNote] = useState<string | null>(null)
+  const data = Route.useLoaderData();
+  const router = useRouter();
+  const [fteState, setFteState] = useState<"idle" | "running" | "error">("idle");
+  const [fastState, setFastState] = useState<"idle" | "running" | "error">("idle");
+  const [actionNote, setActionNote] = useState<string | null>(null);
 
   async function onReRunFte() {
-    setFteState('running')
-    setActionNote(null)
+    setFteState("running");
+    setActionNote(null);
     try {
-      const res = await triggerFte({ data: { userId: data.profile.id } })
+      const res = await triggerFte({ data: { userId: data.profile.id } });
       setActionNote(
         res.enqueued
           ? `FTE run enqueued (${res.runId.slice(0, 8)}…). Refresh in ~30s for first events.`
-          : 'FTE run already in flight for this user — no new job enqueued.',
-      )
-      setFteState('idle')
-      router.invalidate()
+          : "FTE run already in flight for this user — no new job enqueued.",
+      );
+      setFteState("idle");
+      router.invalidate();
     } catch (err) {
-      setActionNote(err instanceof Error ? err.message : 'Failed to enqueue FTE')
-      setFteState('error')
+      setActionNote(err instanceof Error ? err.message : "Failed to enqueue FTE");
+      setFteState("error");
     }
   }
 
   async function onReRunFastPath() {
-    setFastState('running')
-    setActionNote(null)
+    setFastState("running");
+    setActionNote(null);
     try {
-      const res = await triggerFastPath({ data: { userId: data.profile.id } })
+      const res = await triggerFastPath({ data: { userId: data.profile.id } });
       setActionNote(
         res.enqueued
-          ? 'Fast-path digest enqueued. Refresh in ~2–3 min to see the new digest.'
-          : 'Fast-path already in flight for this user — no new job enqueued.',
-      )
-      setFastState('idle')
-      router.invalidate()
+          ? "Fast-path digest enqueued. Refresh in ~2–3 min to see the new digest."
+          : "Fast-path already in flight for this user — no new job enqueued.",
+      );
+      setFastState("idle");
+      router.invalidate();
     } catch (err) {
-      setActionNote(err instanceof Error ? err.message : 'Failed to enqueue fast-path')
-      setFastState('error')
+      setActionNote(err instanceof Error ? err.message : "Failed to enqueue fast-path");
+      setFastState("error");
     }
   }
 
@@ -399,10 +384,7 @@ function AdminUserDetailPage() {
           <span aria-hidden>←</span> All users
         </Link>
 
-        <ProfileCard
-          profile={data.profile}
-          lifetimeCostMicroUsd={data.lifetimeCostMicroUsd}
-        />
+        <ProfileCard profile={data.profile} lifetimeCostMicroUsd={data.lifetimeCostMicroUsd} />
 
         <ActionsRow
           fteState={fteState}
@@ -423,15 +405,15 @@ function AdminUserDetailPage() {
         />
       </div>
     </main>
-  )
+  );
 }
 
 function ProfileCard({
   profile,
   lifetimeCostMicroUsd,
 }: {
-  profile: ProfileView
-  lifetimeCostMicroUsd: number
+  profile: ProfileView;
+  lifetimeCostMicroUsd: number;
 }) {
   return (
     <section className="rounded-2xl border border-ink-line bg-paper-warm p-6">
@@ -440,7 +422,7 @@ function ProfileCard({
           <h1 className="text-2xl font-semibold tracking-tight">{profile.email}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
             <StatusPill status={profile.status} />
-            {profile.role === 'admin' ? (
+            {profile.role === "admin" ? (
               <span className="inline-flex items-center rounded-pill bg-accent-warm/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text">
                 Admin
               </span>
@@ -509,7 +491,7 @@ function ProfileCard({
         </div>
       </div>
     </section>
-  )
+  );
 }
 
 function ActionsRow({
@@ -519,11 +501,11 @@ function ActionsRow({
   onReRunFte,
   onReRunFastPath,
 }: {
-  fteState: 'idle' | 'running' | 'error'
-  fastState: 'idle' | 'running' | 'error'
-  actionNote: string | null
-  onReRunFte: () => void
-  onReRunFastPath: () => void
+  fteState: "idle" | "running" | "error";
+  fastState: "idle" | "running" | "error";
+  actionNote: string | null;
+  onReRunFte: () => void;
+  onReRunFastPath: () => void;
 }) {
   return (
     <section className="mt-6 rounded-2xl border border-ink-line bg-paper-warm p-5">
@@ -532,21 +514,21 @@ function ActionsRow({
           type="button"
           variant="default"
           onClick={onReRunFte}
-          disabled={fteState === 'running'}
+          disabled={fteState === "running"}
         >
-          {fteState === 'running' ? 'Enqueuing…' : 'Re-run FTE agent'}
+          {fteState === "running" ? "Enqueuing…" : "Re-run FTE agent"}
         </Button>
         <Button
           type="button"
           variant="outline"
           onClick={onReRunFastPath}
-          disabled={fastState === 'running'}
+          disabled={fastState === "running"}
         >
-          {fastState === 'running' ? 'Enqueuing…' : 'Re-trigger digest'}
+          {fastState === "running" ? "Enqueuing…" : "Re-trigger digest"}
         </Button>
         <p className="text-xs text-text-muted">
-          Both queues are singleton-per-user — a duplicate click while a job is
-          in flight is a no-op.
+          Both queues are singleton-per-user — a duplicate click while a job is in flight is a
+          no-op.
         </p>
       </div>
       {actionNote ? (
@@ -555,7 +537,7 @@ function ActionsRow({
         </p>
       ) : null}
     </section>
-  )
+  );
 }
 
 function CompetitorsBlock({ competitors }: { competitors: CompetitorView[] }) {
@@ -563,14 +545,11 @@ function CompetitorsBlock({ competitors }: { competitors: CompetitorView[] }) {
     <section className="mt-6 rounded-2xl border border-ink-line bg-paper-warm p-6">
       <div className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold tracking-tight">Competitors</h2>
-        <span className="font-mono text-xs text-text-muted">
-          {competitors.length} tracked
-        </span>
+        <span className="font-mono text-xs text-text-muted">{competitors.length} tracked</span>
       </div>
       {competitors.length === 0 ? (
         <p className="mt-3 text-sm text-text-muted">
-          None linked yet. The FTE agent populates this on signup; re-run above
-          if it stalled.
+          None linked yet. The FTE agent populates this on signup; re-run above if it stalled.
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-ink-line overflow-hidden rounded-md border border-ink-line bg-paper">
@@ -606,7 +585,7 @@ function CompetitorsBlock({ competitors }: { competitors: CompetitorView[] }) {
         </ul>
       )}
     </section>
-  )
+  );
 }
 
 function DigestsBlock({ digests }: { digests: DigestView[] }) {
@@ -630,7 +609,7 @@ function DigestsBlock({ digests }: { digests: DigestView[] }) {
         </div>
       )}
     </section>
-  )
+  );
 }
 
 // Inline preview of one digest using the same DigestItemCard /app/digests/:id
@@ -641,33 +620,31 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
   const period = deriveDigestPeriod({
     periodStart: digest.periodStart,
     periodEnd: digest.periodEnd,
-  })
-  const created = new Date(digest.createdAt)
+  });
+  const created = new Date(digest.createdAt);
   const fallbackDateLabel = created
     .toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     })
-    .toUpperCase()
+    .toUpperCase();
   const fallbackTimeLabel = created.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-  const headerLabel = period.kind === 'catchup' ? 'catch-up brief' : 'daily brief'
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const headerLabel = period.kind === "catchup" ? "catch-up brief" : "daily brief";
   const headerMetaLabel =
-    period.rangeLabel?.toUpperCase() ??
-    `${fallbackDateLabel} · ${fallbackTimeLabel}`
+    period.rangeLabel?.toUpperCase() ?? `${fallbackDateLabel} · ${fallbackTimeLabel}`;
   return (
     <div
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft text-white"
-      style={{ boxShadow: '0 20px 40px -20px rgba(0,0,0,0.5)' }}
+      style={{ boxShadow: "0 20px 40px -20px rgba(0,0,0,0.5)" }}
     >
       <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-6 py-4">
         <div className="text-[13px] text-[#888]">
-          <strong className="font-semibold text-white">Product Flash</strong> ·{' '}
-          {headerLabel}
+          <strong className="font-semibold text-white">Product Flash</strong> · {headerLabel}
         </div>
         <div className="flex items-center gap-3">
           <span
@@ -686,16 +663,12 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
           </p>
         ) : (
           digest.items.map((item, idx) => (
-            <DigestItemCard
-              key={item.id}
-              item={item}
-              isLast={idx === digest.items.length - 1}
-            />
+            <DigestItemCard key={item.id} item={item} isLast={idx === digest.items.length - 1} />
           ))
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function FteTimelineBlock({
@@ -703,9 +676,9 @@ function FteTimelineBlock({
   events,
   costMicroUsd,
 }: {
-  runId: string | null
-  events: FteEventRow[]
-  costMicroUsd: number | null
+  runId: string | null;
+  events: FteEventRow[];
+  costMicroUsd: number | null;
 }) {
   return (
     <section className="mt-8">
@@ -716,7 +689,7 @@ function FteTimelineBlock({
             className="font-mono text-xs text-text-muted"
             title="Onboarding cost = Sonnet tokens + web_search surcharge for this run. Firecrawl not included."
           >
-            run {runId.slice(0, 8)}… · {events.length} events ·{' '}
+            run {runId.slice(0, 8)}… · {events.length} events ·{" "}
             <span className="text-text">{formatUsd(costMicroUsd ?? 0)}</span>
           </span>
         ) : (
@@ -725,8 +698,7 @@ function FteTimelineBlock({
       </div>
       {events.length === 0 ? (
         <p className="rounded-2xl border border-ink-line bg-paper-warm p-6 text-sm text-text-muted">
-          The agent hasn't run for this user yet, or its events have been
-          pruned.
+          The agent hasn't run for this user yet, or its events have been pruned.
         </p>
       ) : (
         <ol className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-paper-warm font-mono text-xs">
@@ -736,15 +708,15 @@ function FteTimelineBlock({
         </ol>
       )}
     </section>
-  )
+  );
 }
 
 function FteEventRowItem({ event }: { event: FteEventRow }) {
   const ts = new Date(event.ts).toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
   return (
     <li className="grid grid-cols-[80px_140px_1fr] gap-3 px-4 py-2">
       <span className="text-text-muted">{ts}</span>
@@ -753,51 +725,47 @@ function FteEventRowItem({ event }: { event: FteEventRow }) {
         {summarizePayload(event.kind, event.payload)}
       </pre>
     </li>
-  )
+  );
 }
 
 function kindTone(kind: string): string {
   switch (kind) {
-    case 'planner_text':
-      return 'text-text'
-    case 'tool_use':
-    case 'server_tool_use':
-      return 'text-coral'
-    case 'tool_result':
-    case 'web_search_tool_result':
-      return 'text-text-muted'
-    case 'run_started':
-    case 'run_finished':
-      return 'text-text'
-    case 'error':
-      return 'text-coral'
+    case "planner_text":
+      return "text-text";
+    case "tool_use":
+    case "server_tool_use":
+      return "text-coral";
+    case "tool_result":
+    case "web_search_tool_result":
+      return "text-text-muted";
+    case "run_started":
+    case "run_finished":
+      return "text-text";
+    case "error":
+      return "text-coral";
     default:
-      return 'text-text-muted'
+      return "text-text-muted";
   }
 }
 
-const MAX_PAYLOAD_PREVIEW = 280
+const MAX_PAYLOAD_PREVIEW = 280;
 
-function summarizePayload(
-  kind: string,
-  payload: { [key: string]: JsonValue },
-): string {
-  if (kind === 'planner_text' && typeof payload.text === 'string') {
-    return truncate(payload.text, MAX_PAYLOAD_PREVIEW)
+function summarizePayload(kind: string, payload: { [key: string]: JsonValue }): string {
+  if (kind === "planner_text" && typeof payload.text === "string") {
+    return truncate(payload.text, MAX_PAYLOAD_PREVIEW);
   }
-  if (kind === 'tool_use' || kind === 'tool_result') {
-    const name = typeof payload.name === 'string' ? payload.name : '?'
-    const input =
-      payload.input ?? payload.output ?? payload.result ?? payload.error ?? null
-    const rest = input != null ? `  ${truncate(JSON.stringify(input), MAX_PAYLOAD_PREVIEW)}` : ''
-    return `${name}${rest}`
+  if (kind === "tool_use" || kind === "tool_result") {
+    const name = typeof payload.name === "string" ? payload.name : "?";
+    const input = payload.input ?? payload.output ?? payload.result ?? payload.error ?? null;
+    const rest = input != null ? `  ${truncate(JSON.stringify(input), MAX_PAYLOAD_PREVIEW)}` : "";
+    return `${name}${rest}`;
   }
-  return truncate(JSON.stringify(payload), MAX_PAYLOAD_PREVIEW)
+  return truncate(JSON.stringify(payload), MAX_PAYLOAD_PREVIEW);
 }
 
 function truncate(str: string, max: number): string {
-  if (str.length <= max) return str
-  return `${str.slice(0, max - 1)}…`
+  if (str.length <= max) return str;
+  return `${str.slice(0, max - 1)}…`;
 }
 
 function Detail({ label, value }: { label: string; value: string | null }) {
@@ -810,33 +778,33 @@ function Detail({ label, value }: { label: string; value: string | null }) {
         {value && value.length > 0 ? value : <span className="text-text-muted">—</span>}
       </div>
     </div>
-  )
+  );
 }
 
 function StatusPill({ status }: { status: string }) {
   const tone =
-    status === 'active'
-      ? 'bg-accent/30 text-text'
-      : status === 'onboarding'
-        ? 'bg-coral/20 text-text'
-        : status === 'paused'
-          ? 'bg-ink-line text-text-muted'
-          : 'bg-ink/10 text-text-muted'
+    status === "active"
+      ? "bg-accent/30 text-text"
+      : status === "onboarding"
+        ? "bg-coral/20 text-text"
+        : status === "paused"
+          ? "bg-ink-line text-text-muted"
+          : "bg-ink/10 text-text-muted";
   return (
     <span
       className={`inline-flex items-center rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${tone}`}
     >
       {status}
     </span>
-  )
+  );
 }
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

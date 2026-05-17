@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto'
-import { createPatch } from 'diff'
-import { requireEnv } from '~/lib/env'
-import { logger } from '~/lib/logger'
-import type { CompetitorRef, NormalizedItem } from './types'
+import { createHash } from "node:crypto";
+import { createPatch } from "diff";
+import { requireEnv } from "~/lib/env";
+import { logger } from "~/lib/logger";
+import type { CompetitorRef, NormalizedItem } from "./types";
 
 // Firecrawl pricing-page scraper.
 //
@@ -22,38 +22,38 @@ import type { CompetitorRef, NormalizedItem } from './types'
 //   body: { url, formats: [{type: 'markdown'}], onlyMainContent: true, ... }
 //   200 → { success: true, data: { markdown, metadata: { statusCode, ... } } }
 
-const FIRECRAWL_ENDPOINT = 'https://api.firecrawl.dev/v2/scrape'
-const DEFAULT_TIMEOUT_MS = 60_000
+const FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v2/scrape";
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 export interface PricingSnapshot {
-  content: string
-  contentHash: string
-  scrapedAt: Date
+  content: string;
+  contentHash: string;
+  scrapedAt: Date;
 }
 
 export interface PricingScrapeResult {
-  newSnapshot: PricingSnapshot
+  newSnapshot: PricingSnapshot;
   // Only populated when previous snapshot existed and hashes differ.
-  item: NormalizedItem | null
+  item: NormalizedItem | null;
 }
 
 export interface FirecrawlScrapeOptions {
-  timeoutMs?: number
-  fetchImpl?: typeof fetch
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
 }
 
 interface FirecrawlScrapeResponse {
-  success?: boolean
-  error?: string
+  success?: boolean;
+  error?: string;
   data?: {
-    markdown?: string | null
+    markdown?: string | null;
     metadata?: {
-      statusCode?: number
-      title?: string | string[] | null
-      sourceURL?: string
-      url?: string
-    } | null
-  }
+      statusCode?: number;
+      title?: string | string[] | null;
+      sourceURL?: string;
+      url?: string;
+    } | null;
+  };
 }
 
 /**
@@ -66,24 +66,24 @@ export async function scrapePricingPage(
   previousSnapshot: PricingSnapshot | null,
   options: FirecrawlScrapeOptions = {},
 ): Promise<PricingScrapeResult | null> {
-  if (!competitor.pricingUrl) return null
+  if (!competitor.pricingUrl) return null;
 
-  const markdown = await firecrawlScrape(competitor.pricingUrl, options)
-  const normalized = normalizeContent(markdown)
-  const contentHash = sha256Hex(normalized)
-  const scrapedAt = new Date()
-  const newSnapshot: PricingSnapshot = { content: normalized, contentHash, scrapedAt }
+  const markdown = await firecrawlScrape(competitor.pricingUrl, options);
+  const normalized = normalizeContent(markdown);
+  const contentHash = sha256Hex(normalized);
+  const scrapedAt = new Date();
+  const newSnapshot: PricingSnapshot = { content: normalized, contentHash, scrapedAt };
 
   if (!previousSnapshot) {
     logger.info(
       { competitorId: competitor.id, name: competitor.name, bytes: normalized.length },
-      'firecrawl: first pricing snapshot, no diff emitted',
-    )
-    return { newSnapshot, item: null }
+      "firecrawl: first pricing snapshot, no diff emitted",
+    );
+    return { newSnapshot, item: null };
   }
 
   if (previousSnapshot.contentHash === contentHash) {
-    return { newSnapshot, item: null }
+    return { newSnapshot, item: null };
   }
 
   const diff = createPatch(
@@ -92,16 +92,16 @@ export async function scrapePricingPage(
     normalized,
     previousSnapshot.scrapedAt.toISOString(),
     scrapedAt.toISOString(),
-  )
+  );
 
   const item: NormalizedItem = {
-    source: 'firecrawl',
+    source: "firecrawl",
     sourceId: `${competitor.id}:${contentHash.slice(0, 16)}`,
     url: competitor.pricingUrl,
     title: `Pricing page changed: ${competitor.name}`,
     body: diff,
     publishedAt: scrapedAt,
-  }
+  };
 
   logger.info(
     {
@@ -111,10 +111,10 @@ export async function scrapePricingPage(
       newHash: contentHash.slice(0, 12),
       diffBytes: diff.length,
     },
-    'firecrawl: pricing page change detected',
-  )
+    "firecrawl: pricing page change detected",
+  );
 
-  return { newSnapshot, item }
+  return { newSnapshot, item };
 }
 
 /**
@@ -127,62 +127,59 @@ export async function scrapePricingPagesForCompetitors(
   previousSnapshots: Map<string, PricingSnapshot>,
   options: FirecrawlScrapeOptions = {},
 ): Promise<Map<string, PricingScrapeResult>> {
-  const results = new Map<string, PricingScrapeResult>()
+  const results = new Map<string, PricingScrapeResult>();
   for (const c of competitors) {
-    if (!c.pricingUrl) continue
+    if (!c.pricingUrl) continue;
     try {
-      const r = await scrapePricingPage(c, previousSnapshots.get(c.id) ?? null, options)
-      if (r) results.set(c.id, r)
+      const r = await scrapePricingPage(c, previousSnapshots.get(c.id) ?? null, options);
+      if (r) results.set(c.id, r);
     } catch (err) {
-      logger.warn({ err, competitorId: c.id, name: c.name }, 'firecrawl: scrape failed')
+      logger.warn({ err, competitorId: c.id, name: c.name }, "firecrawl: scrape failed");
     }
   }
-  return results
+  return results;
 }
 
-async function firecrawlScrape(
-  url: string,
-  options: FirecrawlScrapeOptions,
-): Promise<string> {
+async function firecrawlScrape(url: string, options: FirecrawlScrapeOptions): Promise<string> {
   // The outbound HTTP target here is a fixed Firecrawl SaaS endpoint, not
   // user-controlled — safeFetch is unnecessary at this hop. The user-
   // controlled value is the `url` we POST in the body; Firecrawl runs
   // externally and applies its own SSRF protections to that payload.
-  const apiKey = requireEnv('FIRECRAWL_API_KEY')
-  const fetchImpl = options.fetchImpl ?? fetch
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const apiKey = requireEnv("FIRECRAWL_API_KEY");
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const res = await fetchImpl(FIRECRAWL_ENDPOINT, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify({
       url,
-      formats: [{ type: 'markdown' }],
+      formats: [{ type: "markdown" }],
       onlyMainContent: true,
       timeout: timeoutMs,
     }),
-  })
+  });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Firecrawl ${res.status} for ${url}: ${text.slice(0, 300)}`)
+    const text = await res.text().catch(() => "");
+    throw new Error(`Firecrawl ${res.status} for ${url}: ${text.slice(0, 300)}`);
   }
 
-  const json = (await res.json()) as FirecrawlScrapeResponse
+  const json = (await res.json()) as FirecrawlScrapeResponse;
   if (!json.success || !json.data) {
-    throw new Error(`Firecrawl returned !success for ${url}: ${json.error ?? 'unknown'}`)
+    throw new Error(`Firecrawl returned !success for ${url}: ${json.error ?? "unknown"}`);
   }
 
-  const md = json.data.markdown
+  const md = json.data.markdown;
   if (!md || md.trim().length === 0) {
-    throw new Error(`Firecrawl returned empty markdown for ${url}`)
+    throw new Error(`Firecrawl returned empty markdown for ${url}`);
   }
 
-  return md
+  return md;
 }
 
 // Strip per-render volatility (CSRF nonces, build hashes, trailing whitespace)
@@ -191,12 +188,12 @@ async function firecrawlScrape(
 // silently swallow a real pricing tier change.
 function normalizeContent(markdown: string): string {
   return markdown
-    .replace(/\r\n/g, '\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function sha256Hex(input: string): string {
-  return createHash('sha256').update(input).digest('hex')
+  return createHash("sha256").update(input).digest("hex");
 }

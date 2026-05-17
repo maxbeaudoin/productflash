@@ -77,14 +77,14 @@ The orchestrator (#7) loads prior snapshots, calls the batch adapter, then for e
 
 ## raw_item shape
 
-| field | value |
-|---|---|
-| `source` | `'firecrawl'` |
-| `source_id` | `${competitor_id}:${newContentHash[:16]}` — collision-proof per competitor; cyclic A→B→A re-emits B but not the second A |
-| `url` | competitor.pricingUrl |
-| `title` | `Pricing page changed: <competitor.name>` |
-| `body` | unified diff (full) — Postgres `text`, no length cap |
-| `published_at` | scrape time (pricing pages don't expose a real publication date) |
+| field          | value                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `source`       | `'firecrawl'`                                                                                                            |
+| `source_id`    | `${competitor_id}:${newContentHash[:16]}` — collision-proof per competitor; cyclic A→B→A re-emits B but not the second A |
+| `url`          | competitor.pricingUrl                                                                                                    |
+| `title`        | `Pricing page changed: <competitor.name>`                                                                                |
+| `body`         | unified diff (full) — Postgres `text`, no length cap                                                                     |
+| `published_at` | scrape time (pricing pages don't expose a real publication date)                                                         |
 
 ## Quotas + cost
 
@@ -103,6 +103,7 @@ pnpm tsx scripts/test-source-firecrawl.ts --tamper   # mutate stored snapshots s
 ```
 
 Useful sequences:
+
 - `--reset` then plain run: verifies "first snapshot, no diff" path.
 - Two plain runs in a row: verifies "no change, no diff" path.
 - Plain run then `--tamper` then plain run: verifies the diff emission path without waiting for a real pricing change.

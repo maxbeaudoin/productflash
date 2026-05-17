@@ -22,16 +22,16 @@ allowed-tools: Bash(rg:*), Bash(grep:*), Bash(find:*), Bash(ls:*), Bash(wc:*), B
 
 A read-only audit of the testing pyramid. The skill is **methodology, not
 magic**: walk the phases below, gather concrete `file:line` evidence of what
-*is* and *is not* tested, then emit one ranked report.
+_is_ and _is not_ tested, then emit one ranked report.
 
 ## Operating contract
 
 1. **Read-only.** Do not create or modify test files, fixtures, or config.
 2. **Evidence-first.** Every finding cites `path/to/file.ts:LINE` for the
-   *production* code at risk and (when relevant) the existing test that does
+   _production_ code at risk and (when relevant) the existing test that does
    or doesn't cover it. No vague claims like "tests should be expanded."
 3. **Audit existing tests, not just gaps.** Half the skill's job is finding
-   *missing* coverage; the other half is judging *existing* tests — shape-
+   _missing_ coverage; the other half is judging _existing_ tests — shape-
    only assertions, over-mocking, snapshot rot, skipped/`.only` blocks, real
    network in unit tests, brittle e2e selectors, tests that pass for the
    wrong reason. A green suite that doesn't actually test behavior is worse
@@ -43,7 +43,7 @@ magic**: walk the phases below, gather concrete `file:line` evidence of what
    integrations, and user-visible flows.
 5. **Test logic, not shape.** A "good test" exercises behavior under
    conditions that could plausibly fail. A test that asserts `expect(obj).
-   toHaveProperty('id')` on a typed object is shape-only and should be
+toHaveProperty('id')` on a typed object is shape-only and should be
    flagged as low-value, not counted as coverage.
 
 ## The pyramid
@@ -51,12 +51,12 @@ magic**: walk the phases below, gather concrete `file:line` evidence of what
 Use this mental model when judging health. Each layer answers a different
 question and has a different cost/speed/confidence tradeoff.
 
-| Layer | Question it answers | Typical tool | Cost |
-|-------|---------------------|--------------|------|
-| **Unit** | Does this function's logic do the right thing across its branches? | Vitest (node env) | Fast, cheap |
-| **Integration** | Do these modules + the DB/queue/HTTP boundary cooperate correctly? | Vitest + real DB/queue or testcontainers | Medium |
-| **E2E** | Can a real user complete a critical flow end-to-end in a browser? | Playwright | Slow, expensive |
-| **Smoke** | After deploy, is the system minimally alive? (health, auth, one happy path) | Playwright (subset) or curl | Fast, run post-deploy |
+| Layer           | Question it answers                                                         | Typical tool                             | Cost                  |
+| --------------- | --------------------------------------------------------------------------- | ---------------------------------------- | --------------------- |
+| **Unit**        | Does this function's logic do the right thing across its branches?          | Vitest (node env)                        | Fast, cheap           |
+| **Integration** | Do these modules + the DB/queue/HTTP boundary cooperate correctly?          | Vitest + real DB/queue or testcontainers | Medium                |
+| **E2E**         | Can a real user complete a critical flow end-to-end in a browser?           | Playwright                               | Slow, expensive       |
+| **Smoke**       | After deploy, is the system minimally alive? (health, auth, one happy path) | Playwright (subset) or curl              | Fast, run post-deploy |
 
 **Healthy pyramid:** many cheap unit tests at the base, fewer integration
 tests in the middle, a small set of e2e flows for happy + key error paths,
@@ -69,13 +69,13 @@ miss boundary bugs.
 Findings come in two flavors: **gaps** (missing tests) and **defects in
 existing tests** (false confidence). Both use the same scale.
 
-| Severity | Gap example | Defect-in-existing example |
-|----------|------------|-----------------------------|
-| **Critical** | A core revenue/data/security flow has no test of any kind. | An existing test for a critical flow asserts only shape / mocks every dependency / is permanently `.skip`'d — it appears green but verifies nothing. |
-| **High** | Complex business logic has only happy-path coverage; error paths untested. | A test passes because it asserts against the same mock it set up (tautological); or covers only the happy path while claiming to cover the function. |
-| **Medium** | An important flow is tested at the wrong layer (complex logic only via slow flaky e2e). | Stale snapshot covering rendered HTML that changes on every refactor; test uses `Date.now()` / real timers and is flaky in CI; test reaches live external services. |
-| **Low** | Missing tests on non-critical helpers; duplication that increases maintenance cost. | Brittle CSS-selector-based e2e; over-broad mocking that hides regressions; redundant tests asserting the same property at multiple layers. |
-| **Info** | Hygiene observation: configuration suggestions, no-runner-found. | A single stray `.only` left in; missing test naming convention; tests in the wrong directory. |
+| Severity     | Gap example                                                                             | Defect-in-existing example                                                                                                                                          |
+| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical** | A core revenue/data/security flow has no test of any kind.                              | An existing test for a critical flow asserts only shape / mocks every dependency / is permanently `.skip`'d — it appears green but verifies nothing.                |
+| **High**     | Complex business logic has only happy-path coverage; error paths untested.              | A test passes because it asserts against the same mock it set up (tautological); or covers only the happy path while claiming to cover the function.                |
+| **Medium**   | An important flow is tested at the wrong layer (complex logic only via slow flaky e2e). | Stale snapshot covering rendered HTML that changes on every refactor; test uses `Date.now()` / real timers and is flaky in CI; test reaches live external services. |
+| **Low**      | Missing tests on non-critical helpers; duplication that increases maintenance cost.     | Brittle CSS-selector-based e2e; over-broad mocking that hides regressions; redundant tests asserting the same property at multiple layers.                          |
+| **Info**     | Hygiene observation: configuration suggestions, no-runner-found.                        | A single stray `.only` left in; missing test naming convention; tests in the wrong directory.                                                                       |
 
 A finding's severity reflects **the cost of a regression slipping through**,
 not the size of the fix. Bias toward the higher of likelihood and impact
@@ -195,7 +195,7 @@ For each layer, judge **shape of the pyramid** and **specific gaps**.
 #### Integration layer
 
 - For each external boundary (DB, queue, LLM, email provider, HTTP source),
-  is there at least one test that exercises it end-to-end *within* the
+  is there at least one test that exercises it end-to-end _within_ the
   process? (Not full e2e — just "this function actually inserts a row.")
 - Common gaps: jobs that compose multiple modules (`src/jobs/*.ts`),
   source adapters (`src/sources/*.ts`), auth flows (token issue → consume).
@@ -231,7 +231,7 @@ Each item below maps to a finding when present:
 
 - **Shape-only assertions.** `expect(result).toHaveProperty('id')` on a
   typed return is type-system noise. Same with `expect(arr).toHaveLength(3)`
-  with no follow-up on *what's in* the array.
+  with no follow-up on _what's in_ the array.
   ```bash
   rg -n 'toHaveProperty|toBeDefined|toBeTruthy\s*\(\s*\)|toHaveLength' tests/ test/ src/ 2>/dev/null
   ```
@@ -255,7 +255,7 @@ Each item below maps to a finding when present:
   find . -name '*.snap' -not -path '*/node_modules/*' -exec wc -l {} +
   ```
 - **Skipped or focused tests left in.** `.skip`/`.only`/`xit`/`xdescribe`/
-  `fit`/`fdescribe` in committed code is *always* a finding — a `.only`
+  `fit`/`fdescribe` in committed code is _always_ a finding — a `.only`
   silently hides every other test in the file from CI.
   ```bash
   rg -n '\b(it|test|describe)\.(skip|only)\b|^\s*(xit|fit|xdescribe|fdescribe)\b' tests/ test/ src/ 2>/dev/null
@@ -284,7 +284,7 @@ Each item below maps to a finding when present:
   paths → are they exercised? If not → finding.
 - **Test name vs. test body mismatch.** Test is named "rejects expired
   tokens" but only checks the happy path because the `await expect(...)
-  .rejects` was forgotten. These pass for the wrong reason. When
+.rejects` was forgotten. These pass for the wrong reason. When
   scanning, read every `test(name, ...)` and ask "would this fail if
   the production code were broken?"
 - **Tests that never assert.** A test body that runs setup + invocation
@@ -299,7 +299,7 @@ Each item below maps to a finding when present:
   ```
 - **Coverage of trivial / re-exported code, none on real logic.** A
   100% line-coverage report on a file that's all `export { foo } from
-  './foo'` is meaningless. When a coverage report exists, sanity-check
+'./foo'` is meaningless. When a coverage report exists, sanity-check
   which lines it counts.
 
 ### Phase 6 — CI integration
@@ -307,16 +307,17 @@ Each item below maps to a finding when present:
 - Are tests wired into CI? Pre-merge or post-merge?
 - Is e2e in a separate job so unit-test feedback stays fast?
 - Is there a smoke job that runs against the deployed environment?
-- Coverage report generated? (Optional — coverage is a *map*, not a goal.)
+- Coverage report generated? (Optional — coverage is a _map_, not a goal.)
 
 ## Report format
 
 Emit one markdown report. Structure:
 
-```markdown
+````markdown
 # Test Coverage Audit — <project> (<YYYY-MM-DD>)
 
 ## Executive summary
+
 - Pyramid shape: <Healthy | Anemic | Missing-middle | Inverted | Empty>
 - N findings: X Critical, Y High, Z Medium, W Low, V Info
   (G gaps · D defects in existing tests)
@@ -325,34 +326,38 @@ Emit one markdown report. Structure:
 
 ## Pyramid snapshot
 
-| Layer | Count | Health | Notes |
-|-------|-------|--------|-------|
-| Unit | … | … | …behavior / …shape-only / …skipped |
-| Integration | … | … | … |
-| E2E | … | … | … |
-| Smoke | … | … | … |
+| Layer       | Count | Health | Notes                              |
+| ----------- | ----- | ------ | ---------------------------------- |
+| Unit        | …     | …      | …behavior / …shape-only / …skipped |
+| Integration | …     | …      | …                                  |
+| E2E         | …     | …      | …                                  |
+| Smoke       | …     | …      | …                                  |
 
 "Health" is `Strong | Adequate | Anemic | Compromised | Empty`. **Compromised**
 is the trap to call out — count is high but the tests don't actually
 exercise behavior.
 
 ## Scope & methodology
+
 - What was reviewed (paths, commit SHA)
 - What was NOT reviewed (runtime behavior, prod telemetry)
 - Tools/commands used
 
 ## Critical flows considered
+
 - List of flows identified in Phase 2 with the layer chosen for each.
 
 ## Findings (ranked, Critical → Info)
 
-Use stable IDs (`F-001`, `F-002` …) and tag each finding's *kind* so the
+Use stable IDs (`F-001`, `F-002` …) and tag each finding's _kind_ so the
 reader can scan at a glance:
+
 - `[Kind: Gap]` — no test covers this flow / branch.
 - `[Kind: Defect]` — a test exists but doesn't actually verify the behavior
   it claims to (shape-only, tautological mock, skipped, brittle, etc.).
 
 ### F-001 — <Short title> [Severity: High] [Layer: Integration] [Kind: Gap]
+
 **Flow at risk:** Daily digest synthesis (`src/jobs/synthesize.ts`)
 **Current coverage:** None.
 **Why it matters:** This job composes LLM call + DB write + Resend
@@ -360,6 +365,7 @@ dispatch. A regression in any step silently breaks the product's core
 value delivery; no other test layer would catch it.
 
 **Suggested test (sketch, not code to add now):**
+
 - Integration test, real Postgres test DB, stub Anthropic + Resend with
   recorded fixtures.
 - Cases: happy path produces N digest rows; LLM 429 → job retries;
@@ -368,15 +374,18 @@ value delivery; no other test layer would catch it.
 **Verification needed (if any):** N/A — coverage gap, not a runtime claim.
 
 ### F-002 — Auth token test mocks the verifier it's verifying [Severity: High] [Layer: Unit] [Kind: Defect]
+
 **Test:** `src/lib/feedback-token.test.ts:42-58`
 **Production code at risk:** `src/lib/feedback-token.ts:18`
 **What the test does:**
+
 > ```ts
 > // 3–10 line excerpt of the offending test
 > ```
-The test mocks `verifyFeedbackToken` to return `true`, then asserts that
-the flow accepts the token — proving the mock works, not the verifier.
-A real regression in the HMAC check would not surface.
+>
+> The test mocks `verifyFeedbackToken` to return `true`, then asserts that
+> the flow accepts the token — proving the mock works, not the verifier.
+> A real regression in the HMAC check would not surface.
 
 **Why it matters:** This test currently sits in the "covered" column on
 any line-coverage report; the audit's executive summary would otherwise
@@ -387,7 +396,7 @@ record this flow as protected. It is not.
 under tampered input as a separate case.
 
 ### F-003 — …
-```
+````
 
 Order findings strictly by severity, then by likelihood of regression
 (complexity × change frequency). Use stable IDs so they can be referenced
@@ -412,7 +421,7 @@ is a valuable report line.
   missing test on a one-line utility is not Critical.
 - ❌ Treating shape-only assertions as coverage. They satisfy the type
   system; they don't prove behavior.
-- ❌ Counting test *files* without reading them. "10 unit test files" is
+- ❌ Counting test _files_ without reading them. "10 unit test files" is
   not a signal; "10 unit test files, 4 contain only shape assertions" is.
 - ❌ Skipping the existing-test audit because the suite is green. Green
   ≠ behavior-verifying. Phase 5 is mandatory, not optional.

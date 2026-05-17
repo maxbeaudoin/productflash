@@ -1,8 +1,8 @@
-import type { LookupAddress } from 'node:dns'
-import { lookup } from 'node:dns/promises'
-import { isIP } from 'node:net'
-import { env } from './env'
-import { logger } from './logger'
+import type { LookupAddress } from "node:dns";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+import { env } from "./env";
+import { logger } from "./logger";
 
 // Server-side fetch wrapper for user-influenced URLs (e.g. RSS autodetect on
 // /app/profile addCompetitor). Without this, an authenticated beta user could
@@ -20,25 +20,31 @@ import { logger } from './logger'
 // In dev, `{ allowPrivate: true }` opts out (localhost test feeds, etc.).
 // Default is reject. Production never honors the flag.
 
-const DEFAULT_TIMEOUT_MS = 15_000
-const MAX_REDIRECTS = 3
+const DEFAULT_TIMEOUT_MS = 15_000;
+const MAX_REDIRECTS = 3;
 
 export interface SafeFetchOptions {
-  timeoutMs?: number
-  headers?: Record<string, string>
-  method?: 'GET' | 'HEAD'
+  timeoutMs?: number;
+  headers?: Record<string, string>;
+  method?: "GET" | "HEAD";
   // Dev-only escape hatch for local test fixtures pointing at localhost.
   // Ignored in production.
-  allowPrivate?: boolean
+  allowPrivate?: boolean;
 }
 
 export class SafeFetchError extends Error {
-  readonly code: 'bad_scheme' | 'private_address' | 'dns_failure' | 'too_many_redirects' | 'http_error' | 'timeout'
-  readonly url: string
-  constructor(code: SafeFetchError['code'], url: string, message: string) {
-    super(message)
-    this.code = code
-    this.url = url
+  readonly code:
+    | "bad_scheme"
+    | "private_address"
+    | "dns_failure"
+    | "too_many_redirects"
+    | "http_error"
+    | "timeout";
+  readonly url: string;
+  constructor(code: SafeFetchError["code"], url: string, message: string) {
+    super(message);
+    this.code = code;
+    this.url = url;
   }
 }
 
@@ -46,64 +52,65 @@ export async function safeFetch(
   inputUrl: string,
   options: SafeFetchOptions = {},
 ): Promise<Response> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    let url = inputUrl
-    let hops = 0
+    let url = inputUrl;
+    let hops = 0;
     while (true) {
-      await assertSafeUrl(url, options.allowPrivate ?? false)
+      await assertSafeUrl(url, options.allowPrivate ?? false);
       const res = await fetch(url, {
-        method: options.method ?? 'GET',
+        method: options.method ?? "GET",
         headers: options.headers,
-        redirect: 'manual',
+        redirect: "manual",
         signal: controller.signal,
-      })
+      });
       if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get('location')
-        if (!location) return res
-        hops++
+        const location = res.headers.get("location");
+        if (!location) return res;
+        hops++;
         if (hops > MAX_REDIRECTS) {
-          throw new SafeFetchError('too_many_redirects', url, `safeFetch: > ${MAX_REDIRECTS} redirects`)
+          throw new SafeFetchError(
+            "too_many_redirects",
+            url,
+            `safeFetch: > ${MAX_REDIRECTS} redirects`,
+          );
         }
-        url = new URL(location, url).toString()
-        continue
+        url = new URL(location, url).toString();
+        continue;
       }
-      return res
+      return res;
     }
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new SafeFetchError('timeout', inputUrl, `safeFetch: timed out after ${timeoutMs}ms`)
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new SafeFetchError("timeout", inputUrl, `safeFetch: timed out after ${timeoutMs}ms`);
     }
-    throw err
+    throw err;
   } finally {
-    clearTimeout(timer)
+    clearTimeout(timer);
   }
 }
 
-export async function safeFetchText(
-  url: string,
-  options: SafeFetchOptions = {},
-): Promise<string> {
-  const res = await safeFetch(url, options)
+export async function safeFetchText(url: string, options: SafeFetchOptions = {}): Promise<string> {
+  const res = await safeFetch(url, options);
   if (!res.ok) {
-    throw new SafeFetchError('http_error', url, `safeFetch: HTTP ${res.status} for ${url}`)
+    throw new SafeFetchError("http_error", url, `safeFetch: HTTP ${res.status} for ${url}`);
   }
-  return await res.text()
+  return await res.text();
 }
 
 async function assertSafeUrl(url: string, allowPrivate: boolean): Promise<void> {
-  let parsed: URL
+  let parsed: URL;
   try {
-    parsed = new URL(url)
+    parsed = new URL(url);
   } catch {
-    throw new SafeFetchError('bad_scheme', url, `safeFetch: invalid URL: ${url}`)
+    throw new SafeFetchError("bad_scheme", url, `safeFetch: invalid URL: ${url}`);
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new SafeFetchError('bad_scheme', url, `safeFetch: scheme ${parsed.protocol} not allowed`)
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new SafeFetchError("bad_scheme", url, `safeFetch: scheme ${parsed.protocol} not allowed`);
   }
-  const allowPrivateEffective = allowPrivate && env.NODE_ENV !== 'production'
+  const allowPrivateEffective = allowPrivate && env.NODE_ENV !== "production";
 
   // If the host is a literal IP, validate it directly — skip the DNS lookup
   // (which would otherwise round-trip and may not behave predictably for
@@ -114,31 +121,40 @@ async function assertSafeUrl(url: string, allowPrivate: boolean): Promise<void> 
   // IP check so `http://[::1]/` is recognized as a literal IPv6 — without
   // this, the function falls through to DNS, where lookup happens to fail
   // and the user sees `dns_failure` instead of the correct `private_address`.
-  const literal = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
-    ? parsed.hostname.slice(1, -1)
-    : parsed.hostname
-  const family = isIP(literal)
+  const literal =
+    parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]")
+      ? parsed.hostname.slice(1, -1)
+      : parsed.hostname;
+  const family = isIP(literal);
   if (family !== 0) {
     if (!allowPrivateEffective && isPrivateAddress(literal, family)) {
-      throw new SafeFetchError('private_address', url, `safeFetch: ${literal} is a private address`)
+      throw new SafeFetchError(
+        "private_address",
+        url,
+        `safeFetch: ${literal} is a private address`,
+      );
     }
-    return
+    return;
   }
 
-  let addrs: LookupAddress[]
+  let addrs: LookupAddress[];
   try {
-    addrs = await lookup(parsed.hostname, { all: true })
+    addrs = await lookup(parsed.hostname, { all: true });
   } catch (err) {
-    logger.debug({ err, host: parsed.hostname }, 'safeFetch: DNS lookup failed')
-    throw new SafeFetchError('dns_failure', url, `safeFetch: DNS lookup failed for ${parsed.hostname}`)
+    logger.debug({ err, host: parsed.hostname }, "safeFetch: DNS lookup failed");
+    throw new SafeFetchError(
+      "dns_failure",
+      url,
+      `safeFetch: DNS lookup failed for ${parsed.hostname}`,
+    );
   }
   for (const addr of addrs) {
     if (!allowPrivateEffective && isPrivateAddress(addr.address, addr.family)) {
       throw new SafeFetchError(
-        'private_address',
+        "private_address",
         url,
         `safeFetch: ${parsed.hostname} resolves to private address ${addr.address}`,
-      )
+      );
     }
   }
 }
@@ -150,49 +166,55 @@ async function assertSafeUrl(url: string, allowPrivate: boolean): Promise<void> 
 // multicast ff00::/8, IPv4-mapped ::ffff:0:0/96 (re-validate the inner v4).
 function isPrivateAddress(addr: string, family: number): boolean {
   if (family === 4) {
-    const octets = addr.split('.').map((o) => Number(o))
-    if (octets.length !== 4 || octets.some((o) => Number.isNaN(o))) return true
-    const [a, b] = octets
-    if (a === 0) return true
-    if (a === 10) return true
-    if (a === 127) return true
-    if (a === 169 && b === 254) return true
-    if (a === 172 && b >= 16 && b <= 31) return true
-    if (a === 192 && b === 168) return true
-    if (a === 100 && b >= 64 && b <= 127) return true
-    if (a >= 224) return true
-    return false
+    const octets = addr.split(".").map((o) => Number(o));
+    if (octets.length !== 4 || octets.some((o) => Number.isNaN(o))) return true;
+    const [a, b] = octets;
+    if (a === 0) return true;
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a >= 224) return true;
+    return false;
   }
   if (family === 6) {
-    const lower = addr.toLowerCase()
-    if (lower === '::' || lower === '::1') return true
-    if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true
-    if (lower.startsWith('ff')) return true
-    if (lower.startsWith('::ffff:')) {
-      const tail = lower.slice('::ffff:'.length)
+    const lower = addr.toLowerCase();
+    if (lower === "::" || lower === "::1") return true;
+    if (
+      lower.startsWith("fe8") ||
+      lower.startsWith("fe9") ||
+      lower.startsWith("fea") ||
+      lower.startsWith("feb")
+    )
+      return true;
+    if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+    if (lower.startsWith("ff")) return true;
+    if (lower.startsWith("::ffff:")) {
+      const tail = lower.slice("::ffff:".length);
       // Node's WHATWG URL normalizes the embedded v4 from dotted form
       // (`::ffff:10.0.0.1`) to compact hex (`::ffff:a00:1`), so both forms
       // arrive here. Resolve either back to dotted v4 before delegating
       // to the v4 check.
-      const dotted = ipv4MappedToDotted(tail)
-      if (dotted) return isPrivateAddress(dotted, 4)
+      const dotted = ipv4MappedToDotted(tail);
+      if (dotted) return isPrivateAddress(dotted, 4);
     }
-    return false
+    return false;
   }
-  return true
+  return true;
 }
 
 function ipv4MappedToDotted(tail: string): string | null {
-  if (isIP(tail) === 4) return tail
+  if (isIP(tail) === 4) return tail;
   // Hex form: up to two `:`-separated 16-bit groups encoding the 32-bit v4.
   // Either "a00:1" (full) or "1" (when leading zeros compress). Accept both.
-  const groups = tail.split(':')
-  if (groups.length > 2) return null
-  if (groups.some((g) => g === '' || !/^[0-9a-f]{1,4}$/.test(g))) return null
-  const padded = groups.length === 1 ? ['0', groups[0]!] : groups
-  const hi = parseInt(padded[0]!, 16)
-  const lo = parseInt(padded[1]!, 16)
-  if (Number.isNaN(hi) || Number.isNaN(lo)) return null
-  return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff].join('.')
+  const groups = tail.split(":");
+  if (groups.length > 2) return null;
+  if (groups.some((g) => g === "" || !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  const padded = groups.length === 1 ? ["0", groups[0]!] : groups;
+  const hi = parseInt(padded[0]!, 16);
+  const lo = parseInt(padded[1]!, 16);
+  if (Number.isNaN(hi) || Number.isNaN(lo)) return null;
+  return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff].join(".");
 }

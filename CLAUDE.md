@@ -4,8 +4,8 @@ Daily AI-curated competitive intelligence digest for SaaS product leaders. Curre
 
 ## Start here
 
-- **`SCOPE.md`** — full PoC plan: goal, in/out of scope, sources, architecture, design system, daily pipeline, milestones, success criteria, risks. Source of truth for *what we're building*.
-- **`TASKS.md`** — 22 work items with descriptions, dependencies, and statuses. Source of truth for *what's left to do*.
+- **`SCOPE.md`** — full PoC plan: goal, in/out of scope, sources, architecture, design system, daily pipeline, milestones, success criteria, risks. Source of truth for _what we're building_.
+- **`TASKS.md`** — 22 work items with descriptions, dependencies, and statuses. Source of truth for _what's left to do_.
 - **`docs/`** — vendor API knowledge base (PH, Firehose, Firecrawl, RSS). Read the relevant file BEFORE writing or modifying that source adapter — captures verified schema, rate limits, working/broken query patterns. Not auto-loaded; consult on demand.
 - **`MEMORY.md`** index in `~/.claude/...` — pointers to locked decisions (scope, stack, ingestion principle).
 
@@ -14,7 +14,7 @@ Daily AI-curated competitive intelligence digest for SaaS product leaders. Curre
 - When picking up work: read `TASKS.md` first, find an unblocked task, do it.
 - **Update task status in `TASKS.md`** as you progress (☐ → ⏳ → ✅). Commit status changes alongside the work.
 - The in-session task list (`TaskCreate`/`TaskUpdate`) is a per-session scratchpad. `TASKS.md` is the durable source of truth — they will drift if you only update one.
-- Default branch is `main`. Commit messages are concise; explain the *why* when non-obvious.
+- Default branch is `main`. Commit messages are concise; explain the _why_ when non-obvious.
 
 ## Stack (locked — see `SCOPE.md` §4 for rationale)
 

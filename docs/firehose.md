@@ -16,10 +16,10 @@ In this codebase: one tap, one rule per competitor with `tag = competitor.id`. T
 
 ## Auth — two keys
 
-| Key | Env var | Prefix | What can it do | Used by |
-|---|---|---|---|---|
-| Management | `FIREHOSE_MANAGEMENT_KEY` | `fhm_` | Create/delete taps | `scripts/firehose-bootstrap-tap.ts` only |
-| Tap token | `FIREHOSE_TAP_TOKEN` | `fh_` | Manage rules + read stream on this tap | `scripts/firehose-sync-rules.ts`, `src/sources/firehose.ts` |
+| Key        | Env var                   | Prefix | What can it do                         | Used by                                                     |
+| ---------- | ------------------------- | ------ | -------------------------------------- | ----------------------------------------------------------- |
+| Management | `FIREHOSE_MANAGEMENT_KEY` | `fhm_` | Create/delete taps                     | `scripts/firehose-bootstrap-tap.ts` only                    |
+| Tap token  | `FIREHOSE_TAP_TOKEN`      | `fh_`  | Manage rules + read stream on this tap | `scripts/firehose-sync-rules.ts`, `src/sources/firehose.ts` |
 
 The tap is identified by the tap token itself — no separate `tap_id` is needed on rule or stream calls. Both keys are sent as `Authorization: Bearer <key>`.
 
@@ -75,12 +75,12 @@ Returns `204 No Content`.
 
 Query params:
 
-| Param | Type | Default | Notes |
-|---|---|---|---|
-| `since` | string | — | Relative window: `5m`, `1h`, `24h`. Replays buffered events. |
-| `timeout` | int | 300 | Connection duration in seconds (1–300). |
-| `limit` | int | — | Server closes the stream after N matched events (1–10000). |
-| `offset` | int | — | Exact Kafka offset to resume from (we don't use). |
+| Param     | Type   | Default | Notes                                                        |
+| --------- | ------ | ------- | ------------------------------------------------------------ |
+| `since`   | string | —       | Relative window: `5m`, `1h`, `24h`. Replays buffered events. |
+| `timeout` | int    | 300     | Connection duration in seconds (1–300).                      |
+| `limit`   | int    | —       | Server closes the stream after N matched events (1–10000).   |
+| `offset`  | int    | —       | Exact Kafka offset to resume from (we don't use).            |
 
 Headers: `Authorization: Bearer fh_...`, `Accept: text/event-stream`.
 
@@ -114,10 +114,10 @@ Server resumption via `Last-Event-ID` header is supported but not used — daily
 
 ## Rate limits + quota
 
-| Endpoint | Limit |
-|---|---|
-| `/v1/rules` | 60 req/min |
-| `/v1/stream` | 30 connections/min |
+| Endpoint      | Limit                   |
+| ------------- | ----------------------- |
+| `/v1/rules`   | 60 req/min              |
+| `/v1/stream`  | 30 connections/min      |
 | Per-org rules | **25 total** (hard cap) |
 
 429 over the limit. No explicit "quota remaining" header documented. We log per-run counts via Pino (`source: 'firehose', items, perCompetitor, durationMs`) — sufficient for the PoC's volume (1 run/day × 5–10 competitors). Revisit if we ever push the daily orchestrator above multiple-runs-per-hour.
@@ -158,8 +158,8 @@ Tuning per competitor (e.g., excluding common false-positive matches for ambiguo
 
 ## Scripts
 
-| Script | Purpose | Frequency |
-|---|---|---|
-| `firehose-bootstrap-tap.ts` | Create the tap, print tap token | Once per environment |
-| `firehose-sync-rules.ts` | Reconcile rules vs. competitors table (dry-run by default; `--apply` to mutate) | After every competitors change |
-| `test-source-firehose.ts` | E2E probe; `--twice` for dedupe check across runs | Ad-hoc |
+| Script                      | Purpose                                                                         | Frequency                      |
+| --------------------------- | ------------------------------------------------------------------------------- | ------------------------------ |
+| `firehose-bootstrap-tap.ts` | Create the tap, print tap token                                                 | Once per environment           |
+| `firehose-sync-rules.ts`    | Reconcile rules vs. competitors table (dry-run by default; `--apply` to mutate) | After every competitors change |
+| `test-source-firehose.ts`   | E2E probe; `--twice` for dedupe check across runs                               | Ad-hoc                         |

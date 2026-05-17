@@ -1,46 +1,44 @@
-import { Link, createFileRoute, notFound } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { and, asc, desc, eq } from 'drizzle-orm'
-import { z } from 'zod'
-import { DigestItemCard, type DigestItemView } from '~/components/app/DigestItemCard'
-import { digestItems, digests, feedback, rawItems } from '~/db/schema'
-import type { DigestTag } from '~/design/tokens'
-import { requireSession } from '~/lib/auth-server'
-import { getDb } from '~/lib/db'
-import { deriveDigestPeriod } from '~/lib/digest-period'
-import { signFeedbackToken } from '~/lib/feedback-token'
-import { captureServerEvent } from '~/lib/posthog'
+import { Link, createFileRoute, notFound } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { DigestItemCard, type DigestItemView } from "~/components/app/DigestItemCard";
+import { digestItems, digests, feedback, rawItems } from "~/db/schema";
+import type { DigestTag } from "~/design/tokens";
+import { requireSession } from "~/lib/auth-server";
+import { getDb } from "~/lib/db";
+import { deriveDigestPeriod } from "~/lib/digest-period";
+import { signFeedbackToken } from "~/lib/feedback-token";
+import { captureServerEvent } from "~/lib/posthog";
 
 type DigestView = {
-  id: string
-  createdAt: string
-  periodStart: string | null
-  periodEnd: string | null
-  itemCount: number
-  items: DigestItemView[]
-}
+  id: string;
+  createdAt: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  itemCount: number;
+  items: DigestItemView[];
+};
 
 function buildFeedbackUrls(digestItemId: string) {
   return {
-    up: `/r/${digestItemId}/up?t=${signFeedbackToken(digestItemId, 'up')}`,
-    down: `/r/${digestItemId}/down?t=${signFeedbackToken(digestItemId, 'down')}`,
-  }
+    up: `/r/${digestItemId}/up?t=${signFeedbackToken(digestItemId, "up")}`,
+    down: `/r/${digestItemId}/down?t=${signFeedbackToken(digestItemId, "down")}`,
+  };
 }
 
-const loadDigest = createServerFn({ method: 'GET' })
-  .inputValidator((data: unknown) =>
-    z.object({ digestId: z.string().uuid() }).parse(data),
-  )
+const loadDigest = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => z.object({ digestId: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<DigestView> => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
 
     const [digest] = await db
       .select()
       .from(digests)
       .where(and(eq(digests.id, data.digestId), eq(digests.userId, session.user.id)))
-      .limit(1)
-    if (!digest) throw notFound()
+      .limit(1);
+    if (!digest) throw notFound();
 
     const rows = await db
       .select({
@@ -56,23 +54,21 @@ const loadDigest = createServerFn({ method: 'GET' })
       .from(digestItems)
       .innerJoin(rawItems, eq(digestItems.rawItemId, rawItems.id))
       .where(eq(digestItems.digestId, digest.id))
-      .orderBy(desc(digestItems.score), asc(digestItems.createdAt))
+      .orderBy(desc(digestItems.score), asc(digestItems.createdAt));
 
     const feedbackRows = rows.length
       ? await db
           .select({ digestItemId: feedback.digestItemId, rating: feedback.rating })
           .from(feedback)
           .where(eq(feedback.userId, session.user.id))
-      : []
-    const feedbackByItem = new Map(
-      feedbackRows.map((f) => [f.digestItemId, f.rating] as const),
-    )
+      : [];
+    const feedbackByItem = new Map(feedbackRows.map((f) => [f.digestItemId, f.rating] as const));
 
-    captureServerEvent(session.user.id, 'digest_rendered_in_app', {
+    captureServerEvent(session.user.id, "digest_rendered_in_app", {
       digest_id: digest.id,
       item_count: digest.itemCount,
       digest_created_at: digest.createdAt.toISOString(),
-    })
+    });
 
     return {
       id: digest.id,
@@ -91,42 +87,42 @@ const loadDigest = createServerFn({ method: 'GET' })
         feedback: feedbackByItem.get(r.id) ?? null,
         feedbackUrls: buildFeedbackUrls(r.id),
       })),
-    }
-  })
+    };
+  });
 
-const paramsSchema = z.object({ digestId: z.string().uuid() })
+const paramsSchema = z.object({ digestId: z.string().uuid() });
 
-export const Route = createFileRoute('/app/digests/$digestId')({
+export const Route = createFileRoute("/app/digests/$digestId")({
   loader: async ({ params }) => {
-    const parsed = paramsSchema.safeParse(params)
-    if (!parsed.success) throw notFound()
-    return loadDigest({ data: parsed.data })
+    const parsed = paramsSchema.safeParse(params);
+    if (!parsed.success) throw notFound();
+    return loadDigest({ data: parsed.data });
   },
   component: DigestDetailPage,
-})
+});
 
 function DigestDetailPage() {
-  const digest = Route.useLoaderData()
+  const digest = Route.useLoaderData();
   const period = deriveDigestPeriod({
     periodStart: digest.periodStart,
     periodEnd: digest.periodEnd,
-  })
-  const created = new Date(digest.createdAt)
+  });
+  const created = new Date(digest.createdAt);
   const fallbackDateLabel = created
     .toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     })
-    .toUpperCase()
+    .toUpperCase();
   const fallbackTimeLabel = created.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-  const headerLabel = headerLabelFor(period.kind)
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const headerLabel = headerLabelFor(period.kind);
   const headerMetaLabel =
-    period.rangeLabel?.toUpperCase() ?? `${fallbackDateLabel} · ${fallbackTimeLabel}`
+    period.rangeLabel?.toUpperCase() ?? `${fallbackDateLabel} · ${fallbackTimeLabel}`;
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-12">
@@ -139,12 +135,11 @@ function DigestDetailPage() {
 
       <div
         className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-        style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+        style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
       >
         <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
           <div className="text-[13px] text-[#888]">
-            <strong className="font-semibold text-white">Product Flash</strong>{' '}
-            · {headerLabel}
+            <strong className="font-semibold text-white">Product Flash</strong> · {headerLabel}
           </div>
           <div className="font-mono text-xs text-[#666]">{headerMetaLabel}</div>
         </div>
@@ -169,47 +164,47 @@ function DigestDetailPage() {
         </div>
       </div>
     </main>
-  )
+  );
 }
 
-function headerLabelFor(kind: 'catchup' | 'daily' | 'unknown'): string {
-  if (kind === 'catchup') return 'catch-up brief'
-  return 'daily brief'
+function headerLabelFor(kind: "catchup" | "daily" | "unknown"): string {
+  if (kind === "catchup") return "catch-up brief";
+  return "daily brief";
 }
 
 function greetingFor(
   count: number,
-  kind: 'catchup' | 'daily' | 'unknown',
+  kind: "catchup" | "daily" | "unknown",
   daysBack: number | null,
 ) {
-  if (kind === 'catchup') {
-    const window = daysBack && daysBack >= 2 ? `the past ${daysBack} days` : 'the past week'
-    if (count === 1) return `Here's the one thing that mattered in ${window}.`
-    return `Here's what mattered in ${window} — ${countWord(count).toLowerCase()} items worth your attention.`
+  if (kind === "catchup") {
+    const window = daysBack && daysBack >= 2 ? `the past ${daysBack} days` : "the past week";
+    if (count === 1) return `Here's the one thing that mattered in ${window}.`;
+    return `Here's what mattered in ${window} — ${countWord(count).toLowerCase()} items worth your attention.`;
   }
-  if (count === 1) return 'One thing mattered overnight.'
-  return `${countWord(count)} things mattered overnight.`
+  if (count === 1) return "One thing mattered overnight.";
+  return `${countWord(count)} things mattered overnight.`;
 }
 
 function countWord(n: number) {
-  const words = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven']
-  return words[n] ?? String(n)
+  const words = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+  return words[n] ?? String(n);
 }
 
 function EmptyDigestBody({
   periodKind,
   daysBack,
 }: {
-  periodKind: 'catchup' | 'daily' | 'unknown'
-  daysBack: number | null
+  periodKind: "catchup" | "daily" | "unknown";
+  daysBack: number | null;
 }) {
-  const isCatchup = periodKind === 'catchup'
-  const eyebrow = isCatchup ? 'Nothing notable this past week' : 'Nothing notable overnight'
+  const isCatchup = periodKind === "catchup";
+  const eyebrow = isCatchup ? "Nothing notable this past week" : "Nothing notable overnight";
   const window = isCatchup
     ? daysBack && daysBack >= 2
       ? `the past ${daysBack} days`
-      : 'the past week'
-    : null
+      : "the past week"
+    : null;
   return (
     <div className="py-6 text-center">
       <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#666]">
@@ -221,5 +216,5 @@ function EmptyDigestBody({
           : "Your competitors went quiet. We'd rather tell you nothing happened than invent something. Back tomorrow."}
       </p>
     </div>
-  )
+  );
 }

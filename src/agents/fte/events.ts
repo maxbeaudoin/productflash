@@ -1,7 +1,7 @@
-import { sql } from 'drizzle-orm'
-import { fteEvents } from '~/db/schema'
-import { getDb } from '~/lib/db'
-import { logger } from '~/lib/logger'
+import { sql } from "drizzle-orm";
+import { fteEvents } from "~/db/schema";
+import { getDb } from "~/lib/db";
+import { logger } from "~/lib/logger";
 
 // FTE event log writer.
 //
@@ -13,27 +13,27 @@ import { logger } from '~/lib/logger'
 // polling — NOTIFY is best-effort delivery.
 
 export type FteEventKind =
-  | 'run_started'
-  | 'planner_text'
-  | 'planner_thinking'
-  | 'tool_use'
-  | 'tool_result'
-  | 'tool_error'
-  | 'server_tool_use'
-  | 'server_tool_result'
-  | 'iteration'
-  | 'run_finished'
-  | 'error'
+  | "run_started"
+  | "planner_text"
+  | "planner_thinking"
+  | "tool_use"
+  | "tool_result"
+  | "tool_error"
+  | "server_tool_use"
+  | "server_tool_result"
+  | "iteration"
+  | "run_finished"
+  | "error";
 
 export interface FteEventPayload {
-  [key: string]: unknown
+  [key: string]: unknown;
 }
 
 export interface FteEventInput {
-  userId: string
-  runId: string
-  kind: FteEventKind
-  payload?: FteEventPayload
+  userId: string;
+  runId: string;
+  kind: FteEventKind;
+  payload?: FteEventPayload;
 }
 
 // Channels are PER-USER so Postgres itself enforces the isolation boundary —
@@ -43,14 +43,14 @@ export interface FteEventInput {
 // UUID is 36 chars, total 53 — well under Postgres' 63-char identifier cap).
 // Channel names with `:` aren't valid unquoted identifiers, so consumers
 // must `LISTEN "fte_events_delta:<uuid>"` (double-quoted).
-export const FTE_EVENTS_PREFIX = 'fte_events'
-export const FTE_EVENTS_DELTA_PREFIX = 'fte_events_delta'
+export const FTE_EVENTS_PREFIX = "fte_events";
+export const FTE_EVENTS_DELTA_PREFIX = "fte_events_delta";
 
 export function eventsChannelFor(userId: string): string {
-  return `${FTE_EVENTS_PREFIX}:${userId}`
+  return `${FTE_EVENTS_PREFIX}:${userId}`;
 }
 export function deltaChannelFor(userId: string): string {
-  return `${FTE_EVENTS_DELTA_PREFIX}:${userId}`
+  return `${FTE_EVENTS_DELTA_PREFIX}:${userId}`;
 }
 
 // Durable, block-level events — one row in fte_events per emit. The frontend
@@ -70,53 +70,53 @@ export function deltaChannelFor(userId: string): string {
 // keep using the pooled URL for INSERT + pg_notify (those are single
 // statements that survive the pooler fine).
 
-export type FteDeltaKind = 'text_delta' | 'tool_input_delta' | 'block_start'
+export type FteDeltaKind = "text_delta" | "tool_input_delta" | "block_start";
 
 export interface FteDeltaInput {
-  userId: string
-  runId: string
-  kind: FteDeltaKind
+  userId: string;
+  runId: string;
+  kind: FteDeltaKind;
   // `delta` is the new chunk (a few chars for text, a JSON fragment for tool
   // input). Frontend appends to the current buffer; on `block_start` it
   // flushes and begins a new buffer with the given hint.
-  delta: string
+  delta: string;
   // Optional hint for block_start: 'text' | 'tool_use' | 'server_tool_use'.
-  blockKind?: string
+  blockKind?: string;
 }
 
 // Compact JSON shape — pg_notify payload caps at 8KB. Field names kept short
 // to keep room for the actual delta text.
 interface DeltaPayload {
-  u: string
-  r: string
-  k: FteDeltaKind
-  d: string
-  b?: string
+  u: string;
+  r: string;
+  k: FteDeltaKind;
+  d: string;
+  b?: string;
 }
 
 export async function emitFteDelta(input: FteDeltaInput): Promise<void> {
-  const db = getDb()
+  const db = getDb();
   const payload: DeltaPayload = {
     u: input.userId,
     r: input.runId,
     k: input.kind,
     d: input.delta,
-  }
-  if (input.blockKind) payload.b = input.blockKind
+  };
+  if (input.blockKind) payload.b = input.blockKind;
 
   try {
     await db.execute(
       sql`select pg_notify(${deltaChannelFor(input.userId)}, ${JSON.stringify(payload)})`,
-    )
+    );
   } catch (err) {
     // Deltas are best-effort — a NOTIFY failure shouldn't break the agent.
-    logger.warn({ err, userId: input.userId, runId: input.runId }, 'fte: delta notify failed')
+    logger.warn({ err, userId: input.userId, runId: input.runId }, "fte: delta notify failed");
   }
 }
 
 export async function writeFteEvent(input: FteEventInput): Promise<void> {
-  const db = getDb()
-  const payload = input.payload ?? {}
+  const db = getDb();
+  const payload = input.payload ?? {};
 
   try {
     const [row] = await db
@@ -127,17 +127,17 @@ export async function writeFteEvent(input: FteEventInput): Promise<void> {
         kind: input.kind,
         payload,
       })
-      .returning({ id: fteEvents.id })
+      .returning({ id: fteEvents.id });
 
     if (row) {
       await db.execute(
         sql`select pg_notify(${eventsChannelFor(input.userId)}, ${`${input.runId}:${row.id}`})`,
-      )
+      );
     }
   } catch (err) {
     logger.warn(
       { err, userId: input.userId, runId: input.runId, kind: input.kind },
-      'fte: failed to write event',
-    )
+      "fte: failed to write event",
+    );
   }
 }

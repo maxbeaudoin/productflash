@@ -1,15 +1,15 @@
-import { fileURLToPath } from 'node:url'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import { defineConfig } from 'vite'
-import viteReact from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
+import { fileURLToPath } from "node:url";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { defineConfig } from "vite";
+import viteReact from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { nitro } from "nitro/vite";
 
 // Resolve once at config time so the Nitro builder gets an absolute path
 // regardless of where the dev/build command is invoked from.
 const securityHeadersMiddleware = fileURLToPath(
-  new URL('./server/middleware/security-headers.ts', import.meta.url),
-)
+  new URL("./server/middleware/security-headers.ts", import.meta.url),
+);
 
 export default defineConfig({
   server: {
@@ -21,7 +21,7 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     tanstackStart({
-      srcDirectory: 'src',
+      srcDirectory: "src",
     }),
     viteReact(),
     nitro(),
@@ -34,10 +34,10 @@ export default defineConfig({
   nitro: {
     handlers: [
       {
-        route: '/**',
+        route: "/**",
         middleware: true,
         handler: securityHeadersMiddleware,
       },
     ],
   },
-})
+});

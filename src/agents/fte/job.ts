@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto'
-import type PgBoss from 'pg-boss'
-import { runFteAgent, type FteSignupHints } from './agent'
+import { randomUUID } from "node:crypto";
+import type PgBoss from "pg-boss";
+import { runFteAgent, type FteSignupHints } from "./agent";
 
 // pg-boss adapter for the FTE agent (#28).
 //
@@ -10,16 +10,16 @@ import { runFteAgent, type FteSignupHints } from './agent'
 // fan-in from the signup server fn, since we don't want N parallel runs if a
 // user double-clicks "Submit".
 
-export const FTE_QUEUE = 'fte-run'
+export const FTE_QUEUE = "fte-run";
 
 export interface FteJobData {
-  userId: string
-  runId: string
-  signup: FteSignupHints
+  userId: string;
+  runId: string;
+  signup: FteSignupHints;
 }
 
 export interface EnqueueFteOptions {
-  signup: FteSignupHints
+  signup: FteSignupHints;
 }
 
 /**
@@ -32,17 +32,17 @@ export async function enqueueFteRun(
   userId: string,
   options: EnqueueFteOptions,
 ): Promise<{ runId: string; enqueued: boolean }> {
-  const runId = randomUUID()
+  const runId = randomUUID();
   const data: FteJobData = {
     userId,
     runId,
     signup: options.signup,
-  }
-  const jobId = await boss.send(FTE_QUEUE, data, { singletonKey: userId })
-  return { runId, enqueued: jobId !== null }
+  };
+  const jobId = await boss.send(FTE_QUEUE, data, { singletonKey: userId });
+  return { runId, enqueued: jobId !== null };
 }
 
 export async function handleFteJob(job: PgBoss.Job<FteJobData>): Promise<void> {
-  const { userId, runId, signup } = job.data
-  await runFteAgent({ userId, runId, signup })
+  const { userId, runId, signup } = job.data;
+  await runFteAgent({ userId, runId, signup });
 }

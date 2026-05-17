@@ -1,4 +1,4 @@
-import { defineEventHandler, setResponseHeader } from 'nitro/h3'
+import { defineEventHandler, setResponseHeader } from "nitro/h3";
 
 // Sets baseline security headers on every Nitro response. Nitro auto-loads
 // any file under `server/middleware/` and runs it before route handlers.
@@ -10,8 +10,8 @@ import { defineEventHandler, setResponseHeader } from 'nitro/h3'
 // strict-origin-when-cross-origin caps Referer leakage to the path on
 // cross-site navigations. A follow-up rolls out CSP in report-only mode.
 export default defineEventHandler((event) => {
-  setResponseHeader(event, 'Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
-  setResponseHeader(event, 'X-Frame-Options', 'DENY')
-  setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
-  setResponseHeader(event, 'Referrer-Policy', 'strict-origin-when-cross-origin')
-})
+  setResponseHeader(event, "Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  setResponseHeader(event, "X-Frame-Options", "DENY");
+  setResponseHeader(event, "X-Content-Type-Options", "nosniff");
+  setResponseHeader(event, "Referrer-Policy", "strict-origin-when-cross-origin");
+});

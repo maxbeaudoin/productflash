@@ -1,10 +1,10 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { desc, eq, sql } from 'drizzle-orm'
-import { digests, llmUsage, userCompetitors, users } from '~/db/schema'
-import { requireAdminSession } from '~/lib/auth-server'
-import { getDb } from '~/lib/db'
-import { formatUsd } from '~/lib/llm-cost-format'
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { desc, eq, sql } from "drizzle-orm";
+import { digests, llmUsage, userCompetitors, users } from "~/db/schema";
+import { requireAdminSession } from "~/lib/auth-server";
+import { getDb } from "~/lib/db";
+import { formatUsd } from "~/lib/llm-cost-format";
 
 // /admin/users (#16). All users newest first. Each row carries the four
 // summary signals we lean on during babysitting: email (identity), status
@@ -16,46 +16,47 @@ import { formatUsd } from '~/lib/llm-cost-format'
 // would double-count without `DISTINCT ON`.
 
 type UserRow = {
-  id: string
-  email: string
-  status: string
-  role: string
-  createdAt: string
-  lastDigestAt: string | null
-  competitorCount: number
-  lifetimeCostMicroUsd: number
+  id: string;
+  email: string;
+  status: string;
+  role: string;
+  createdAt: string;
+  lastDigestAt: string | null;
+  competitorCount: number;
+  lifetimeCostMicroUsd: number;
   // Trailing-30-day spend. Rolling window beats calendar-month here: a
   // user signed up on the 28th would otherwise show two consecutive
   // near-zero months in their first week.
-  monthlyCostMicroUsd: number
+  monthlyCostMicroUsd: number;
   // All-time FTE-agent spend for this user (sum across every onboarding
   // run + re-run). A subset of lifetime; surfaced separately so operators
   // can see the one-time onboarding hit at a glance.
-  fteCostMicroUsd: number
-}
+  fteCostMicroUsd: number;
+};
 
-const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
-  await requireAdminSession()
-  const db = getDb()
+const listUsers = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdminSession();
+  const db = getDb();
 
   const lastDigest = db
     .select({
       userId: digests.userId,
-      lastDigestAt: sql<Date | null>`MAX(${digests.createdAt})`.as('last_digest_at'),
+      lastDigestAt: sql<Date | null>`MAX(${digests.createdAt})`.as("last_digest_at"),
     })
     .from(digests)
     .groupBy(digests.userId)
-    .as('last_digest')
+    .as("last_digest");
 
   const competitorCount = db
     .select({
       userId: userCompetitors.userId,
-      competitorCount:
-        sql<number>`COUNT(${userCompetitors.competitorId})::int`.as('competitor_count'),
+      competitorCount: sql<number>`COUNT(${userCompetitors.competitorId})::int`.as(
+        "competitor_count",
+      ),
     })
     .from(userCompetitors)
     .groupBy(userCompetitors.userId)
-    .as('competitor_count')
+    .as("competitor_count");
 
   // Lifetime + trailing-30-day LLM spend per user. cost_micro_usd values are
   // small ints (a 14-iteration FTE run is ~$0.05 = 50_000 micro-USD), so a
@@ -66,22 +67,21 @@ const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
   const costRollup = db
     .select({
       userId: llmUsage.userId,
-      lifetimeCostMicroUsd:
-        sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`.as(
-          'lifetime_cost_micro_usd',
-        ),
+      lifetimeCostMicroUsd: sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}), 0)::int`.as(
+        "lifetime_cost_micro_usd",
+      ),
       monthlyCostMicroUsd:
         sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}) FILTER (WHERE ${llmUsage.createdAt} >= NOW() - INTERVAL '30 days'), 0)::int`.as(
-          'monthly_cost_micro_usd',
+          "monthly_cost_micro_usd",
         ),
       fteCostMicroUsd:
         sql<number>`COALESCE(SUM(${llmUsage.costMicroUsd}) FILTER (WHERE ${llmUsage.kind} = 'fte'), 0)::int`.as(
-          'fte_cost_micro_usd',
+          "fte_cost_micro_usd",
         ),
     })
     .from(llmUsage)
     .groupBy(llmUsage.userId)
-    .as('cost_rollup')
+    .as("cost_rollup");
 
   const rows = await db
     .select({
@@ -100,7 +100,7 @@ const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
     .leftJoin(lastDigest, eq(users.id, lastDigest.userId))
     .leftJoin(competitorCount, eq(users.id, competitorCount.userId))
     .leftJoin(costRollup, eq(users.id, costRollup.userId))
-    .orderBy(desc(users.createdAt))
+    .orderBy(desc(users.createdAt));
 
   return {
     rows: rows.map<UserRow>((r) => ({
@@ -115,16 +115,16 @@ const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
       monthlyCostMicroUsd: r.monthlyCostMicroUsd ?? 0,
       fteCostMicroUsd: r.fteCostMicroUsd ?? 0,
     })),
-  }
-})
+  };
+});
 
-export const Route = createFileRoute('/admin/users/')({
+export const Route = createFileRoute("/admin/users/")({
   loader: () => listUsers(),
   component: AdminUsersListPage,
-})
+});
 
 function AdminUsersListPage() {
-  const { rows } = Route.useLoaderData()
+  const { rows } = Route.useLoaderData();
   return (
     <main className="px-6 py-12">
       <div className="mx-auto max-w-5xl">
@@ -132,7 +132,7 @@ function AdminUsersListPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
             <p className="mt-1 text-sm text-text-muted">
-              {rows.length} {rows.length === 1 ? 'user' : 'users'} · newest first
+              {rows.length} {rows.length === 1 ? "user" : "users"} · newest first
             </p>
           </div>
         </header>
@@ -150,12 +150,12 @@ function AdminUsersListPage() {
         )}
       </div>
     </main>
-  )
+  );
 }
 
 function UserRowItem({ row }: { row: UserRow }) {
-  const joined = formatDate(row.createdAt)
-  const lastDigest = row.lastDigestAt ? formatDate(row.lastDigestAt) : null
+  const joined = formatDate(row.createdAt);
+  const lastDigest = row.lastDigestAt ? formatDate(row.lastDigestAt) : null;
   return (
     <li>
       <Link
@@ -167,7 +167,7 @@ function UserRowItem({ row }: { row: UserRow }) {
           <div className="flex items-center gap-2">
             <span className="truncate font-medium">{row.email}</span>
             <StatusPill status={row.status} />
-            {row.role === 'admin' ? (
+            {row.role === "admin" ? (
               <span className="inline-flex items-center rounded-pill bg-accent-warm/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text">
                 Admin
               </span>
@@ -175,9 +175,9 @@ function UserRowItem({ row }: { row: UserRow }) {
           </div>
           <div className="mt-1 text-xs text-text-muted">
             Joined {joined}
-            {lastDigest ? ` · last digest ${lastDigest}` : ' · no digest yet'}
-            {' · '}
-            {row.competitorCount} competitor{row.competitorCount === 1 ? '' : 's'}
+            {lastDigest ? ` · last digest ${lastDigest}` : " · no digest yet"}
+            {" · "}
+            {row.competitorCount} competitor{row.competitorCount === 1 ? "" : "s"}
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
@@ -188,9 +188,7 @@ function UserRowItem({ row }: { row: UserRow }) {
             <div className="font-mono text-sm tabular-nums text-text">
               {formatUsd(row.fteCostMicroUsd)}
             </div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
-              fte
-            </div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">fte</div>
           </div>
           <div
             className="text-right"
@@ -199,9 +197,7 @@ function UserRowItem({ row }: { row: UserRow }) {
             <div className="font-mono text-sm tabular-nums text-text">
               {formatUsd(row.monthlyCostMicroUsd)}
             </div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
-              30 days
-            </div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">30 days</div>
           </div>
           <div
             className="text-right"
@@ -210,9 +206,7 @@ function UserRowItem({ row }: { row: UserRow }) {
             <div className="font-mono text-sm tabular-nums text-text">
               {formatUsd(row.lifetimeCostMicroUsd)}
             </div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
-              lifetime
-            </div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-muted">lifetime</div>
           </div>
           <span
             aria-hidden
@@ -223,31 +217,31 @@ function UserRowItem({ row }: { row: UserRow }) {
         </div>
       </Link>
     </li>
-  )
+  );
 }
 
 function StatusPill({ status }: { status: string }) {
   const tone =
-    status === 'active'
-      ? 'bg-accent/30 text-text'
-      : status === 'onboarding'
-        ? 'bg-coral/20 text-text'
-        : status === 'paused'
-          ? 'bg-ink-line text-text-muted'
-          : 'bg-ink/10 text-text-muted'
+    status === "active"
+      ? "bg-accent/30 text-text"
+      : status === "onboarding"
+        ? "bg-coral/20 text-text"
+        : status === "paused"
+          ? "bg-ink-line text-text-muted"
+          : "bg-ink/10 text-text-muted";
   return (
     <span
       className={`inline-flex items-center rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${tone}`}
     >
       {status}
     </span>
-  )
+  );
 }
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }

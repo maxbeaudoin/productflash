@@ -55,14 +55,14 @@ pnpm tsx scripts/test-source-rss.ts --autodetect  # also run autodetect for each
 
 ## Verified against live feeds (2026-05-14)
 
-| Competitor | Seeded `rss_url` | Reality |
-|---|---|---|
-| Vercel | `https://vercel.com/atom` | ✅ Atom feed, 1154 items |
-| PostHog | `https://posthog.com/rss.xml` | ✅ RSS feed, 247 items |
-| Resend | `https://resend.com/changelog/rss.xml` | ❌ 404 — autodetect finds `https://resend.com/blog/index.xml` |
-| Amplitude | (none) | ✅ autodetect finds `https://amplitude.com/feed` |
-| Linear | `https://linear.app/changelog/rss.xml` | ❌ 404 — no RSS at common paths, no `<link rel>` declaration. Relies on PH + Firecrawl. |
-| Notion | `https://www.notion.so/blog/rss.xml` | ❌ 404 — same situation. Relies on PH + Firecrawl. |
-| Attio | `https://attio.com/changelog/rss.xml` | ❌ 404 — same. Relies on PH + Firecrawl. |
+| Competitor | Seeded `rss_url`                       | Reality                                                                                 |
+| ---------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| Vercel     | `https://vercel.com/atom`              | ✅ Atom feed, 1154 items                                                                |
+| PostHog    | `https://posthog.com/rss.xml`          | ✅ RSS feed, 247 items                                                                  |
+| Resend     | `https://resend.com/changelog/rss.xml` | ❌ 404 — autodetect finds `https://resend.com/blog/index.xml`                           |
+| Amplitude  | (none)                                 | ✅ autodetect finds `https://amplitude.com/feed`                                        |
+| Linear     | `https://linear.app/changelog/rss.xml` | ❌ 404 — no RSS at common paths, no `<link rel>` declaration. Relies on PH + Firecrawl. |
+| Notion     | `https://www.notion.so/blog/rss.xml`   | ❌ 404 — same situation. Relies on PH + Firecrawl.                                      |
+| Attio      | `https://attio.com/changelog/rss.xml`  | ❌ 404 — same. Relies on PH + Firecrawl.                                                |
 
 Dedupe verified: two consecutive runs across the two working feeds produced identical `sourceId` sets (stable=2, drifted=0). Seed fixes for the wrong URLs belong to task #8.

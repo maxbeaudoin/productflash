@@ -108,18 +108,18 @@ blurb is at the bottom. The audit playbook lives at
 What an unauthenticated attacker can reach from the public internet, and
 the bound on what they can do with it.
 
-| Surface | Reachable | What an attacker can do | Bound |
-|---|---|---|---|
-| `/` (landing) | public | render the page | static; no DB write |
-| `/login`, `/signup` (HTML) | public | render the form | `/signup` requires an invite token; no user row created without admin pre-creation |
-| `/api/auth/*` | public | start a magic-link flow, sign in if they hold a valid magic link, sign out | `disableSignUp: true`, 3/60s on magic-link, 30/60s default elsewhere |
-| `/api/waitlist` (POST) | public | append an email to the waitlist | `onConflictDoNothing` on email; pollution only. No rate limit (Known gaps) |
-| `/healthz` | public | observe up/down + uptime | response carries no error string |
-| `/api/email/open/:digestId.gif` | public | mark a digest as opened, fire a PostHog event | `digestId` is an unguessable UUID; forgery only inflates open counts; `WHERE openedAt IS NULL` preserves first-open semantics |
-| `/r/:itemId/:rating` | public | record up/down feedback on a digest item | requires an HMAC `?t=` token tied to `(itemId, rating)`; forging requires `FEEDBACK_SIGNING_SECRET` |
-| `/logout` (POST) | public | sign yourself out | POST-only; cookies don't ride cross-site form POSTs under `SameSite=lax` |
-| `/app/*`, `/admin/*`, `/debug/*`, `/api/onboarding/stream` | gated | — | `requireSession` / `requireAdminSession` on every entry |
-| Worker service | **not** public | — | Railway-internal only; reachable only via pg-boss queue rows in the shared Postgres |
+| Surface                                                    | Reachable      | What an attacker can do                                                    | Bound                                                                                                                         |
+| ---------------------------------------------------------- | -------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/` (landing)                                              | public         | render the page                                                            | static; no DB write                                                                                                           |
+| `/login`, `/signup` (HTML)                                 | public         | render the form                                                            | `/signup` requires an invite token; no user row created without admin pre-creation                                            |
+| `/api/auth/*`                                              | public         | start a magic-link flow, sign in if they hold a valid magic link, sign out | `disableSignUp: true`, 3/60s on magic-link, 30/60s default elsewhere                                                          |
+| `/api/waitlist` (POST)                                     | public         | append an email to the waitlist                                            | `onConflictDoNothing` on email; pollution only. No rate limit (Known gaps)                                                    |
+| `/healthz`                                                 | public         | observe up/down + uptime                                                   | response carries no error string                                                                                              |
+| `/api/email/open/:digestId.gif`                            | public         | mark a digest as opened, fire a PostHog event                              | `digestId` is an unguessable UUID; forgery only inflates open counts; `WHERE openedAt IS NULL` preserves first-open semantics |
+| `/r/:itemId/:rating`                                       | public         | record up/down feedback on a digest item                                   | requires an HMAC `?t=` token tied to `(itemId, rating)`; forging requires `FEEDBACK_SIGNING_SECRET`                           |
+| `/logout` (POST)                                           | public         | sign yourself out                                                          | POST-only; cookies don't ride cross-site form POSTs under `SameSite=lax`                                                      |
+| `/app/*`, `/admin/*`, `/debug/*`, `/api/onboarding/stream` | gated          | —                                                                          | `requireSession` / `requireAdminSession` on every entry                                                                       |
+| Worker service                                             | **not** public | —                                                                          | Railway-internal only; reachable only via pg-boss queue rows in the shared Postgres                                           |
 
 The worker has the same DB credentials as the web service but exposes no
 HTTP surface. If we ever add one (debug console, metrics endpoint), it
@@ -128,21 +128,21 @@ must be Railway-internal-only or admin-gated.
 ## Vendor trust
 
 What we delegate to each third party, and the practical blast radius if
-that vendor is compromised. Severity is what *we* would face, not what
+that vendor is compromised. Severity is what _we_ would face, not what
 the vendor sees globally.
 
-| Vendor | What we trust them with | If compromised |
-|---|---|---|
-| **Neon** (Postgres) | All user data, sessions, llm_usage, feedback | Full data exposure. Rotating `BETTER_AUTH_SECRET` invalidates all sessions. Backups + PITR live on Neon. |
-| **Railway** (host + secrets) | Every env var (DB URL, Anthropic key, Resend key, HMAC secrets) | Full takeover. Mitigation is incident response, not prevention — rotate every secret in `.env.example`, re-deploy. |
-| **Better Auth** (npm) | Session signing, magic-link flow, admin role enforcement, rate limiter | Auth bypass / role escalation. Audit on every minor bump; pinned at 1.6.11. |
-| **Anthropic** | Synthesizer + classifier prompts (reader name + role + goal + focus areas + competitor feed content) | Prompt content leaks. No raw secrets in prompts. Rotating `ANTHROPIC_API_KEY` caps spend post-incident. |
-| **Resend** | Outbound email content, recipient addresses | Email spoof / address harvest. DMARC/DKIM/SPF on `productflash.ai` is the primary defense; verification of DNS records is a Known gap. |
-| **Firecrawl** | URLs the FTE agent / pricing scraper hand it; API key | Returned markdown tampered → poisoned LLM input. Bounded by prompt-injection delimiters + ingest sanitization. |
-| **Firehose** | Rule set; tap token | Same as Firecrawl. Adapter is currently a no-op for the PoC. |
-| **Product Hunt** | API token; no user data sent | Tampered post stream → poisoned LLM input. Same containment. |
-| **PostHog** | Event names + user IDs + email + a few event properties (no secrets, no message bodies) | Funnel/identity analytics exposed. No direct user impact. |
-| **GitHub** | Source, commit history, PR review | Supply-chain takeover via force-push / branch-protection bypass. Branch-protection state on `main` is a Known gap. |
+| Vendor                       | What we trust them with                                                                              | If compromised                                                                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Neon** (Postgres)          | All user data, sessions, llm_usage, feedback                                                         | Full data exposure. Rotating `BETTER_AUTH_SECRET` invalidates all sessions. Backups + PITR live on Neon.                               |
+| **Railway** (host + secrets) | Every env var (DB URL, Anthropic key, Resend key, HMAC secrets)                                      | Full takeover. Mitigation is incident response, not prevention — rotate every secret in `.env.example`, re-deploy.                     |
+| **Better Auth** (npm)        | Session signing, magic-link flow, admin role enforcement, rate limiter                               | Auth bypass / role escalation. Audit on every minor bump; pinned at 1.6.11.                                                            |
+| **Anthropic**                | Synthesizer + classifier prompts (reader name + role + goal + focus areas + competitor feed content) | Prompt content leaks. No raw secrets in prompts. Rotating `ANTHROPIC_API_KEY` caps spend post-incident.                                |
+| **Resend**                   | Outbound email content, recipient addresses                                                          | Email spoof / address harvest. DMARC/DKIM/SPF on `productflash.ai` is the primary defense; verification of DNS records is a Known gap. |
+| **Firecrawl**                | URLs the FTE agent / pricing scraper hand it; API key                                                | Returned markdown tampered → poisoned LLM input. Bounded by prompt-injection delimiters + ingest sanitization.                         |
+| **Firehose**                 | Rule set; tap token                                                                                  | Same as Firecrawl. Adapter is currently a no-op for the PoC.                                                                           |
+| **Product Hunt**             | API token; no user data sent                                                                         | Tampered post stream → poisoned LLM input. Same containment.                                                                           |
+| **PostHog**                  | Event names + user IDs + email + a few event properties (no secrets, no message bodies)              | Funnel/identity analytics exposed. No direct user impact.                                                                              |
+| **GitHub**                   | Source, commit history, PR review                                                                    | Supply-chain takeover via force-push / branch-protection bypass. Branch-protection state on `main` is a Known gap.                     |
 
 ## Known gaps / accepted risk
 
@@ -168,7 +168,7 @@ trigger a fix.
 - **`X-Forwarded-For` trust at Railway's edge not verified.** Our rate
   limiter buckets by XFF. If Railway forwards an attacker-supplied XFF
   unchanged, rate limits fall open. Verify with a probe (`curl
-  -H 'X-Forwarded-For: 1.2.3.4'` against a non-prod host, observe what
+-H 'X-Forwarded-For: 1.2.3.4'` against a non-prod host, observe what
   reaches the limiter).
 - **DMARC / DKIM / SPF on `productflash.ai` not verified in DNS.**
   Outbound deliverability and spoof resistance both depend on these.
@@ -205,21 +205,21 @@ History only — current state lives in Posture / Known gaps.
 Full audit on commit `b6bbf9e`. 13 findings: 0 Critical / 3 High /
 4 Medium / 3 Low / 3 Info.
 
-| ID | Severity | What | Outcome | Commit |
-|---|---|---|---|---|
-| F-001 | High | Invite tokens never expired; `/signup` replay clobbered confirmed accounts | Closed: 14d TTL + refuse-replay on confirmed accounts | `6173983` |
-| F-002 | High | SSRF via `addCompetitor` → `autodetectRSSForHomepage` with `redirect: follow` | Closed: `src/lib/safe-fetch.ts` + RSS adapter routed through it | `2fe9276` |
-| F-003 | High | Global `competitors` table allowed cross-tenant tampering of `name` + `rss_url` | Closed for manual handlers (insert-or-link); FTE-agent path documented as residual | `4e8b0e8` |
-| F-004 | Medium | Untrusted RSS body fed into classifier + synthesizer prompts unbounded | Closed: delimiter blocks + treat-as-data instruction + ingest sanitization | `7bf35ae` |
-| F-005 | Medium | `/healthz` leaked DB error message | Closed: response trimmed | `710a6d6` |
-| F-006 | Medium | `/logout` was a GET | Closed: POST-only + form-submit buttons | `710a6d6` |
-| F-007 | Medium | No rate limit on magic-link send | Closed: Better Auth limiter on; 3/60s on magic-link | `42115a9` |
-| F-008 | Low | Auto-sign-in URL had 60s window | Closed: dropped to 15s | `6173983` |
-| F-009 | Low | Transitive moderate advisories (postcss/prismjs/esbuild) | Closed: pnpm overrides pin patched versions | `d91092b` |
-| F-010 | Low | `/debug/*` gated by NODE_ENV only | Closed: swapped to `requireAdminSession` | `710a6d6` |
-| F-011 | Info | Shared global `competitors` table is a tenancy smell | Accepted; documented in `src/db/schema.ts` | `566424d` |
-| F-012 | Info | Better Auth `/api/auth/admin/*` enforcement assumed | Accepted: post-deploy verification task (Known gaps) | — |
-| F-013 | Info | Missing security response headers | Closed: 4 headers shipped via Nitro middleware. CSP deferred — Known gaps | `c8842f2` |
+| ID    | Severity | What                                                                            | Outcome                                                                            | Commit    |
+| ----- | -------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------- |
+| F-001 | High     | Invite tokens never expired; `/signup` replay clobbered confirmed accounts      | Closed: 14d TTL + refuse-replay on confirmed accounts                              | `6173983` |
+| F-002 | High     | SSRF via `addCompetitor` → `autodetectRSSForHomepage` with `redirect: follow`   | Closed: `src/lib/safe-fetch.ts` + RSS adapter routed through it                    | `2fe9276` |
+| F-003 | High     | Global `competitors` table allowed cross-tenant tampering of `name` + `rss_url` | Closed for manual handlers (insert-or-link); FTE-agent path documented as residual | `4e8b0e8` |
+| F-004 | Medium   | Untrusted RSS body fed into classifier + synthesizer prompts unbounded          | Closed: delimiter blocks + treat-as-data instruction + ingest sanitization         | `7bf35ae` |
+| F-005 | Medium   | `/healthz` leaked DB error message                                              | Closed: response trimmed                                                           | `710a6d6` |
+| F-006 | Medium   | `/logout` was a GET                                                             | Closed: POST-only + form-submit buttons                                            | `710a6d6` |
+| F-007 | Medium   | No rate limit on magic-link send                                                | Closed: Better Auth limiter on; 3/60s on magic-link                                | `42115a9` |
+| F-008 | Low      | Auto-sign-in URL had 60s window                                                 | Closed: dropped to 15s                                                             | `6173983` |
+| F-009 | Low      | Transitive moderate advisories (postcss/prismjs/esbuild)                        | Closed: pnpm overrides pin patched versions                                        | `d91092b` |
+| F-010 | Low      | `/debug/*` gated by NODE_ENV only                                               | Closed: swapped to `requireAdminSession`                                           | `710a6d6` |
+| F-011 | Info     | Shared global `competitors` table is a tenancy smell                            | Accepted; documented in `src/db/schema.ts`                                         | `566424d` |
+| F-012 | Info     | Better Auth `/api/auth/admin/*` enforcement assumed                             | Accepted: post-deploy verification task (Known gaps)                               | —         |
+| F-013 | Info     | Missing security response headers                                               | Closed: 4 headers shipped via Nitro middleware. CSP deferred — Known gaps          | `c8842f2` |
 
 ## Where to look
 

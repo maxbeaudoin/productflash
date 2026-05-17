@@ -96,12 +96,8 @@
           "name": "accounts_user_id_users_id_fk",
           "tableFrom": "accounts",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -148,12 +144,8 @@
           "name": "competitor_pricing_snapshots_competitor_id_competitors_id_fk",
           "tableFrom": "competitor_pricing_snapshots",
           "tableTo": "competitors",
-          "columnsFrom": [
-            "competitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["competitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -220,9 +212,7 @@
         "competitors_homepage_url_unique": {
           "name": "competitors_homepage_url_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "homepage_url"
-          ]
+          "columns": ["homepage_url"]
         }
       },
       "policies": {},
@@ -325,12 +315,8 @@
           "name": "digest_items_user_id_users_id_fk",
           "tableFrom": "digest_items",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -338,12 +324,8 @@
           "name": "digest_items_digest_id_digests_id_fk",
           "tableFrom": "digest_items",
           "tableTo": "digests",
-          "columnsFrom": [
-            "digest_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["digest_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -351,12 +333,8 @@
           "name": "digest_items_raw_item_id_raw_items_id_fk",
           "tableFrom": "digest_items",
           "tableTo": "raw_items",
-          "columnsFrom": [
-            "raw_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["raw_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -451,12 +429,8 @@
           "name": "digests_user_id_users_id_fk",
           "tableFrom": "digests",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -511,12 +485,8 @@
           "name": "feedback_digest_item_id_digest_items_id_fk",
           "tableFrom": "feedback",
           "tableTo": "digest_items",
-          "columnsFrom": [
-            "digest_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["digest_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -524,12 +494,8 @@
           "name": "feedback_user_id_users_id_fk",
           "tableFrom": "feedback",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -539,10 +505,7 @@
         "feedback_user_item_unique": {
           "name": "feedback_user_item_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "digest_item_id"
-          ]
+          "columns": ["user_id", "digest_item_id"]
         }
       },
       "policies": {},
@@ -627,12 +590,8 @@
           "name": "fte_events_user_id_users_id_fk",
           "tableFrom": "fte_events",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -714,12 +673,8 @@
           "name": "item_scores_user_id_users_id_fk",
           "tableFrom": "item_scores",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -727,12 +682,8 @@
           "name": "item_scores_raw_item_id_raw_items_id_fk",
           "tableFrom": "item_scores",
           "tableTo": "raw_items",
-          "columnsFrom": [
-            "raw_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["raw_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -740,10 +691,7 @@
       "compositePrimaryKeys": {
         "item_scores_user_id_raw_item_id_pk": {
           "name": "item_scores_user_id_raw_item_id_pk",
-          "columns": [
-            "user_id",
-            "raw_item_id"
-          ]
+          "columns": ["user_id", "raw_item_id"]
         }
       },
       "uniqueConstraints": {},
@@ -906,12 +854,8 @@
           "name": "llm_usage_user_id_users_id_fk",
           "tableFrom": "llm_usage",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1012,12 +956,8 @@
           "name": "raw_items_competitor_id_competitors_id_fk",
           "tableFrom": "raw_items",
           "tableTo": "competitors",
-          "columnsFrom": [
-            "competitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["competitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1027,10 +967,7 @@
         "raw_items_source_source_id_unique": {
           "name": "raw_items_source_source_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "source",
-            "source_id"
-          ]
+          "columns": ["source", "source_id"]
         }
       },
       "policies": {},
@@ -1105,12 +1042,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1118,12 +1051,8 @@
           "name": "sessions_impersonated_by_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "impersonated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["impersonated_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1133,9 +1062,7 @@
         "sessions_token_unique": {
           "name": "sessions_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1172,12 +1099,8 @@
           "name": "user_competitors_user_id_users_id_fk",
           "tableFrom": "user_competitors",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1185,12 +1108,8 @@
           "name": "user_competitors_competitor_id_competitors_id_fk",
           "tableFrom": "user_competitors",
           "tableTo": "competitors",
-          "columnsFrom": [
-            "competitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["competitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1198,10 +1117,7 @@
       "compositePrimaryKeys": {
         "user_competitors_user_id_competitor_id_pk": {
           "name": "user_competitors_user_id_competitor_id_pk",
-          "columns": [
-            "user_id",
-            "competitor_id"
-          ]
+          "columns": ["user_id", "competitor_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1343,9 +1259,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1466,9 +1380,7 @@
         "waitlist_email_unique": {
           "name": "waitlist_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1480,43 +1392,22 @@
     "public.feedback_rating": {
       "name": "feedback_rating",
       "schema": "public",
-      "values": [
-        "up",
-        "down"
-      ]
+      "values": ["up", "down"]
     },
     "public.item_category": {
       "name": "item_category",
       "schema": "public",
-      "values": [
-        "launch",
-        "pricing",
-        "feature",
-        "positioning",
-        "funding",
-        "acquisition",
-        "noise"
-      ]
+      "values": ["launch", "pricing", "feature", "positioning", "funding", "acquisition", "noise"]
     },
     "public.source_type": {
       "name": "source_type",
       "schema": "public",
-      "values": [
-        "rss",
-        "ph",
-        "firehose",
-        "firecrawl"
-      ]
+      "values": ["rss", "ph", "firehose", "firecrawl"]
     },
     "public.user_status": {
       "name": "user_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "onboarding",
-        "active",
-        "paused"
-      ]
+      "values": ["pending", "onboarding", "active", "paused"]
     }
   },
   "schemas": {},

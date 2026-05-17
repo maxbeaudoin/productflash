@@ -89,17 +89,18 @@ PH's launch feed skews toward indie / new products. Mature SaaS competitors like
 
 ## Scaling analysis — does the rate limit constrain us?
 
-**No, not at the scale this PoC targets.** The 6250-points-per-15-min limit looks tight in isolation, but PH is a *shared firehose*, not a per-customer resource. A daily scan with the defaults above costs roughly:
+**No, not at the scale this PoC targets.** The 6250-points-per-15-min limit looks tight in isolation, but PH is a _shared firehose_, not a per-customer resource. A daily scan with the defaults above costs roughly:
 
-| Calculation | Value |
-|---|---|
-| Cost per `posts(first: 50)` page | ~50–70 points |
-| Daily ingestion: 6 pages | **~360 points** |
-| Fraction of one 15-min window | **~6%** |
+| Calculation                      | Value           |
+| -------------------------------- | --------------- |
+| Cost per `posts(first: 50)` page | ~50–70 points   |
+| Daily ingestion: 6 pages         | **~360 points** |
+| Fraction of one 15-min window    | **~6%**         |
 
 Adding customers does **not** add PH calls — `fetchPHForCompetitors` scans the firehose once per ingestion run and dispatches matches in-memory. 5 customers × 10 competitors uses the same PH quota as 1 customer × 1 competitor.
 
 **When rate limit DOES matter:**
+
 - Dev iteration: schema probes, repeated debug runs, and `posts(url:)`-style experiments burn quota fast — debug sessions can cross 6250 in 10 min. Use `--dry-run` style flags or cache responses locally when iterating.
 - Historical backfill for a new customer (if we ever add it) would be a one-time burst — needs to be paced through pg-boss with retries.
 - If PH tightens the limit without notice, we'd want a soft cache + fallback. Out of scope for PoC.

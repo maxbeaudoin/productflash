@@ -60,9 +60,7 @@
         "competitors_homepage_url_unique": {
           "name": "competitors_homepage_url_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "homepage_url"
-          ]
+          "columns": ["homepage_url"]
         }
       },
       "policies": {},
@@ -159,12 +157,8 @@
           "name": "digest_items_user_id_users_id_fk",
           "tableFrom": "digest_items",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -172,12 +166,8 @@
           "name": "digest_items_digest_id_digests_id_fk",
           "tableFrom": "digest_items",
           "tableTo": "digests",
-          "columnsFrom": [
-            "digest_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["digest_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -185,12 +175,8 @@
           "name": "digest_items_raw_item_id_raw_items_id_fk",
           "tableFrom": "digest_items",
           "tableTo": "raw_items",
-          "columnsFrom": [
-            "raw_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["raw_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -273,12 +259,8 @@
           "name": "digests_user_id_users_id_fk",
           "tableFrom": "digests",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -333,12 +315,8 @@
           "name": "feedback_digest_item_id_digest_items_id_fk",
           "tableFrom": "feedback",
           "tableTo": "digest_items",
-          "columnsFrom": [
-            "digest_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["digest_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -346,12 +324,8 @@
           "name": "feedback_user_id_users_id_fk",
           "tableFrom": "feedback",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -361,10 +335,7 @@
         "feedback_user_item_unique": {
           "name": "feedback_user_item_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "digest_item_id"
-          ]
+          "columns": ["user_id", "digest_item_id"]
         }
       },
       "policies": {},
@@ -461,12 +432,8 @@
           "name": "raw_items_competitor_id_competitors_id_fk",
           "tableFrom": "raw_items",
           "tableTo": "competitors",
-          "columnsFrom": [
-            "competitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["competitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -476,10 +443,7 @@
         "raw_items_source_source_id_unique": {
           "name": "raw_items_source_source_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "source",
-            "source_id"
-          ]
+          "columns": ["source", "source_id"]
         }
       },
       "policies": {},
@@ -516,12 +480,8 @@
           "name": "user_competitors_user_id_users_id_fk",
           "tableFrom": "user_competitors",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -529,12 +489,8 @@
           "name": "user_competitors_competitor_id_competitors_id_fk",
           "tableFrom": "user_competitors",
           "tableTo": "competitors",
-          "columnsFrom": [
-            "competitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["competitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -542,10 +498,7 @@
       "compositePrimaryKeys": {
         "user_competitors_user_id_competitor_id_pk": {
           "name": "user_competitors_user_id_competitor_id_pk",
-          "columns": [
-            "user_id",
-            "competitor_id"
-          ]
+          "columns": ["user_id", "competitor_id"]
         }
       },
       "uniqueConstraints": {},
@@ -605,9 +558,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -619,40 +570,22 @@
     "public.feedback_rating": {
       "name": "feedback_rating",
       "schema": "public",
-      "values": [
-        "up",
-        "down"
-      ]
+      "values": ["up", "down"]
     },
     "public.item_category": {
       "name": "item_category",
       "schema": "public",
-      "values": [
-        "launch",
-        "pricing",
-        "feature",
-        "positioning",
-        "noise"
-      ]
+      "values": ["launch", "pricing", "feature", "positioning", "noise"]
     },
     "public.source_type": {
       "name": "source_type",
       "schema": "public",
-      "values": [
-        "rss",
-        "ph",
-        "firehose",
-        "firecrawl"
-      ]
+      "values": ["rss", "ph", "firehose", "firecrawl"]
     },
     "public.user_status": {
       "name": "user_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "active",
-        "paused"
-      ]
+      "values": ["pending", "active", "paused"]
     }
   },
   "schemas": {},

@@ -1,18 +1,13 @@
-import type Anthropic from '@anthropic-ai/sdk'
-import { eq } from 'drizzle-orm'
-import { users as usersTable } from '~/db/schema'
-import { getAnthropic, SONNET_MODEL } from '~/lib/anthropic'
-import { getDb } from '~/lib/db'
-import { recordLlmUsage } from '~/lib/llm-cost'
-import { logger } from '~/lib/logger'
-import { captureServerEvent, captureServerException } from '~/lib/posthog'
-import { emitFteDelta, writeFteEvent } from './events'
-import {
-  countUserCompetitors,
-  executeTool,
-  FTE_TOOLS,
-  isProfileSaved,
-} from './tools'
+import type Anthropic from "@anthropic-ai/sdk";
+import { eq } from "drizzle-orm";
+import { users as usersTable } from "~/db/schema";
+import { getAnthropic, SONNET_MODEL } from "~/lib/anthropic";
+import { getDb } from "~/lib/db";
+import { recordLlmUsage } from "~/lib/llm-cost";
+import { logger } from "~/lib/logger";
+import { captureServerEvent, captureServerException } from "~/lib/posthog";
+import { emitFteDelta, writeFteEvent } from "./events";
+import { countUserCompetitors, executeTool, FTE_TOOLS, isProfileSaved } from "./tools";
 
 // FTE agent loop (#28).
 //
@@ -30,100 +25,89 @@ import {
 // least once AND the user has at least one competitor linked — the
 // onboarding UI (#29) shouldn't promote a half-finished run.
 
-const MAX_ITERATIONS = 14
-const MAX_TOOL_CALLS = 40
-const MAX_OUTPUT_TOKENS = 4096
-const WEB_SEARCH_MAX_USES = 6
+const MAX_ITERATIONS = 14;
+const MAX_TOOL_CALLS = 40;
+const MAX_OUTPUT_TOKENS = 4096;
+const WEB_SEARCH_MAX_USES = 6;
 
 export interface FteSignupHints {
-  email: string
-  companyUrl: string | null
-  position: string | null
-  ultimateGoal: string | null
+  email: string;
+  companyUrl: string | null;
+  position: string | null;
+  ultimateGoal: string | null;
 }
 
 export interface FteRunInput {
-  userId: string
-  runId: string
-  signup: FteSignupHints
+  userId: string;
+  runId: string;
+  signup: FteSignupHints;
 }
 
 export interface FteRunResult {
-  iterations: number
-  clientToolCalls: number
-  serverToolCalls: number
-  finishedReason:
-    | 'end_turn'
-    | 'max_iterations'
-    | 'max_tool_calls'
-    | 'error'
-    | 'unknown'
-  statusFlippedActive: boolean
+  iterations: number;
+  clientToolCalls: number;
+  serverToolCalls: number;
+  finishedReason: "end_turn" | "max_iterations" | "max_tool_calls" | "error" | "unknown";
+  statusFlippedActive: boolean;
 }
 
-// Anthropic SDK 0.40 doesn't type web_search yet; the tool params shape is
-// stable per the public API docs, so we cast at the wire boundary and treat
-// unknown response blocks as opaque pass-throughs in conversation history.
-type WebSearchTool = {
-  type: 'web_search_20250305'
-  name: 'web_search'
-  max_uses: number
-}
-
+// Anthropic SDK 0.40 doesn't type the web_search server tool's response
+// blocks (server_tool_use, web_search_tool_result); we treat them as opaque
+// pass-throughs in conversation history.
 interface UnknownBlock {
-  type: string
-  [key: string]: unknown
+  type: string;
+  [key: string]: unknown;
 }
 
-type AnyContentBlock = Anthropic.ContentBlock | UnknownBlock
+type AnyContentBlock = Anthropic.ContentBlock | UnknownBlock;
 
 const SYSTEM_PROMPT = [
-  'You are the FTE (first time experience) onboarding agent for Product Flash, a daily competitive-intel digest for SaaS product leaders.',
-  '',
-  'Your job: given the minimal signup info (email, company URL, role, goal), build the user a tight competitive map. Concretely, by the end of the run:',
-  '  1. Identify 3–8 real, relevant competitors for the user. Prefer direct competitors over adjacent categories. Skip anyone too large/diffuse to be a real comparison.',
-  '  2. For each competitor, register them with add_competitor — supply a real homepage URL and a discovered RSS feed URL when possible.',
-  '  3. Call save_profile once at the end with a refined position, company name, ultimate goal, and 3–6 focus_areas tags.',
-  '',
-  'Method:',
-  '  - Start by fetching the user\'s company homepage to understand what they do. If the company URL is missing, use the email domain.',
+  "You are the FTE (first time experience) onboarding agent for Product Flash, a daily competitive-intel digest for SaaS product leaders.",
+  "",
+  "Your job: given the minimal signup info (email, company URL, role, goal), build the user a tight competitive map. Concretely, by the end of the run:",
+  "  1. Identify 3–8 real, relevant competitors for the user. Prefer direct competitors over adjacent categories. Skip anyone too large/diffuse to be a real comparison.",
+  "  2. For each competitor, register them with add_competitor — supply a real homepage URL and a discovered RSS feed URL when possible.",
+  "  3. Call save_profile once at the end with a refined position, company name, ultimate goal, and 3–6 focus_areas tags.",
+  "",
+  "Method:",
+  "  - Start by fetching the user's company homepage to understand what they do. If the company URL is missing, use the email domain.",
   '  - Use web_search to find competitor names (e.g. "Linear alternatives", "competitors of <product>").',
-  '  - For each plausible competitor, fetch their homepage to verify positioning and confirm they\'re a real fit. Don\'t add a competitor you haven\'t verified.',
-  '  - Run discover_rss for each verified competitor BEFORE add_competitor, so the rss_url field is populated whenever a feed exists.',
-  '',
-  'Writing voice for text blocks:',
-  '  - The user is watching every text block you emit render as a CARD on screen. Each text block = one card.',
-  '  - Hard length cap: AT MOST 2 SENTENCES per text block. Often 1 is enough. Cards longer than that read as a wall of text and bury the signal.',
+  "  - For each plausible competitor, fetch their homepage to verify positioning and confirm they're a real fit. Don't add a competitor you haven't verified.",
+  "  - Run discover_rss for each verified competitor BEFORE add_competitor, so the rss_url field is populated whenever a feed exists.",
+  "",
+  "Writing voice for text blocks:",
+  "  - The user is watching every text block you emit render as a CARD on screen. Each text block = one card.",
+  "  - Hard length cap: AT MOST 2 SENTENCES per text block. Often 1 is enough. Cards longer than that read as a wall of text and bury the signal.",
   '  - Third-person, declarative, present tense. Example: "Workleap competes in HR-tech for mid-market — direct rivals cluster around Lattice, 15Five, and Culture Amp."',
   '  - Never lead with filler ("Good —", "Now let me…", "Okay so…", "Great,"). Never narrate your own reasoning ("I\'m going to fetch…", "Let me check…"). The tools you call have their own visible status; do not narrate them.',
   '  - Never address the user directly ("you can see that…", "here you go"). The cards are observations about their space, not messages to them.',
-  '  - Each text block should ADD information the user can\'t see elsewhere on the page. The final profile + competitor list renders directly BELOW the thinking stream — the user will see that. Do NOT re-list competitors in a card.',
-  '  - If you have nothing substantive to add at a given step, emit no text — just call the next tool.',
-  '',
-  'Hard rules:',
-  '  - Never invent a competitor you have not seen evidence of in a fetched page or search result.',
-  '  - Never call save_profile before you have added at least 3 competitors.',
-  '  - Stop adding competitors once you have 8. Quality over quantity.',
-  '  - Do not include the user\'s own company as a competitor.',
-  '  - End the run by calling save_profile, then stop. Do not emit a recap, summary, sign-off, or competitor list before OR after save_profile — the user sees the final profile rendered directly below the stream, so a recap is pure duplication.',
-].join('\n')
+  "  - Each text block should ADD information the user can't see elsewhere on the page. The final profile + competitor list renders directly BELOW the thinking stream — the user will see that. Do NOT re-list competitors in a card.",
+  "  - If you have nothing substantive to add at a given step, emit no text — just call the next tool.",
+  "",
+  "Hard rules:",
+  "  - Never invent a competitor you have not seen evidence of in a fetched page or search result.",
+  "  - Never call save_profile before you have added at least 3 competitors.",
+  "  - Stop adding competitors once you have 8. Quality over quantity.",
+  "  - Do not include the user's own company as a competitor.",
+  "  - End the run by calling save_profile, then stop. Do not emit a recap, summary, sign-off, or competitor list before OR after save_profile — the user sees the final profile rendered directly below the stream, so a recap is pure duplication.",
+].join("\n");
 
 export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
-  const { userId, runId, signup } = input
-  const client = getAnthropic()
-  const startedAt = Date.now()
+  const { userId, runId, signup } = input;
+  const client = getAnthropic();
+  const startedAt = Date.now();
 
   await writeFteEvent({
     userId,
     runId,
-    kind: 'run_started',
+    kind: "run_started",
     payload: {
       email: signup.email,
       company_url: signup.companyUrl,
       position: signup.position,
       ultimate_goal: signup.ultimateGoal,
     },
-  })
+  });
 
   const tools = [
     ...FTE_TOOLS,
@@ -131,33 +115,33 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
     // accepts the shape below verbatim. Single double-cast keeps the
     // rest of the call typed.
     {
-      type: 'web_search_20250305',
-      name: 'web_search',
+      type: "web_search_20250305",
+      name: "web_search",
       max_uses: WEB_SEARCH_MAX_USES,
     } as unknown as Anthropic.Tool,
-  ]
+  ];
 
   const messages: Anthropic.MessageParam[] = [
     {
-      role: 'user',
+      role: "user",
       content: renderInitialUserMessage(signup),
     },
-  ]
+  ];
 
-  let iterations = 0
-  let clientToolCalls = 0
-  let serverToolCalls = 0
-  let finishedReason: FteRunResult['finishedReason'] = 'unknown'
+  let iterations = 0;
+  let clientToolCalls = 0;
+  let serverToolCalls = 0;
+  let finishedReason: FteRunResult["finishedReason"] = "unknown";
 
   try {
     outer: while (iterations < MAX_ITERATIONS) {
-      iterations++
+      iterations++;
       await writeFteEvent({
         userId,
         runId,
-        kind: 'iteration',
+        kind: "iteration",
         payload: { n: iterations },
-      })
+      });
 
       // Streaming mode: durable block-level rows still land in fte_events via
       // the per-block loop below (driven by finalMessage), but sub-block
@@ -171,200 +155,195 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
         system: SYSTEM_PROMPT,
         tools,
         messages,
-      })
+      });
 
-      let deltaChain: Promise<unknown> = Promise.resolve()
-      const enqueueDelta = (kind: 'text_delta' | 'tool_input_delta', delta: string) => {
-        deltaChain = deltaChain.then(() =>
-          emitFteDelta({ userId, runId, kind, delta }),
-        )
-      }
+      let deltaChain: Promise<unknown> = Promise.resolve();
+      const enqueueDelta = (kind: "text_delta" | "tool_input_delta", delta: string) => {
+        deltaChain = deltaChain.then(() => emitFteDelta({ userId, runId, kind, delta }));
+      };
 
-      stream.on('text', (delta) => {
-        if (delta.length > 0) enqueueDelta('text_delta', delta)
-      })
-      stream.on('inputJson', (partial) => {
-        if (partial.length > 0) enqueueDelta('tool_input_delta', partial)
-      })
-      stream.on('contentBlock', (block) => {
-        const kind = (block as { type: string }).type
+      stream.on("text", (delta) => {
+        if (delta.length > 0) enqueueDelta("text_delta", delta);
+      });
+      stream.on("inputJson", (partial) => {
+        if (partial.length > 0) enqueueDelta("tool_input_delta", partial);
+      });
+      stream.on("contentBlock", (block) => {
+        const kind = (block as { type: string }).type;
         // Heads-up event so the frontend can open a new line / spinner before
         // the matching durable event lands. Empty delta carries only the
         // boundary signal.
         deltaChain = deltaChain.then(() =>
-          emitFteDelta({ userId, runId, kind: 'block_start', delta: '', blockKind: kind }),
-        )
-      })
+          emitFteDelta({ userId, runId, kind: "block_start", delta: "", blockKind: kind }),
+        );
+      });
 
-      const response = await stream.finalMessage()
+      const response = await stream.finalMessage();
       await deltaChain.catch(() => {
         // Deltas are best-effort — see emitFteDelta. Any rejection was already
         // logged by the emitter.
-      })
+      });
 
       // Account for this iteration's spend. response.usage includes web_search
       // surcharge under server_tool_use; recordLlmUsage prices it.
-      await recordLlmUsage(
-        { kind: 'fte', model: SONNET_MODEL, userId, runId },
-        response.usage,
-      )
+      await recordLlmUsage({ kind: "fte", model: SONNET_MODEL, userId, runId }, response.usage);
 
-      const blocks = response.content as AnyContentBlock[]
+      const blocks = response.content as AnyContentBlock[];
 
       // Echo the assistant turn into history verbatim so the next iteration
       // has full context (including any server-tool blocks the API returned).
       messages.push({
-        role: 'assistant',
+        role: "assistant",
         content: blocks as unknown as Anthropic.ContentBlockParam[],
-      })
+      });
 
       // Stream every block out as an event + collect client tool_use blocks
       // to resolve for the next user turn.
-      const toolUses: Array<{ id: string; name: string; input: unknown }> = []
+      const toolUses: Array<{ id: string; name: string; input: unknown }> = [];
 
       for (const block of blocks) {
-        if (block.type === 'text') {
-          const text = (block as Anthropic.TextBlock).text.trim()
+        if (block.type === "text") {
+          const text = (block as Anthropic.TextBlock).text.trim();
           if (text.length > 0) {
             await writeFteEvent({
               userId,
               runId,
-              kind: 'planner_text',
+              kind: "planner_text",
               payload: { text },
-            })
+            });
           }
-        } else if (block.type === 'thinking') {
+        } else if (block.type === "thinking") {
           // We don't enable extended thinking in this request, but be defensive.
           await writeFteEvent({
             userId,
             runId,
-            kind: 'planner_thinking',
+            kind: "planner_thinking",
             payload: { hidden: true },
-          })
-        } else if (block.type === 'tool_use') {
-          const tu = block as Anthropic.ToolUseBlock
-          toolUses.push({ id: tu.id, name: tu.name, input: tu.input })
+          });
+        } else if (block.type === "tool_use") {
+          const tu = block as Anthropic.ToolUseBlock;
+          toolUses.push({ id: tu.id, name: tu.name, input: tu.input });
           await writeFteEvent({
             userId,
             runId,
-            kind: 'tool_use',
+            kind: "tool_use",
             payload: { id: tu.id, name: tu.name, input: tu.input },
-          })
-        } else if (block.type === 'server_tool_use') {
-          serverToolCalls++
-          const b = block as UnknownBlock
+          });
+        } else if (block.type === "server_tool_use") {
+          serverToolCalls++;
+          const b = block as UnknownBlock;
           await writeFteEvent({
             userId,
             runId,
-            kind: 'server_tool_use',
+            kind: "server_tool_use",
             payload: {
               id: b.id,
               name: b.name,
               input: b.input,
             },
-          })
-        } else if (block.type === 'web_search_tool_result') {
-          const b = block as UnknownBlock
+          });
+        } else if (block.type === "web_search_tool_result") {
+          const b = block as UnknownBlock;
           await writeFteEvent({
             userId,
             runId,
-            kind: 'server_tool_result',
+            kind: "server_tool_result",
             payload: {
               tool_use_id: b.tool_use_id,
               // Result content can be large; record only top-level result
               // count + URLs so the frontend stays light.
               summary: summarizeWebSearchResult(b.content),
             },
-          })
+          });
         } else {
           await writeFteEvent({
             userId,
             runId,
-            kind: 'planner_text',
+            kind: "planner_text",
             payload: { unknown_block_type: (block as UnknownBlock).type },
-          })
+          });
         }
       }
 
-      if (response.stop_reason === 'end_turn' && toolUses.length === 0) {
-        finishedReason = 'end_turn'
-        break outer
+      if (response.stop_reason === "end_turn" && toolUses.length === 0) {
+        finishedReason = "end_turn";
+        break outer;
       }
 
       if (clientToolCalls + toolUses.length > MAX_TOOL_CALLS) {
-        finishedReason = 'max_tool_calls'
-        break outer
+        finishedReason = "max_tool_calls";
+        break outer;
       }
 
       // Execute client tool calls + collect tool_results in the same order.
-      const resultBlocks: Anthropic.ToolResultBlockParam[] = []
+      const resultBlocks: Anthropic.ToolResultBlockParam[] = [];
       for (const tu of toolUses) {
-        clientToolCalls++
-        const result = await executeTool({ userId, runId }, tu.name, tu.input)
+        clientToolCalls++;
+        const result = await executeTool({ userId, runId }, tu.name, tu.input);
         await writeFteEvent({
           userId,
           runId,
-          kind: result.isError ? 'tool_error' : 'tool_result',
+          kind: result.isError ? "tool_error" : "tool_result",
           payload: { id: tu.id, name: tu.name, ...result.payload },
-        })
+        });
         resultBlocks.push({
-          type: 'tool_result',
+          type: "tool_result",
           tool_use_id: tu.id,
           content: result.content,
           is_error: result.isError,
-        })
+        });
       }
 
       if (resultBlocks.length === 0) {
         // Model returned no tool_use blocks but stop_reason wasn't end_turn —
         // treat as effectively finished (e.g. max_tokens). Bail.
-        finishedReason = response.stop_reason === 'end_turn' ? 'end_turn' : 'unknown'
-        break outer
+        finishedReason = response.stop_reason === "end_turn" ? "end_turn" : "unknown";
+        break outer;
       }
 
-      messages.push({ role: 'user', content: resultBlocks })
+      messages.push({ role: "user", content: resultBlocks });
 
       if (iterations >= MAX_ITERATIONS) {
-        finishedReason = 'max_iterations'
-        break outer
+        finishedReason = "max_iterations";
+        break outer;
       }
     }
 
-    if (finishedReason === 'unknown' && iterations >= MAX_ITERATIONS) {
-      finishedReason = 'max_iterations'
+    if (finishedReason === "unknown" && iterations >= MAX_ITERATIONS) {
+      finishedReason = "max_iterations";
     }
   } catch (err) {
-    finishedReason = 'error'
-    logger.error({ err, userId, runId }, 'fte: agent loop threw')
-    captureServerException(err, userId, { source: 'fte-agent', run_id: runId })
+    finishedReason = "error";
+    logger.error({ err, userId, runId }, "fte: agent loop threw");
+    captureServerException(err, userId, { source: "fte-agent", run_id: runId });
     await writeFteEvent({
       userId,
       runId,
-      kind: 'error',
+      kind: "error",
       payload: { message: describeError(err) },
-    })
+    });
   }
 
   // Only promote to 'active' when both conditions hold so a half-finished
   // run doesn't push a user into the daily digest path with no profile.
-  const profileSaved = await isProfileSaved(userId)
-  const competitorCount = await countUserCompetitors(userId)
-  const hasCompetitor = competitorCount > 0
-  const statusFlippedActive = profileSaved && hasCompetitor
+  const profileSaved = await isProfileSaved(userId);
+  const competitorCount = await countUserCompetitors(userId);
+  const hasCompetitor = competitorCount > 0;
+  const statusFlippedActive = profileSaved && hasCompetitor;
 
   if (statusFlippedActive) {
     await getDb()
       .update(usersTable)
-      .set({ status: 'active', updatedAt: new Date() })
-      .where(eq(usersTable.id, userId))
+      .set({ status: "active", updatedAt: new Date() })
+      .where(eq(usersTable.id, userId));
   }
 
-  const durationSeconds = Math.round((Date.now() - startedAt) / 1000)
+  const durationSeconds = Math.round((Date.now() - startedAt) / 1000);
 
   await writeFteEvent({
     userId,
     runId,
-    kind: 'run_finished',
+    kind: "run_finished",
     payload: {
       finished_reason: finishedReason,
       iterations,
@@ -376,9 +355,9 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
       competitor_count: competitorCount,
       duration_seconds: durationSeconds,
     },
-  })
+  });
 
-  captureServerEvent(userId, 'fte_completed', {
+  captureServerEvent(userId, "fte_completed", {
     run_id: runId,
     finished_reason: finishedReason,
     iterations,
@@ -389,7 +368,7 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
     profile_saved: profileSaved,
     status_flipped_active: statusFlippedActive,
     duration_seconds: durationSeconds,
-  })
+  });
 
   logger.info(
     {
@@ -401,8 +380,8 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
       serverToolCalls,
       statusFlippedActive,
     },
-    'fte: run complete',
-  )
+    "fte: run complete",
+  );
 
   return {
     iterations,
@@ -410,45 +389,45 @@ export async function runFteAgent(input: FteRunInput): Promise<FteRunResult> {
     serverToolCalls,
     finishedReason,
     statusFlippedActive,
-  }
+  };
 }
 
 function renderInitialUserMessage(signup: FteSignupHints): string {
   return [
-    'A new user just signed up. Build their competitive map and profile.',
-    '',
-    'Signup info:',
+    "A new user just signed up. Build their competitive map and profile.",
+    "",
+    "Signup info:",
     `  email: ${signup.email}`,
-    `  company_url: ${signup.companyUrl ?? '(not provided — infer from email domain)'}`,
-    `  position: ${signup.position ?? '(not provided)'}`,
-    `  ultimate_goal: ${signup.ultimateGoal ?? '(not provided)'}`,
-    '',
-    'Start by fetching the company homepage. Then research competitors, verify each one with fetch_url, discover their RSS feeds, register them with add_competitor, and finish by calling save_profile.',
-  ].join('\n')
+    `  company_url: ${signup.companyUrl ?? "(not provided — infer from email domain)"}`,
+    `  position: ${signup.position ?? "(not provided)"}`,
+    `  ultimate_goal: ${signup.ultimateGoal ?? "(not provided)"}`,
+    "",
+    "Start by fetching the company homepage. Then research competitors, verify each one with fetch_url, discover their RSS feeds, register them with add_competitor, and finish by calling save_profile.",
+  ].join("\n");
 }
 
 function summarizeWebSearchResult(content: unknown): {
-  count: number
-  urls: string[]
+  count: number;
+  urls: string[];
 } {
   if (!Array.isArray(content)) {
-    return { count: 0, urls: [] }
+    return { count: 0, urls: [] };
   }
-  const urls: string[] = []
+  const urls: string[] = [];
   for (const entry of content) {
-    if (entry && typeof entry === 'object') {
-      const url = (entry as Record<string, unknown>).url
-      if (typeof url === 'string') urls.push(url)
+    if (entry && typeof entry === "object") {
+      const url = (entry as Record<string, unknown>).url;
+      if (typeof url === "string") urls.push(url);
     }
   }
-  return { count: content.length, urls: urls.slice(0, 10) }
+  return { count: content.length, urls: urls.slice(0, 10) };
 }
 
 function describeError(err: unknown): string {
-  if (err instanceof Error) return `${err.name}: ${err.message}`
+  if (err instanceof Error) return `${err.name}: ${err.message}`;
   try {
-    return JSON.stringify(err)
+    return JSON.stringify(err);
   } catch {
-    return String(err)
+    return String(err);
   }
 }

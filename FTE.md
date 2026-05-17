@@ -5,10 +5,11 @@ sees it. End state: you've confirmed an AI-generated profile and
 you're reading your first digest at `/app/digests/:id`.
 
 **Who this is for:**
+
 - **Maxime, dogfooding (#13)** — a reference you can read top-to-bottom
   before each run instead of re-reading the codebase, plus reflection
-  prompts and a known-gaps list so you spend time *judging* the
-  experience instead of *remembering* it.
+  prompts and a known-gaps list so you spend time _judging_ the
+  experience instead of _remembering_ it.
 - **Beta babysitting (#18 onwards)** — share with a confused beta user
   to unstick them without a live walk-through.
 - **Future-you** — keep this current as the FTE evolves; if you change
@@ -73,6 +74,7 @@ gates both.
 
 Once you're signed in as admin, **don't dogfood as your admin email**.
 Two reasons:
+
 - Your admin user row likely already has `profile_confirmed_at` set,
   so `/signup` will upsert without flipping you back to `'onboarding'`,
   and `/app/index.tsx` will route you straight to `/app/digests` —
@@ -95,8 +97,8 @@ The clean recipe:
 Why a different browser/incognito: magic links are tied to the
 browser session that requested them. If you're still logged in as
 admin in the same browser, clicking the user's magic link will sign
-you in as the user *but the admin session may interfere with the
-post-click redirect.* Cleanest is a fully separate session.
+you in as the user _but the admin session may interfere with the
+post-click redirect._ Cleanest is a fully separate session.
 
 **Tearing down between runs:** do it in Drizzle Studio (`pnpm
 db:studio`) — no script to maintain.
@@ -108,7 +110,7 @@ db:studio`) — no script to maintain.
 2. Open the `waitlist` table, delete any rows for dogfood emails (no
    FK to users, so they don't cascade).
 
-What survives — and you *want* to survive: `competitors`, `raw_items`,
+What survives — and you _want_ to survive: `competitors`, `raw_items`,
 `competitor_pricing_snapshots`. The next FTE run reuses these via the
 `homepage_url` unique constraint instead of re-researching and
 re-ingesting, which saves the expensive web-search + Firehose +
@@ -134,14 +136,15 @@ bare `/signup` shows an invite gate that points you back here.
    - **Email** (required) — the address the invite + magic link will land at.
    - **Role** (optional) — picks from Head of Product, PM Lead, Founder, etc.
    - **Company URL** (optional) — gives the admin context when issuing invites.
-3. Submit. You'll see *"Got it — we'll be in touch"* inline. No
+3. Submit. You'll see _"Got it — we'll be in touch"_ inline. No
    confirmation email is sent at this stage.
 
 **Behind the scenes:** the form POSTs to `/api/waitlist`, which inserts
 a row into `waitlist` (or silently no-ops on duplicate email).
 
 **What can go wrong:**
-- *"Couldn't reach the server"* — network blip; retry.
+
+- _"Couldn't reach the server"_ — network blip; retry.
 - Re-submitting the same email looks identical to a first submit; that's
   by design — admins see one row.
 
@@ -165,9 +168,10 @@ Slack, DM. (Resend auto-send via #11 is a future task.)
 own row's Invite button, copy the URL, paste into a new tab.
 
 **What can go wrong:**
-- *Lost the link?* Ask the admin to click Invite again — it re-signs a
+
+- _Lost the link?_ Ask the admin to click Invite again — it re-signs a
   fresh token; the old one is invalidated when re-issued.
-- *URL is malformed or truncated?* The signup page will show the gate.
+- _URL is malformed or truncated?_ The signup page will show the gate.
   Get a clean re-issued link.
 
 ---
@@ -179,11 +183,11 @@ own row's Invite button, copy the URL, paste into a new tab.
 The page verifies the token server-side (`INVITE_TOKEN_SECRET`). Three
 outcomes:
 
-| State | What you see |
-| --- | --- |
-| Valid token | The FTE intake form, email field locked to the address the invite was issued to. |
-| Missing/empty `?invite` | The invite gate: *"Private beta, by invite."* + a link back to the waitlist. |
-| Bogus or tampered token | Same gate as missing. |
+| State                   | What you see                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| Valid token             | The FTE intake form, email field locked to the address the invite was issued to. |
+| Missing/empty `?invite` | The invite gate: _"Private beta, by invite."_ + a link back to the waitlist.     |
+| Bogus or tampered token | Same gate as missing.                                                            |
 
 If you see the gate when you expected the form, the token didn't verify
 — ask for a fresh one.
@@ -200,16 +204,17 @@ You fill four fields:
 2. **Company URL** — `https://yourcompany.com`. The agent uses this as
    the root of its research.
 3. **Your role** — free text. Examples: `Head of Product`, `PM Lead at
-   ACME`, `Founder/CEO`. Used both for personalized scoring (#35) and
+ACME`, `Founder/CEO`. Used both for personalized scoring (#35) and
    to brief the FTE planner.
-4. **What's your goal** — one sentence. Example: *"Catch every
+4. **What's your goal** — one sentence. Example: _"Catch every
    competitor launch and pricing change so I can react before my CEO
-   asks."* Load-bearing — this drives both what the agent researches
+   asks."_ Load-bearing — this drives both what the agent researches
    and how the Sonnet synthesizer frames `impact_note` later.
 
 Click **Start onboarding**.
 
 **What happens server-side, in one request:**
+
 1. The token is re-verified.
 2. A `users` row is upserted with `status='onboarding'` + your seed
    fields.
@@ -217,13 +222,14 @@ Click **Start onboarding**.
    singleton — double-clicking is a no-op).
 4. A magic-link email is dispatched via Better Auth + Resend.
 
-You'll see the *Onboarding running* card: *"Check your inbox."*
+You'll see the _Onboarding running_ card: _"Check your inbox."_
 
 **What can go wrong:**
-- *"This invite link looks invalid or expired"* — token didn't verify
+
+- _"This invite link looks invalid or expired"_ — token didn't verify
   on submit. Probably you opened the page with a valid token, then it
   was re-issued. Reload the latest URL.
-- *"The magic-link email didn't go through"* — Resend hiccup; click
+- _"The magic-link email didn't go through"_ — Resend hiccup; click
   submit again. The user row + the agent run are already in flight, so
   retry only re-sends the email.
 
@@ -253,12 +259,12 @@ You land on `/app`, which immediately redirects to `/app/onboarding`
 While you were checking email, the FTE agent has been working. The
 page now shows:
 
-- **Header:** *"Your AI analyst is thinking…"* with a live pulse dot.
+- **Header:** _"Your AI analyst is thinking…"_ with a live pulse dot.
 - **Progress chips:** counters for `pages read`, `web searches`,
   `competitors`, and `elapsed` — fill in as tool calls complete.
 - **Thinking stream:** numbered cards (`01`, `02`, …), one per
   `planner_text` event. The currently-streaming thought renders with a
-  typewriter effect and an *"thinking"* badge.
+  typewriter effect and an _"thinking"_ badge.
 
 You can leave the tab open and watch, or close it and come back — the
 page loader replays the full event history when you return, and the
@@ -270,6 +276,7 @@ no progress, something's wedged (see Troubleshooting).
 
 **What the agent is doing under the hood** (read-only, not surfaced
 here — see `/admin/users/:id` for the raw event log):
+
 - `web_search` your company name + space.
 - `fetch_url` your homepage + any competitor pages it discovers.
 - `discover_rss` to find changelog/blog feeds per competitor.
@@ -283,7 +290,7 @@ here — see `/admin/users/:id` for the raw event log):
 
 **Where:** still `/app/onboarding`, after `run_finished` arrives.
 
-The header flips to *"Your AI analyst is ready."* and a **Profile
+The header flips to _"Your AI analyst is ready."_ and a **Profile
 preview** card reveals below:
 
 - **Role** — what it inferred from your input + research.
@@ -335,10 +342,11 @@ the next morning regardless.
 **Where:** `/app/digests`.
 
 If you have zero digests (you will, immediately after step 8), the
-page shows a *"Brewing your first brief"* card with a live elapsed
+page shows a _"Brewing your first brief"_ card with a live elapsed
 counter. It polls the loader every 4 seconds.
 
 Expected wait: **1–5 minutes**. Breakdown:
+
 - Per-user RSS + Firecrawl + Firehose ingestion: ~30–60s.
 - Haiku classification fan-out: ~15–30s.
 - Sonnet synthesis: ~30–60s.
@@ -347,10 +355,11 @@ When the first digest row lands, the page auto-navigates you straight
 into `/app/digests/:id`.
 
 **What can go wrong:**
-- *Stuck past 5 minutes* — open `/admin/users/:id` to see the
+
+- _Stuck past 5 minutes_ — open `/admin/users/:id` to see the
   fast-path job status and any error events.
-- *Zero items synthesized* — empty-digest record is fine; you'll see
-  the *"Nothing notable"* state. Either your competitors were
+- _Zero items synthesized_ — empty-digest record is fine; you'll see
+  the _"Nothing notable"_ state. Either your competitors were
   genuinely quiet in the last 24h, or your competitor list is too
   narrow (go back to `/app/profile` and add more).
 
@@ -365,12 +374,13 @@ than the eventual email template (#11), which is constraint-bound to
 inline styles.
 
 Each digest item shows:
+
 - **Tag** — category (launch / pricing / feature / positioning).
 - **Headline** — Sonnet-generated, in Product Flash editorial tone.
 - **Snippet** — 1–2 sentence summary of the underlying `raw_item`.
-- **Impact note** — *the load-bearing line*, framed against your goal +
-  focus areas (e.g. *"Pressures your enterprise positioning vs.
-  Asana"*, not *"Pricing pressure on the category"*).
+- **Impact note** — _the load-bearing line_, framed against your goal +
+  focus areas (e.g. _"Pressures your enterprise positioning vs.
+  Asana"_, not _"Pricing pressure on the category"_).
 - **👍 / 👎** — react. These hit `/r/:digest_item_id/:rating` with a
   signed token; clicking writes a `feedback` row and redirects to a
   thanks page.
@@ -393,30 +403,34 @@ same `/app/digests` list.
 ## Dogfooding lens — what to ask at each step
 
 When you (Maxime) run through this for #13, the goal is to find
-friction *before* a beta user does. Use these prompts.
+friction _before_ a beta user does. Use these prompts.
 
 **Step 1 (waitlist):**
+
 - Did you understand within 5 seconds what you'd get if you submitted?
 - Is the role dropdown's set of options aligned with who we actually
   want? Anything missing or condescending?
 
 **Step 4 (signup intake):**
+
 - Did the 4-field ask feel proportionate to "your AI analyst goes to
   work"? Too long? Too short?
 - The Goal field is the load-bearing one for #35 personalization. Did
   the placeholder steer you toward a useful answer, or did you stare?
 
 **Step 6 (thinking stream):**
-- Is the planner_text *interesting* to read, or does it feel like log
+
+- Is the planner*text \_interesting* to read, or does it feel like log
   spew? (Remember: per [[feedback_agentic_ui]], the user surface is
   "thinking steps", not the raw event log.)
-- Do the progress chips actually *say something* (pages read, web
+- Do the progress chips actually _say something_ (pages read, web
   searches), or do they feel decorative?
 - 60–120s wall time — did it feel fast, on-time, or slow? At what
   second did you start to doubt it was working?
 
 **Step 7 (profile preview) — the most important reflection:**
-- Did the agent identify the *right* competitors? Score yourself: out
+
+- Did the agent identify the _right_ competitors? Score yourself: out
   of 5 listed, how many would you keep?
 - Did it frame your role/goal in a way you'd actually claim, or did it
   put words in your mouth?
@@ -426,12 +440,13 @@ friction *before* a beta user does. Use these prompts.
   state is created — not deferred to `/app/profile`.)
 
 **Step 10 (first digest):**
-- Does each `impact_note` actually reference *your* goal/role, or does
+
+- Does each `impact_note` actually reference _your_ goal/role, or does
   it read as a generic category summary? (#35 is the whole point — if
   this fails, the personalization didn't land.)
 - Would you have caught any of these items from your existing reading
-  routine? If yes, why are we duplicating? If no, is *this specific
-  item* something you'd want flagged?
+  routine? If yes, why are we duplicating? If no, is _this specific
+  item_ something you'd want flagged?
 - Open the digest tomorrow + the next day. Three clean days in a row
   is the gate for #18 beta launch.
 
@@ -494,27 +509,27 @@ This file drifts the moment FTE behavior changes. Some discipline:
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| `/signup` shows the invite gate | Token missing, expired, or tampered | Ask admin to re-issue from `/admin/waitlist` |
-| Magic-link email never arrived | Resend hiccup, or wrong inbox | Re-submit the `/signup` form (re-sends link); check spam |
-| `/app/onboarding` is blank, no events | FTE worker is down | Check `pnpm worker` is running locally / Railway worker logs |
-| Thinking stream stalls mid-run | Anthropic timeout, or `max_iterations` hit | Look at `/admin/users/:id` event timeline; re-run from there |
-| `run_finished` arrived but no profile card | Agent never called `save_profile` | Re-run FTE; if persistent, check tool definitions in `src/agents/fte/tools.ts` |
-| Brewing state past 5 min | Fast-path job failed silently | Admin: check pg-boss `job` table for `fast-path-run` row; the 05:30 cron is the safety net |
-| First digest shows "Nothing notable" | Genuine quiet day, OR competitor list too narrow | Add more competitors at `/app/profile`; the next daily run will pick them up |
+| Symptom                                    | Likely cause                                     | Fix                                                                                        |
+| ------------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `/signup` shows the invite gate            | Token missing, expired, or tampered              | Ask admin to re-issue from `/admin/waitlist`                                               |
+| Magic-link email never arrived             | Resend hiccup, or wrong inbox                    | Re-submit the `/signup` form (re-sends link); check spam                                   |
+| `/app/onboarding` is blank, no events      | FTE worker is down                               | Check `pnpm worker` is running locally / Railway worker logs                               |
+| Thinking stream stalls mid-run             | Anthropic timeout, or `max_iterations` hit       | Look at `/admin/users/:id` event timeline; re-run from there                               |
+| `run_finished` arrived but no profile card | Agent never called `save_profile`                | Re-run FTE; if persistent, check tool definitions in `src/agents/fte/tools.ts`             |
+| Brewing state past 5 min                   | Fast-path job failed silently                    | Admin: check pg-boss `job` table for `fast-path-run` row; the 05:30 cron is the safety net |
+| First digest shows "Nothing notable"       | Genuine quiet day, OR competitor list too narrow | Add more competitors at `/app/profile`; the next daily run will pick them up               |
 
 ---
 
 ## For maintainers — what files own each step
 
-| Step | File |
-| --- | --- |
-| Admin login + role gate | `src/routes/login.tsx`, `src/routes/admin.tsx`, `src/lib/auth-server.ts` (`requireAdminSession`) |
-| Waitlist form | `src/components/landing/WaitlistForm.tsx`, `src/routes/api/waitlist.ts` |
-| Admin invite issuance | `src/routes/admin/waitlist.tsx`, `src/lib/invite-token.ts` |
-| Signup intake + magic link | `src/routes/signup.tsx`, `src/lib/auth.ts` |
-| FTE agent loop | `src/agents/fte/agent.ts`, `tools.ts`, `job.ts`, `events.ts` |
-| Onboarding UI + SSE | `src/routes/app/onboarding.tsx`, `src/routes/api/onboarding/stream.ts`, `src/lib/notify.ts` |
-| Profile confirm + fast path | `confirmProfile` in `src/routes/app/onboarding.tsx`, `src/jobs/fast-path.ts` |
-| Brewing → digest | `src/routes/app/digests/index.tsx`, `src/routes/app/digests/$digestId.tsx` |
+| Step                        | File                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| Admin login + role gate     | `src/routes/login.tsx`, `src/routes/admin.tsx`, `src/lib/auth-server.ts` (`requireAdminSession`) |
+| Waitlist form               | `src/components/landing/WaitlistForm.tsx`, `src/routes/api/waitlist.ts`                          |
+| Admin invite issuance       | `src/routes/admin/waitlist.tsx`, `src/lib/invite-token.ts`                                       |
+| Signup intake + magic link  | `src/routes/signup.tsx`, `src/lib/auth.ts`                                                       |
+| FTE agent loop              | `src/agents/fte/agent.ts`, `tools.ts`, `job.ts`, `events.ts`                                     |
+| Onboarding UI + SSE         | `src/routes/app/onboarding.tsx`, `src/routes/api/onboarding/stream.ts`, `src/lib/notify.ts`      |
+| Profile confirm + fast path | `confirmProfile` in `src/routes/app/onboarding.tsx`, `src/jobs/fast-path.ts`                     |
+| Brewing → digest            | `src/routes/app/digests/index.tsx`, `src/routes/app/digests/$digestId.tsx`                       |

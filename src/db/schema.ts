@@ -10,25 +10,20 @@ import {
   timestamp,
   unique,
   uuid,
-} from 'drizzle-orm/pg-core'
+} from "drizzle-orm/pg-core";
 
-export const userStatus = pgEnum('user_status', [
-  'pending',
-  'onboarding',
-  'active',
-  'paused',
-])
-export const sourceType = pgEnum('source_type', ['rss', 'ph', 'firehose', 'firecrawl'])
-export const itemCategory = pgEnum('item_category', [
-  'launch',
-  'pricing',
-  'feature',
-  'positioning',
-  'funding',
-  'acquisition',
-  'noise',
-])
-export const feedbackRating = pgEnum('feedback_rating', ['up', 'down'])
+export const userStatus = pgEnum("user_status", ["pending", "onboarding", "active", "paused"]);
+export const sourceType = pgEnum("source_type", ["rss", "ph", "firehose", "firecrawl"]);
+export const itemCategory = pgEnum("item_category", [
+  "launch",
+  "pricing",
+  "feature",
+  "positioning",
+  "funding",
+  "acquisition",
+  "noise",
+]);
+export const feedbackRating = pgEnum("feedback_rating", ["up", "down"]);
 
 // Better Auth manages user/session/account/verification via its Drizzle
 // adapter with `usePlural: true` (see src/lib/auth.ts). The auth-owned
@@ -41,70 +36,70 @@ export const feedbackRating = pgEnum('feedback_rating', ['up', 'down'])
 // the AI-generated profile written by the FTE agent; `profileConfirmedAt`
 // is stamped when the user accepts the profile in #29 and the row
 // transitions from `onboarding` → `active`.
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull().default(false),
-  name: text('name'),
-  image: text('image'),
-  tz: text('tz'),
-  status: userStatus('status').notNull().default('pending'),
-  position: text('position'),
-  companyName: text('company_name'),
-  companyUrl: text('company_url'),
-  ultimateGoal: text('ultimate_goal'),
-  focusAreas: text('focus_areas').array(),
-  profileConfirmedAt: timestamp('profile_confirmed_at', { withTimezone: true }),
-  role: text('role').notNull().default('user'),
-  banned: boolean('banned').notNull().default(false),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  name: text("name"),
+  image: text("image"),
+  tz: text("tz"),
+  status: userStatus("status").notNull().default("pending"),
+  position: text("position"),
+  companyName: text("company_name"),
+  companyUrl: text("company_url"),
+  ultimateGoal: text("ultimate_goal"),
+  focusAreas: text("focus_areas").array(),
+  profileConfirmedAt: timestamp("profile_confirmed_at", { withTimezone: true }),
+  role: text("role").notNull().default("user"),
+  banned: boolean("banned").notNull().default(false),
+  banReason: text("ban_reason"),
+  banExpires: timestamp("ban_expires", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
-export const sessions = pgTable('sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  token: text('token').notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  impersonatedBy: uuid('impersonated_by').references(() => users.id, {
-    onDelete: 'set null',
+    .references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  impersonatedBy: uuid("impersonated_by").references(() => users.id, {
+    onDelete: "set null",
   }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
-export const accounts = pgTable('accounts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
+export const accounts = pgTable("accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  accountId: text('account_id').notNull(),
-  providerId: text('provider_id').notNull(),
-  accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
-  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
-  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
-  scope: text('scope'),
-  idToken: text('id_token'),
-  password: text('password'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+    .references(() => users.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  scope: text("scope"),
+  idToken: text("id_token"),
+  password: text("password"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
-export const verifications = pgTable('verifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const verifications = pgTable("verifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // `competitors` is a globally-shared dedupe namespace by intent — the daily
 // ingestion cron fetches each row's RSS/PH/Firecrawl feeds ONCE regardless
@@ -116,151 +111,151 @@ export const verifications = pgTable('verifications', {
 // legitimate writer of fields on existing rows; it runs in a privileged
 // signup context. If we move off per-user tenancy, revisit this model.
 export const competitors = pgTable(
-  'competitors',
+  "competitors",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    name: text('name').notNull(),
-    homepageUrl: text('homepage_url').notNull(),
-    rssUrl: text('rss_url'),
-    phSlug: text('ph_slug'),
-    pricingUrl: text('pricing_url'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    homepageUrl: text("homepage_url").notNull(),
+    rssUrl: text("rss_url"),
+    phSlug: text("ph_slug"),
+    pricingUrl: text("pricing_url"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique('competitors_homepage_url_unique').on(t.homepageUrl)],
-)
+  (t) => [unique("competitors_homepage_url_unique").on(t.homepageUrl)],
+);
 
 export const userCompetitors = pgTable(
-  'user_competitors',
+  "user_competitors",
   {
-    userId: uuid('user_id')
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    competitorId: uuid('competitor_id')
+      .references(() => users.id, { onDelete: "cascade" }),
+    competitorId: uuid("competitor_id")
       .notNull()
-      .references(() => competitors.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+      .references(() => competitors.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.competitorId] })],
-)
+);
 
 export const rawItems = pgTable(
-  'raw_items',
+  "raw_items",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    competitorId: uuid('competitor_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    competitorId: uuid("competitor_id")
       .notNull()
-      .references(() => competitors.id, { onDelete: 'cascade' }),
-    source: sourceType('source').notNull(),
-    sourceId: text('source_id').notNull(),
-    url: text('url').notNull(),
-    title: text('title').notNull(),
-    body: text('body'),
-    publishedAt: timestamp('published_at', { withTimezone: true }),
-    ingestedAt: timestamp('ingested_at', { withTimezone: true }).notNull().defaultNow(),
+      .references(() => competitors.id, { onDelete: "cascade" }),
+    source: sourceType("source").notNull(),
+    sourceId: text("source_id").notNull(),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    unique('raw_items_source_source_id_unique').on(t.source, t.sourceId),
-    index('raw_items_competitor_ingested_idx').on(t.competitorId, t.ingestedAt),
+    unique("raw_items_source_source_id_unique").on(t.source, t.sourceId),
+    index("raw_items_competitor_ingested_idx").on(t.competitorId, t.ingestedAt),
   ],
-)
+);
 
 export const digests = pgTable(
-  'digests',
+  "digests",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    sentAt: timestamp('sent_at', { withTimezone: true }),
-    openedAt: timestamp('opened_at', { withTimezone: true }),
-    itemCount: integer('item_count').notNull().default(0),
+      .references(() => users.id, { onDelete: "cascade" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    itemCount: integer("item_count").notNull().default(0),
     // The raw_item ingestion window the synthesizer drew from. Wider for the
     // user's first (catch-up) digest via the fast path (#30); ~24h for the
     // daily cron. Nullable for legacy rows written before #40 — the
     // frontend renders no range in that case rather than guessing.
-    periodStart: timestamp('period_start', { withTimezone: true }),
-    periodEnd: timestamp('period_end', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    periodStart: timestamp("period_start", { withTimezone: true }),
+    periodEnd: timestamp("period_end", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('digests_user_created_idx').on(t.userId, t.createdAt)],
-)
+  (t) => [index("digests_user_created_idx").on(t.userId, t.createdAt)],
+);
 
 export const digestItems = pgTable(
-  'digest_items',
+  "digest_items",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    digestId: uuid('digest_id')
+      .references(() => users.id, { onDelete: "cascade" }),
+    digestId: uuid("digest_id")
       .notNull()
-      .references(() => digests.id, { onDelete: 'cascade' }),
-    rawItemId: uuid('raw_item_id')
+      .references(() => digests.id, { onDelete: "cascade" }),
+    rawItemId: uuid("raw_item_id")
       .notNull()
-      .references(() => rawItems.id, { onDelete: 'cascade' }),
-    category: itemCategory('category').notNull(),
-    headline: text('headline').notNull(),
-    snippet: text('snippet').notNull(),
-    impactNote: text('impact_note'),
-    score: integer('score').notNull(),
+      .references(() => rawItems.id, { onDelete: "cascade" }),
+    category: itemCategory("category").notNull(),
+    headline: text("headline").notNull(),
+    snippet: text("snippet").notNull(),
+    impactNote: text("impact_note"),
+    score: integer("score").notNull(),
     // Best-available publication timestamp from the originating raw_item.
     // Plumbed through synthesis (#41) so the frontend can render "May 14 ·
     // 2 days ago" beside the headline. Nullable: some sources (notably
     // Firehose events lacking publish_time) genuinely don't supply a date,
     // and we'd rather render nothing than fabricate a "recently".
-    occurredAt: timestamp('occurred_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('digest_items_digest_idx').on(t.digestId)],
-)
+  (t) => [index("digest_items_digest_idx").on(t.digestId)],
+);
 
-export const competitorPricingSnapshots = pgTable('competitor_pricing_snapshots', {
-  competitorId: uuid('competitor_id')
+export const competitorPricingSnapshots = pgTable("competitor_pricing_snapshots", {
+  competitorId: uuid("competitor_id")
     .primaryKey()
-    .references(() => competitors.id, { onDelete: 'cascade' }),
-  content: text('content').notNull(),
-  contentHash: text('content_hash').notNull(),
-  scrapedAt: timestamp('scraped_at', { withTimezone: true }).notNull().defaultNow(),
-})
+    .references(() => competitors.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  contentHash: text("content_hash").notNull(),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Per-user classification of a raw_item. The score job (Haiku) writes one row
 // per (user, item) pair so synthesis can pick top-N without re-classifying.
 // PK on (user_id, raw_item_id) means re-running the job for a given day is
 // idempotent — we just overwrite on conflict.
 export const itemScores = pgTable(
-  'item_scores',
+  "item_scores",
   {
-    userId: uuid('user_id')
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    rawItemId: uuid('raw_item_id')
+      .references(() => users.id, { onDelete: "cascade" }),
+    rawItemId: uuid("raw_item_id")
       .notNull()
-      .references(() => rawItems.id, { onDelete: 'cascade' }),
-    category: itemCategory('category').notNull(),
-    score: integer('score').notNull(),
-    why: text('why').notNull(),
-    scoredAt: timestamp('scored_at', { withTimezone: true }).notNull().defaultNow(),
+      .references(() => rawItems.id, { onDelete: "cascade" }),
+    category: itemCategory("category").notNull(),
+    score: integer("score").notNull(),
+    why: text("why").notNull(),
+    scoredAt: timestamp("scored_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.rawItemId] }),
-    index('item_scores_user_score_idx').on(t.userId, t.score),
+    index("item_scores_user_score_idx").on(t.userId, t.score),
   ],
-)
+);
 
 // Public waitlist captured from the marketing landing before invite-gated
 // signup. `invited_at` flips once an admin issues a magic-link invite (see
 // task #16 follow-up); until then a row here represents intent only — it
 // does NOT seed `users`.
-export const waitlist = pgTable('waitlist', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull().unique(),
-  name: text('name'),
-  position: text('position'),
-  companyUrl: text('company_url'),
-  source: text('source'),
-  invitedAt: timestamp('invited_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const waitlist = pgTable("waitlist", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  position: text("position"),
+  companyUrl: text("company_url"),
+  source: text("source"),
+  invitedAt: timestamp("invited_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Streaming event log for the FTE agent loop (task #28). Each row captures one
 // step the agent took during a single run: model output, client tool_use,
@@ -270,19 +265,19 @@ export const waitlist = pgTable('waitlist', {
 // `kind` is a plain text discriminant so we can add event types without an
 // enum migration; `payload` is jsonb so each kind carries its own shape.
 export const fteEvents = pgTable(
-  'fte_events',
+  "fte_events",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    runId: uuid('run_id').notNull(),
-    kind: text('kind').notNull(),
-    payload: jsonb('payload').notNull().default({}),
-    ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").notNull(),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('fte_events_user_run_ts_idx').on(t.userId, t.runId, t.ts)],
-)
+  (t) => [index("fte_events_user_run_ts_idx").on(t.userId, t.runId, t.ts)],
+);
 
 // Per-call accounting for every Anthropic API hit (FTE agent iterations,
 // Haiku classifications, Sonnet syntheses). One row per successful API
@@ -295,71 +290,71 @@ export const fteEvents = pgTable(
 // the cost history. Indexed for the three rollups the admin UI does:
 // lifetime-per-user, per-FTE-run, per-digest.
 export const llmUsage = pgTable(
-  'llm_usage',
+  "llm_usage",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    kind: text('kind').notNull(),
-    model: text('model').notNull(),
-    inputTokens: integer('input_tokens').notNull().default(0),
-    outputTokens: integer('output_tokens').notNull().default(0),
-    cacheCreationTokens: integer('cache_creation_tokens').notNull().default(0),
-    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
-    webSearchRequests: integer('web_search_requests').notNull().default(0),
-    costMicroUsd: integer('cost_micro_usd').notNull().default(0),
-    runId: uuid('run_id'),
-    digestId: uuid('digest_id'),
-    rawItemId: uuid('raw_item_id'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheCreationTokens: integer("cache_creation_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    webSearchRequests: integer("web_search_requests").notNull().default(0),
+    costMicroUsd: integer("cost_micro_usd").notNull().default(0),
+    runId: uuid("run_id"),
+    digestId: uuid("digest_id"),
+    rawItemId: uuid("raw_item_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('llm_usage_user_created_idx').on(t.userId, t.createdAt),
-    index('llm_usage_run_idx').on(t.runId),
-    index('llm_usage_digest_idx').on(t.digestId),
+    index("llm_usage_user_created_idx").on(t.userId, t.createdAt),
+    index("llm_usage_run_idx").on(t.runId),
+    index("llm_usage_digest_idx").on(t.digestId),
   ],
-)
+);
 
 export const feedback = pgTable(
-  'feedback',
+  "feedback",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    digestItemId: uuid('digest_item_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    digestItemId: uuid("digest_item_id")
       .notNull()
-      .references(() => digestItems.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
+      .references(() => digestItems.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    rating: feedbackRating('rating').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    rating: feedbackRating("rating").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique('feedback_user_item_unique').on(t.userId, t.digestItemId)],
-)
+  (t) => [unique("feedback_user_item_unique").on(t.userId, t.digestItemId)],
+);
 
-export type User = typeof users.$inferSelect
-export type NewUser = typeof users.$inferInsert
-export type Competitor = typeof competitors.$inferSelect
-export type NewCompetitor = typeof competitors.$inferInsert
-export type RawItem = typeof rawItems.$inferSelect
-export type NewRawItem = typeof rawItems.$inferInsert
-export type DigestItem = typeof digestItems.$inferSelect
-export type NewDigestItem = typeof digestItems.$inferInsert
-export type Digest = typeof digests.$inferSelect
-export type NewDigest = typeof digests.$inferInsert
-export type Feedback = typeof feedback.$inferSelect
-export type NewFeedback = typeof feedback.$inferInsert
-export type Session = typeof sessions.$inferSelect
-export type NewSession = typeof sessions.$inferInsert
-export type Account = typeof accounts.$inferSelect
-export type NewAccount = typeof accounts.$inferInsert
-export type Verification = typeof verifications.$inferSelect
-export type NewVerification = typeof verifications.$inferInsert
-export type CompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferSelect
-export type NewCompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferInsert
-export type ItemScore = typeof itemScores.$inferSelect
-export type NewItemScore = typeof itemScores.$inferInsert
-export type Waitlist = typeof waitlist.$inferSelect
-export type NewWaitlist = typeof waitlist.$inferInsert
-export type FteEvent = typeof fteEvents.$inferSelect
-export type NewFteEvent = typeof fteEvents.$inferInsert
-export type LlmUsage = typeof llmUsage.$inferSelect
-export type NewLlmUsage = typeof llmUsage.$inferInsert
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Competitor = typeof competitors.$inferSelect;
+export type NewCompetitor = typeof competitors.$inferInsert;
+export type RawItem = typeof rawItems.$inferSelect;
+export type NewRawItem = typeof rawItems.$inferInsert;
+export type DigestItem = typeof digestItems.$inferSelect;
+export type NewDigestItem = typeof digestItems.$inferInsert;
+export type Digest = typeof digests.$inferSelect;
+export type NewDigest = typeof digests.$inferInsert;
+export type Feedback = typeof feedback.$inferSelect;
+export type NewFeedback = typeof feedback.$inferInsert;
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
+export type Verification = typeof verifications.$inferSelect;
+export type NewVerification = typeof verifications.$inferInsert;
+export type CompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferSelect;
+export type NewCompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferInsert;
+export type ItemScore = typeof itemScores.$inferSelect;
+export type NewItemScore = typeof itemScores.$inferInsert;
+export type Waitlist = typeof waitlist.$inferSelect;
+export type NewWaitlist = typeof waitlist.$inferInsert;
+export type FteEvent = typeof fteEvents.$inferSelect;
+export type NewFteEvent = typeof fteEvents.$inferInsert;
+export type LlmUsage = typeof llmUsage.$inferSelect;
+export type NewLlmUsage = typeof llmUsage.$inferInsert;

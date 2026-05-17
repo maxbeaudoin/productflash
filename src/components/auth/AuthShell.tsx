@@ -1,6 +1,6 @@
-import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
-import { BrandMark } from '~/components/landing/BrandMark'
+import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { BrandMark } from "~/components/landing/BrandMark";
 
 // Shared chrome for /login + /signup. Mirrors the dark hero treatment from
 // the landing page (radial-gradient halo, glowing-dot eyebrow pill,
@@ -8,17 +8,17 @@ import { BrandMark } from '~/components/landing/BrandMark'
 // continuation of the marketing surface, not a generic shadcn dialog.
 
 const HALO_GRADIENT =
-  'radial-gradient(circle at 80% 15%, rgba(217,255,58,0.10), transparent 55%), radial-gradient(circle at 15% 90%, rgba(255,91,58,0.06), transparent 55%)'
+  "radial-gradient(circle at 80% 15%, rgba(217,255,58,0.10), transparent 55%), radial-gradient(circle at 15% 90%, rgba(255,91,58,0.06), transparent 55%)";
 
 type Props = {
-  eyebrow: string
-  headlineLead: string
-  headlineAccent?: string
-  sub?: string
-  children: ReactNode
+  eyebrow: string;
+  headlineLead: string;
+  headlineAccent?: string;
+  sub?: string;
+  children: ReactNode;
   /** Bottom-left "← Back" or similar text-link slot. */
-  footnote?: ReactNode
-}
+  footnote?: ReactNode;
+};
 
 export function AuthShell({
   eyebrow,
@@ -50,7 +50,7 @@ export function AuthShell({
             <span
               aria-hidden
               className="h-[6px] w-[6px] rounded-full bg-accent"
-              style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+              style={{ boxShadow: "0 0 12px var(--color-accent)" }}
             />
             {eyebrow}
           </div>
@@ -59,12 +59,12 @@ export function AuthShell({
             {headlineLead}
             {headlineAccent ? (
               <>
-                {' '}
+                {" "}
                 <span
                   className="bg-clip-text text-transparent"
                   style={{
                     backgroundImage:
-                      'linear-gradient(120deg, var(--color-accent) 0%, var(--color-accent-warm) 100%)',
+                      "linear-gradient(120deg, var(--color-accent) 0%, var(--color-accent-warm) 100%)",
                   }}
                 >
                   {headlineAccent}
@@ -73,9 +73,7 @@ export function AuthShell({
             ) : null}
           </h1>
 
-          {sub ? (
-            <p className="mb-10 max-w-[440px] text-base text-[#b8b8c8]">{sub}</p>
-          ) : null}
+          {sub ? <p className="mb-10 max-w-[440px] text-base text-[#b8b8c8]">{sub}</p> : null}
 
           {children}
         </div>
@@ -83,5 +81,5 @@ export function AuthShell({
         <div className="mt-auto pt-12 text-sm text-[#8a8a98]">{footnote}</div>
       </div>
     </main>
-  )
+  );
 }

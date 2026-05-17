@@ -17,7 +17,7 @@
 **Eyebrow:** Now onboarding the private beta
 
 **Headline:** The competitive intel briefing that hits your inbox **before standup.**
-*(The phrase "before standup." renders in the lime/amber gradient accent.)*
+_(The phrase "before standup." renders in the lime/amber gradient accent.)_
 
 **Sub-headline:** Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning digest of what actually matters.
 
@@ -36,7 +36,7 @@
 **Title:** Your competitor shipped on Tuesday. You found out on Friday.
 **Lede:** Product leaders are drowning in tabs — changelogs, G2, Reddit, LinkedIn, Product Hunt, niche Slack groups. The signal is out there. The time to find it isn't.
 
-**Stats:** *(Placeholders — replace with real data before publishing.)*
+**Stats:** _(Placeholders — replace with real data before publishing.)_
 
 1. **4.2 hrs** — per week the average PM spends manually tracking competitors — and most still feel behind.
 2. **73 %** — of product leaders say they've been blindsided by a competitor launch in the last quarter.
@@ -66,24 +66,28 @@
 **Lede:** A sample of Tuesday morning's brief for a head of product at a mid-market analytics SaaS.
 
 **Mock email header:**
+
 - From: Product Flash &lt;digest@productflash.io&gt;
 - Timestamp: TUE · 07:42
 
 **Greeting line:** Good morning. Three things mattered overnight.
 
-**Items:** *(The italicized sentence in each snippet renders in the lime accent color.)*
+**Items:** _(The italicized sentence in each snippet renders in the lime accent color.)_
 
 ### Item 1 — Launch
+
 **Headline:** Mixpanel shipped session replay — bundled into Growth tier at no cost.
-**Snippet:** Direct hit on FullStory's wedge. *Likely impact on your Q3 enterprise renewals — 4 of your top 20 accounts also run Mixpanel.*
+**Snippet:** Direct hit on FullStory's wedge. _Likely impact on your Q3 enterprise renewals — 4 of your top 20 accounts also run Mixpanel._
 
 ### Item 2 — Market
+
 **Headline:** Amplitude raised $90M Series F, valuation flat from 2023.
-**Snippet:** Flat round at this stage signals consolidation pressure across the category. *Worth raising in your next board prep.*
+**Snippet:** Flat round at this stage signals consolidation pressure across the category. _Worth raising in your next board prep._
 
 ### Item 3 — Voice
+
 **Headline:** Heap saw 11 G2 reviews this week citing slow onboarding.
-**Snippet:** Theme matches a gap in their docs refresh last month. *Opportunity for a comparison page targeting "fast time-to-value."*
+**Snippet:** Theme matches a gap in their docs refresh last month. _Opportunity for a comparison page targeting "fast time-to-value."_
 
 ---
 
@@ -106,21 +110,22 @@
 **Heading:** An agent, not a dashboard.
 
 **Body:**
+
 > Product Flash combines structured firehoses (changelogs, review platforms, funding databases) with LLM-driven synthesis to turn raw signal into a briefing a human actually wants to read.
 >
 > No new tab. No dashboard fatigue. It meets you where you already are: email, Slack, or both.
 
 **Capabilities checklist:**
 
-| Status | Capability |
-|---|---|
-| ✓ Live | Firehose data integration |
-| ✓ Live | LLM-powered synthesis |
-| ✓ Live | Email + Slack delivery |
-| ✓ Live | Per-user competitor tuning |
-| ○ Q3 | G2 & Capterra ingestion |
-| ○ Q4 | Customer call transcript ingestion |
-| ○ Q4 | Weekly trend roll-up |
+| Status | Capability                         |
+| ------ | ---------------------------------- |
+| ✓ Live | Firehose data integration          |
+| ✓ Live | LLM-powered synthesis              |
+| ✓ Live | Email + Slack delivery             |
+| ✓ Live | Per-user competitor tuning         |
+| ○ Q3   | G2 & Capterra ingestion            |
+| ○ Q4   | Customer call transcript ingestion |
+| ○ Q4   | Weekly trend roll-up               |
 
 ---
 
@@ -131,8 +136,9 @@
 **Body:** We're onboarding 20 product teams this quarter. Beta is free for the first 90 days, with founder access and direct input on the roadmap.
 
 **Buttons:**
-- Primary: **Claim your seat** → *(link TBD)*
-- Secondary: **Book a 15-min demo** → *(link TBD)*
+
+- Primary: **Claim your seat** → _(link TBD)_
+- Secondary: **Book a 15-min demo** → _(link TBD)_
 
 **Fineprint:** `// 7 seats remaining as of this week`
 

@@ -1,8 +1,8 @@
-import { competitors } from '~/db/schema'
-import { getDb, getPool } from '~/lib/db'
-import { logger } from '~/lib/logger'
-import { autodetectRSSForHomepage, fetchRSSForCompetitors } from '~/sources/rss'
-import type { CompetitorRef } from '~/sources/types'
+import { competitors } from "~/db/schema";
+import { getDb, getPool } from "~/lib/db";
+import { logger } from "~/lib/logger";
+import { autodetectRSSForHomepage, fetchRSSForCompetitors } from "~/sources/rss";
+import type { CompetitorRef } from "~/sources/types";
 
 // End-to-end probe for the RSS adapter.
 //
@@ -17,10 +17,10 @@ import type { CompetitorRef } from '~/sources/types'
 //        rediscovers a feed. Useful before #15 wires the helper into signup.
 
 async function main() {
-  const autodetect = process.argv.includes('--autodetect')
-  const db = getDb()
+  const autodetect = process.argv.includes("--autodetect");
+  const db = getDb();
 
-  const rows = await db.select().from(competitors)
+  const rows = await db.select().from(competitors);
   const refs: CompetitorRef[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -28,28 +28,22 @@ async function main() {
     rssUrl: r.rssUrl,
     phSlug: r.phSlug,
     pricingUrl: r.pricingUrl,
-  }))
+  }));
 
-  const withFeed = refs.filter((r) => r.rssUrl)
-  logger.info(
-    { total: refs.length, withFeed: withFeed.length },
-    'rss probe: competitors loaded',
-  )
+  const withFeed = refs.filter((r) => r.rssUrl);
+  logger.info({ total: refs.length, withFeed: withFeed.length }, "rss probe: competitors loaded");
 
   // --- run 1 ---
-  const started1 = Date.now()
-  const run1 = await fetchRSSForCompetitors(withFeed)
+  const started1 = Date.now();
+  const run1 = await fetchRSSForCompetitors(withFeed);
   logger.info(
     { durationMs: Date.now() - started1, fetched: run1.size },
-    'rss probe: run 1 complete',
-  )
+    "rss probe: run 1 complete",
+  );
 
   for (const c of withFeed) {
-    const items = run1.get(c.id) ?? []
-    logger.info(
-      { competitor: c.name, rssUrl: c.rssUrl, count: items.length },
-      'rss result',
-    )
+    const items = run1.get(c.id) ?? [];
+    logger.info({ competitor: c.name, rssUrl: c.rssUrl, count: items.length }, "rss result");
     for (const item of items.slice(0, 3)) {
       logger.info(
         {
@@ -59,73 +53,73 @@ async function main() {
           publishedAt: item.publishedAt?.toISOString(),
           sourceId: item.sourceId.slice(0, 80),
         },
-        'rss item',
-      )
+        "rss item",
+      );
     }
   }
 
   // --- run 2 (dedupe check) ---
-  logger.info('rss probe: re-running to verify sourceId stability for dedupe')
-  const run2 = await fetchRSSForCompetitors(withFeed)
+  logger.info("rss probe: re-running to verify sourceId stability for dedupe");
+  const run2 = await fetchRSSForCompetitors(withFeed);
 
-  let stable = 0
-  let drifted = 0
+  let stable = 0;
+  let drifted = 0;
   for (const c of withFeed) {
-    const ids1 = new Set((run1.get(c.id) ?? []).map((i) => i.sourceId))
-    const ids2 = new Set((run2.get(c.id) ?? []).map((i) => i.sourceId))
-    const overlap = [...ids1].filter((id) => ids2.has(id)).length
-    const onlyIn1 = [...ids1].filter((id) => !ids2.has(id)).length
-    const onlyIn2 = [...ids2].filter((id) => !ids1.has(id)).length
-    if (ids1.size === 0 && ids2.size === 0) continue
+    const ids1 = new Set((run1.get(c.id) ?? []).map((i) => i.sourceId));
+    const ids2 = new Set((run2.get(c.id) ?? []).map((i) => i.sourceId));
+    const overlap = [...ids1].filter((id) => ids2.has(id)).length;
+    const onlyIn1 = [...ids1].filter((id) => !ids2.has(id)).length;
+    const onlyIn2 = [...ids2].filter((id) => !ids1.has(id)).length;
+    if (ids1.size === 0 && ids2.size === 0) continue;
     if (onlyIn1 === 0 && onlyIn2 === 0) {
-      stable++
+      stable++;
     } else {
-      drifted++
+      drifted++;
       logger.warn(
         { competitor: c.name, overlap, onlyIn1, onlyIn2 },
-        'rss dedupe: sourceId set drifted between runs',
-      )
+        "rss dedupe: sourceId set drifted between runs",
+      );
     }
   }
-  logger.info({ stable, drifted }, 'rss probe: dedupe verification done')
-  if (drifted > 0) process.exitCode = 1
+  logger.info({ stable, drifted }, "rss probe: dedupe verification done");
+  if (drifted > 0) process.exitCode = 1;
 
   // --- autodetect ---
   if (autodetect) {
-    logger.info('rss probe: running autodetect against seeded homepages')
-    let resolved = 0
+    logger.info("rss probe: running autodetect against seeded homepages");
+    let resolved = 0;
     for (const c of refs) {
       try {
-        const found = await autodetectRSSForHomepage(c.homepageUrl)
+        const found = await autodetectRSSForHomepage(c.homepageUrl);
         if (found) {
-          resolved++
-          const expected = c.rssUrl ?? '(none stored)'
-          const match = found === c.rssUrl ? 'matches-seed' : 'different-from-seed'
+          resolved++;
+          const expected = c.rssUrl ?? "(none stored)";
+          const match = found === c.rssUrl ? "matches-seed" : "different-from-seed";
           logger.info(
             { competitor: c.name, homepageUrl: c.homepageUrl, found, expected, match },
-            'rss autodetect: resolved',
-          )
+            "rss autodetect: resolved",
+          );
         } else {
           logger.warn(
-            { competitor: c.name, homepageUrl: c.homepageUrl, expected: c.rssUrl ?? '(none)' },
-            'rss autodetect: no feed found',
-          )
+            { competitor: c.name, homepageUrl: c.homepageUrl, expected: c.rssUrl ?? "(none)" },
+            "rss autodetect: no feed found",
+          );
         }
       } catch (err) {
-        logger.warn({ err, competitor: c.name }, 'rss autodetect: threw')
+        logger.warn({ err, competitor: c.name }, "rss autodetect: threw");
       }
     }
-    logger.info({ resolved, total: refs.length }, 'rss autodetect: summary')
+    logger.info({ resolved, total: refs.length }, "rss autodetect: summary");
     if (resolved === 0) {
-      logger.error('rss autodetect: FAILED — resolved zero feeds across all competitors')
-      process.exitCode = 1
+      logger.error("rss autodetect: FAILED — resolved zero feeds across all competitors");
+      process.exitCode = 1;
     }
   }
 }
 
 main()
   .catch((err) => {
-    logger.fatal({ err }, 'rss probe failed')
-    process.exit(1)
+    logger.fatal({ err }, "rss probe failed");
+    process.exit(1);
   })
-  .finally(() => getPool().end())
+  .finally(() => getPool().end());

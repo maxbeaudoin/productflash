@@ -1,4 +1,4 @@
-import { PROOF } from '~/data/landing'
+import { PROOF } from "~/data/landing";
 
 export function ProofSection() {
   return (
@@ -9,9 +9,7 @@ export function ProofSection() {
         </div>
         <div className="grid grid-cols-2 items-start gap-16 max-md:grid-cols-1 max-md:gap-8">
           <div>
-            <h3 className="mb-4 text-[28px] font-bold tracking-[-0.02em]">
-              {PROOF.title}
-            </h3>
+            <h3 className="mb-4 text-[28px] font-bold tracking-[-0.02em]">{PROOF.title}</h3>
             {PROOF.paragraphs.map((p) => (
               <p key={p} className="mb-4 text-base text-text-muted">
                 {p}
@@ -20,7 +18,7 @@ export function ProofSection() {
           </div>
           <div className="rounded-card bg-ink p-9 font-mono text-sm leading-[1.8] text-white">
             {PROOF.items.map((item) =>
-              item.status === 'live' ? (
+              item.status === "live" ? (
                 <div key={item.text}>
                   <span className="mr-3 text-accent">✓</span>
                   {item.text}
@@ -35,5 +33,5 @@ export function ProofSection() {
         </div>
       </div>
     </section>
-  )
+  );
 }

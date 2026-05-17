@@ -1,5 +1,5 @@
-import { PROBLEM } from '~/data/landing'
-import { StatCard } from './StatCard'
+import { PROBLEM } from "~/data/landing";
+import { StatCard } from "./StatCard";
 
 export function ProblemSection() {
   return (
@@ -11,9 +11,7 @@ export function ProblemSection() {
         <h2 className="mb-6 max-w-[820px] text-[clamp(32px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em]">
           {PROBLEM.title}
         </h2>
-        <p className="mb-14 max-w-[680px] text-lg text-text-muted">
-          {PROBLEM.lede}
-        </p>
+        <p className="mb-14 max-w-[680px] text-lg text-text-muted">{PROBLEM.lede}</p>
 
         <div className="mt-14 grid grid-cols-3 gap-6 max-md:grid-cols-1">
           {PROBLEM.stats.map((stat) => (
@@ -22,5 +20,5 @@ export function ProblemSection() {
         </div>
       </div>
     </section>
-  )
+  );
 }

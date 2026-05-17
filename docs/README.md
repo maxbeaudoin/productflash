@@ -11,12 +11,12 @@ Source-of-truth notes on the external APIs Product Flash integrates with. Read t
 
 These notes are not auto-loaded; CLAUDE.md points here so future sessions know to consult them on demand.
 
-| Source | File | Adapter | Used by task |
-|---|---|---|---|
-| Product Hunt | [product-hunt.md](./product-hunt.md) | `src/sources/ph.ts` | #3, #7 |
-| RSS | [rss.md](./rss.md) | `src/sources/rss.ts` | #5, #7 |
-| Firehose | [firehose.md](./firehose.md) | `src/sources/firehose.ts` | #6, #7 |
-| Firecrawl | [firecrawl.md](./firecrawl.md) | `src/sources/firecrawl.ts` | #4, #7 |
+| Source       | File                                 | Adapter                    | Used by task |
+| ------------ | ------------------------------------ | -------------------------- | ------------ |
+| Product Hunt | [product-hunt.md](./product-hunt.md) | `src/sources/ph.ts`        | #3, #7       |
+| RSS          | [rss.md](./rss.md)                   | `src/sources/rss.ts`       | #5, #7       |
+| Firehose     | [firehose.md](./firehose.md)         | `src/sources/firehose.ts`  | #6, #7       |
+| Firecrawl    | [firecrawl.md](./firecrawl.md)       | `src/sources/firecrawl.ts` | #4, #7       |
 
 The RSS / Firehose / Firecrawl docs are placeholders until their adapter tasks (#5, #6, #4) land.
 

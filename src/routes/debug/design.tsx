@@ -1,8 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { useState } from 'react'
-import { Button } from '~/components/ui/button'
-import { requireAdminSession } from '~/lib/auth-server'
+import { createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { useState } from "react";
+import { Button } from "~/components/ui/button";
+import { requireAdminSession } from "~/lib/auth-server";
 import {
   Dialog,
   DialogClose,
@@ -12,25 +12,25 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '~/components/ui/dialog'
-import { Input } from '~/components/ui/input'
-import { Label } from '~/components/ui/label'
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 
 // Admin-gated so a missing NODE_ENV on a deploy slot doesn't accidentally
 // expose the page (and the design-smoke artifacts) to the public.
-const ensureAdmin = createServerFn({ method: 'GET' }).handler(async () => {
-  await requireAdminSession()
-})
+const ensureAdmin = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdminSession();
+});
 
-export const Route = createFileRoute('/debug/design')({
+export const Route = createFileRoute("/debug/design")({
   beforeLoad: async () => {
-    await ensureAdmin()
+    await ensureAdmin();
   },
   component: DesignSmokePage,
-})
+});
 
 function DesignSmokePage() {
-  const [name, setName] = useState('')
+  const [name, setName] = useState("");
 
   return (
     <main className="min-h-screen bg-paper px-6 py-16 text-text">
@@ -43,8 +43,7 @@ function DesignSmokePage() {
             Brand tokens reach <span className="text-coral">shadcn</span>.
           </h1>
           <p className="mt-4 font-mono text-sm text-text-muted">
-            // If you can read this in Inter, headings included, the design
-            system is wired.
+            // If you can read this in Inter, headings included, the design system is wired.
           </p>
         </header>
 
@@ -100,28 +99,24 @@ function DesignSmokePage() {
             Dialog
           </div>
           <Dialog>
-            <DialogTrigger render={<Button variant="outline" />}>
-              Open dialog
-            </DialogTrigger>
+            <DialogTrigger render={<Button variant="outline" />}>Open dialog</DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Product Flash</DialogTitle>
                 <DialogDescription>
-                  Brand tokens flow into shadcn primitives without touching
-                  generated component source.
+                  Brand tokens flow into shadcn primitives without touching generated component
+                  source.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
-                <DialogClose render={<Button variant="outline" />}>
-                  Close
-                </DialogClose>
+                <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </section>
       </div>
     </main>
-  )
+  );
 }
 
 function Swatch({ name, className }: { name: string; className: string }) {
@@ -131,5 +126,5 @@ function Swatch({ name, className }: { name: string; className: string }) {
     >
       {name}
     </div>
-  )
+  );
 }

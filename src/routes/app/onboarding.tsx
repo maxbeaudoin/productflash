@@ -1,21 +1,21 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { z } from 'zod'
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { z } from "zod";
 import {
   competitors as competitorsTable,
   fteEvents,
   userCompetitors,
   users as usersTable,
-} from '~/db/schema'
-import { enqueueFastPath } from '~/jobs/fast-path'
-import { requireSession } from '~/lib/auth-server'
-import { getBoss } from '~/lib/boss'
-import { getDb } from '~/lib/db'
-import { logger } from '~/lib/logger'
-import { captureServerEvent } from '~/lib/posthog'
-import { autodetectRSSForHomepage } from '~/sources/rss'
+} from "~/db/schema";
+import { enqueueFastPath } from "~/jobs/fast-path";
+import { requireSession } from "~/lib/auth-server";
+import { getBoss } from "~/lib/boss";
+import { getDb } from "~/lib/db";
+import { logger } from "~/lib/logger";
+import { captureServerEvent } from "~/lib/posthog";
+import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // /app/onboarding (#29). First stop after the magic-link click.
 //
@@ -31,59 +31,53 @@ import { autodetectRSSForHomepage } from '~/sources/rss'
 // fast-path ingest → score → synthesize chain from #30 wires in here once
 // that task lands).
 
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 type FteEventRow = {
-  id: string
-  runId: string
-  kind: string
-  payload: { [key: string]: JsonValue }
-  ts: string
-}
+  id: string;
+  runId: string;
+  kind: string;
+  payload: { [key: string]: JsonValue };
+  ts: string;
+};
 
 type ProfileView = {
-  position: string | null
-  companyName: string | null
-  companyUrl: string | null
-  ultimateGoal: string | null
-  focusAreas: string[] | null
-  profileConfirmedAt: string | null
-}
+  position: string | null;
+  companyName: string | null;
+  companyUrl: string | null;
+  ultimateGoal: string | null;
+  focusAreas: string[] | null;
+  profileConfirmedAt: string | null;
+};
 
 type CompetitorView = {
-  id: string
-  name: string
-  homepageUrl: string
-  rssUrl: string | null
-}
+  id: string;
+  name: string;
+  homepageUrl: string;
+  rssUrl: string | null;
+};
 
 type OnboardingLoaderData = {
-  runId: string | null
-  events: FteEventRow[]
-  profile: ProfileView
-  competitors: CompetitorView[]
-}
+  runId: string | null;
+  events: FteEventRow[];
+  profile: ProfileView;
+  competitors: CompetitorView[];
+};
 
-const loadOnboarding = createServerFn({ method: 'GET' }).handler(
+const loadOnboarding = createServerFn({ method: "GET" }).handler(
   async (): Promise<OnboardingLoaderData> => {
-    const session = await requireSession()
-    const db = getDb()
-    const userId = session.user.id
+    const session = await requireSession();
+    const db = getDb();
+    const userId = session.user.id;
 
     const [latest] = await db
       .select({ runId: fteEvents.runId })
       .from(fteEvents)
       .where(eq(fteEvents.userId, userId))
       .orderBy(desc(fteEvents.ts))
-      .limit(1)
+      .limit(1);
 
-    const runId = latest?.runId ?? null
+    const runId = latest?.runId ?? null;
 
     const events: FteEventRow[] = runId
       ? (
@@ -105,7 +99,7 @@ const loadOnboarding = createServerFn({ method: 'GET' }).handler(
           payload: (row.payload ?? {}) as { [key: string]: JsonValue },
           ts: row.ts.toISOString(),
         }))
-      : []
+      : [];
 
     const [user] = await db
       .select({
@@ -118,7 +112,7 @@ const loadOnboarding = createServerFn({ method: 'GET' }).handler(
       })
       .from(usersTable)
       .where(eq(usersTable.id, userId))
-      .limit(1)
+      .limit(1);
 
     const competitors = await db
       .select({
@@ -130,7 +124,7 @@ const loadOnboarding = createServerFn({ method: 'GET' }).handler(
       .from(userCompetitors)
       .innerJoin(competitorsTable, eq(userCompetitors.competitorId, competitorsTable.id))
       .where(eq(userCompetitors.userId, userId))
-      .orderBy(asc(competitorsTable.name))
+      .orderBy(asc(competitorsTable.name));
 
     return {
       runId,
@@ -144,22 +138,22 @@ const loadOnboarding = createServerFn({ method: 'GET' }).handler(
         profileConfirmedAt: user?.profileConfirmedAt?.toISOString() ?? null,
       },
       competitors,
-    }
+    };
   },
-)
+);
 
 const editSchema = z.object({
   position: z.string().trim().min(2).max(120),
   companyName: z.string().trim().min(1).max(160),
   ultimateGoal: z.string().trim().min(8).max(400),
   focusAreas: z.array(z.string().trim().min(1).max(80)).min(1).max(8),
-})
+});
 
-const editProfile = createServerFn({ method: 'POST' })
+const editProfile = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => editSchema.parse(data))
   .handler(async ({ data }) => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
     await db
       .update(usersTable)
       .set({
@@ -169,29 +163,29 @@ const editProfile = createServerFn({ method: 'POST' })
         focusAreas: data.focusAreas,
         updatedAt: new Date(),
       })
-      .where(eq(usersTable.id, session.user.id))
-    return { ok: true as const }
-  })
+      .where(eq(usersTable.id, session.user.id));
+    return { ok: true as const };
+  });
 
 const addCompetitorSchema = z.object({
   name: z.string().trim().min(1).max(120),
   homepageUrl: z.string().trim().url().max(500),
-})
+});
 
-const addCompetitor = createServerFn({ method: 'POST' })
+const addCompetitor = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => addCompetitorSchema.parse(data))
   .handler(async ({ data }): Promise<{ competitor: CompetitorView }> => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
 
     // Auto-detect RSS so the manually-added competitor matches what the
     // agent would have done. Failure is silent — a competitor without an
     // rss_url is still usable (Firehose + Firecrawl still cover it).
-    let rssUrl: string | null = null
+    let rssUrl: string | null = null;
     try {
-      rssUrl = await autodetectRSSForHomepage(data.homepageUrl)
+      rssUrl = await autodetectRSSForHomepage(data.homepageUrl);
     } catch {
-      rssUrl = null
+      rssUrl = null;
     }
 
     // First-writer-wins on the competitors row — see profile.tsx for the
@@ -204,7 +198,7 @@ const addCompetitor = createServerFn({ method: 'POST' })
         homepageUrl: data.homepageUrl,
         rssUrl,
       })
-      .onConflictDoNothing({ target: competitorsTable.homepageUrl })
+      .onConflictDoNothing({ target: competitorsTable.homepageUrl });
 
     const [c] = await db
       .select({
@@ -215,26 +209,26 @@ const addCompetitor = createServerFn({ method: 'POST' })
       })
       .from(competitorsTable)
       .where(eq(competitorsTable.homepageUrl, data.homepageUrl))
-      .limit(1)
-    if (!c) throw new Error('competitor_upsert_failed')
+      .limit(1);
+    if (!c) throw new Error("competitor_upsert_failed");
 
     await db
       .insert(userCompetitors)
       .values({ userId: session.user.id, competitorId: c.id })
-      .onConflictDoNothing()
+      .onConflictDoNothing();
 
-    return { competitor: c }
-  })
+    return { competitor: c };
+  });
 
 const removeCompetitorSchema = z.object({
   competitorId: z.string().uuid(),
-})
+});
 
-const removeCompetitor = createServerFn({ method: 'POST' })
+const removeCompetitor = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => removeCompetitorSchema.parse(data))
   .handler(async ({ data }) => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
     await db
       .delete(userCompetitors)
       .where(
@@ -242,13 +236,13 @@ const removeCompetitor = createServerFn({ method: 'POST' })
           eq(userCompetitors.userId, session.user.id),
           eq(userCompetitors.competitorId, data.competitorId),
         ),
-      )
-    return { ok: true as const }
-  })
+      );
+    return { ok: true as const };
+  });
 
-const confirmProfile = createServerFn({ method: 'POST' }).handler(async () => {
-  const session = await requireSession()
-  const db = getDb()
+const confirmProfile = createServerFn({ method: "POST" }).handler(async () => {
+  const session = await requireSession();
+  const db = getDb();
   // Idempotent: only stamp the first time. The agent may have already
   // promoted status to 'active' (save_profile + ≥1 competitor) — we still
   // promote on user consent if it hadn't.
@@ -256,25 +250,25 @@ const confirmProfile = createServerFn({ method: 'POST' }).handler(async () => {
     .update(usersTable)
     .set({
       profileConfirmedAt: new Date(),
-      status: 'active',
+      status: "active",
       updatedAt: new Date(),
     })
     .where(and(eq(usersTable.id, session.user.id), isNull(usersTable.profileConfirmedAt)))
-    .returning({ id: usersTable.id })
+    .returning({ id: usersTable.id });
 
   // Only emit the funnel event on the FIRST confirmation. The WHERE clause
   // above makes this idempotent — a repeat click on "Looks good" updates
   // zero rows, so PostHog should also stay silent.
-  const wasFirstConfirm = updated.length > 0
+  const wasFirstConfirm = updated.length > 0;
   if (wasFirstConfirm) {
     const competitorCount = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(userCompetitors)
       .where(eq(userCompetitors.userId, session.user.id))
-      .then((rows) => rows[0]?.count ?? 0)
-    captureServerEvent(session.user.id, 'profile_confirmed', {
+      .then((rows) => rows[0]?.count ?? 0);
+    captureServerEvent(session.user.id, "profile_confirmed", {
       competitor_count: competitorCount,
-    })
+    });
   }
 
   // Fast path (#30): dispatch ingest → score → synthesize for this user only
@@ -282,36 +276,36 @@ const confirmProfile = createServerFn({ method: 'POST' }).handler(async () => {
   // of waiting for the 05:30 UTC cron. Singleton on userId — double-clicking
   // "Looks good" is a no-op while the first run is in flight.
   try {
-    const boss = await getBoss()
-    const { enqueued } = await enqueueFastPath(boss, session.user.id)
+    const boss = await getBoss();
+    const { enqueued } = await enqueueFastPath(boss, session.user.id);
     logger.info(
       { userId: session.user.id, enqueued },
-      'onboarding: fast-path enqueued on profile confirm',
-    )
+      "onboarding: fast-path enqueued on profile confirm",
+    );
   } catch (err) {
     // Don't block the user's flow on a queue hiccup — the daily cron at
     // 05:30 UTC is the safety net. We log and move on.
     logger.warn(
       { err, userId: session.user.id },
-      'onboarding: failed to enqueue fast-path — falling back to cron',
-    )
+      "onboarding: failed to enqueue fast-path — falling back to cron",
+    );
   }
 
-  return { ok: true as const }
-})
+  return { ok: true as const };
+});
 
-export const Route = createFileRoute('/app/onboarding')({
+export const Route = createFileRoute("/app/onboarding")({
   loader: () => loadOnboarding(),
   component: OnboardingPage,
-})
+});
 
 function OnboardingPage() {
-  const loaded = Route.useLoaderData()
-  const router = useRouter()
+  const loaded = Route.useLoaderData();
+  const router = useRouter();
 
-  const [events, setEvents] = useState<FteEventRow[]>(loaded.events)
-  const [streamingText, setStreamingText] = useState('')
-  const [streamingActive, setStreamingActive] = useState(false)
+  const [events, setEvents] = useState<FteEventRow[]>(loaded.events);
+  const [streamingText, setStreamingText] = useState("");
+  const [streamingActive, setStreamingActive] = useState(false);
   // `pendingThoughts` bridges the gap between (a) a text block completing on
   // the wire — Anthropic SDK fires `contentBlock` *at the END* of each block —
   // and (b) the durable `planner_text` event landing in fte_events, which only
@@ -319,35 +313,32 @@ function OnboardingPage() {
   // Without this queue, the streamed text vanishes the instant the block ends
   // and reappears (with markdown) once the durable event finally arrives —
   // the disappear/reappear flicker dogfood iter 2 flagged on 2026-05-16.
-  const [pendingThoughts, setPendingThoughts] = useState<string[]>([])
+  const [pendingThoughts, setPendingThoughts] = useState<string[]>([]);
   // Mirror the streamed text in a ref so the block-end snapshot reads the
   // latest value without nesting setState updaters. The earlier
   // setStreamingText(prev => { setPendingThoughts(...); return ''; }) pattern
   // double-pushed under concurrent rendering (dogfood iter 3 — cards counted
   // up to ~#13 then collapsed to ~6 once save_profile cleared pending).
-  const streamingTextRef = useRef('')
-  const [profile, setProfile] = useState<ProfileView>(loaded.profile)
-  const [competitors, setCompetitors] = useState<CompetitorView[]>(loaded.competitors)
-  const [editingProfile, setEditingProfile] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [addingCompetitor, setAddingCompetitor] = useState(false)
-  const streamEndRef = useRef<HTMLDivElement | null>(null)
-  const profileSectionRef = useRef<HTMLElement | null>(null)
+  const streamingTextRef = useRef("");
+  const [profile, setProfile] = useState<ProfileView>(loaded.profile);
+  const [competitors, setCompetitors] = useState<CompetitorView[]>(loaded.competitors);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [addingCompetitor, setAddingCompetitor] = useState(false);
+  const streamEndRef = useRef<HTMLDivElement | null>(null);
+  const profileSectionRef = useRef<HTMLElement | null>(null);
   // Capture whether the run was already finished at page-load. If yes, the
   // user is just revisiting an already-onboarded view — auto-scrolling to the
   // profile would hijack their scroll position. We only auto-jump on the
   // *transition* from running → finished.
-  const wasFinishedOnMountRef = useRef<boolean | null>(null)
-  const scrolledToProfileRef = useRef(false)
+  const wasFinishedOnMountRef = useRef<boolean | null>(null);
+  const scrolledToProfileRef = useRef(false);
 
   const runId = useMemo(() => {
-    return events[0]?.runId ?? loaded.runId
-  }, [events, loaded.runId])
+    return events[0]?.runId ?? loaded.runId;
+  }, [events, loaded.runId]);
 
-  const finished = useMemo(
-    () => events.some((e) => e.kind === 'run_finished'),
-    [events],
-  )
+  const finished = useMemo(() => events.some((e) => e.kind === "run_finished"), [events]);
 
   // After save_profile fires (or the run wraps up), the agent might still
   // emit a recap text block — we suppress both the durable card (via the
@@ -357,162 +348,161 @@ function OnboardingPage() {
     () =>
       events.some(
         (e) =>
-          (e.kind === 'tool_use' && e.payload.name === 'save_profile') ||
-          e.kind === 'run_finished',
+          (e.kind === "tool_use" && e.payload.name === "save_profile") || e.kind === "run_finished",
       ),
     [events],
-  )
+  );
 
   // The agent is briefed to stop after save_profile, but Sonnet sometimes
   // still emits a recap (with a markdown table and emoji headers) — that
   // duplicates the profile card below and feels like a verbatim log. Cut
   // off planner_text events that arrived after save_profile fired.
   const thoughts = useMemo(() => {
-    const cutoffTs = findSaveProfileTs(events)
+    const cutoffTs = findSaveProfileTs(events);
     return events
-      .filter((e) => e.kind === 'planner_text')
+      .filter((e) => e.kind === "planner_text")
       .filter((e) => cutoffTs === null || Date.parse(e.ts) <= cutoffTs)
       .map((e) => ({
         id: e.id,
         ts: e.ts,
-        text: typeof e.payload.text === 'string' ? e.payload.text : '',
+        text: typeof e.payload.text === "string" ? e.payload.text : "",
       }))
-      .filter((t) => t.text.trim().length > 0)
-  }, [events])
+      .filter((t) => t.text.trim().length > 0);
+  }, [events]);
 
   // Ephemeral "what's happening right now" line — derived from the latest
   // tool_use / server_tool_use event. Replaces the previous status as the
   // agent moves forward; cards above it stay as the historical narrative.
-  const liveStatus = useMemo(() => computeLiveStatus(events), [events])
+  const liveStatus = useMemo(() => computeLiveStatus(events), [events]);
 
-  const stats = useMemo(() => buildStats(events), [events])
+  const stats = useMemo(() => buildStats(events), [events]);
 
   useEffect(() => {
-    const source = new EventSource('/api/onboarding/stream')
+    const source = new EventSource("/api/onboarding/stream");
 
-    source.addEventListener('event', (raw) => {
+    source.addEventListener("event", (raw) => {
       try {
-        const row = JSON.parse((raw as MessageEvent).data) as FteEventRow
+        const row = JSON.parse((raw as MessageEvent).data) as FteEventRow;
         setEvents((prev) => {
-          if (prev.some((e) => e.id === row.id)) return prev
-          return [...prev, row]
-        })
-        if (row.kind === 'planner_text') {
+          if (prev.some((e) => e.id === row.id)) return prev;
+          return [...prev, row];
+        });
+        if (row.kind === "planner_text") {
           // The durable counterpart of the oldest pending snapshot just landed.
           // FIFO-pop so the pending card hands off to the durable one (which
           // renders parsed markdown). If the pending queue is empty (e.g. the
           // run replay path on initial load), this is a no-op.
-          setPendingThoughts((q) => (q.length > 0 ? q.slice(1) : q))
+          setPendingThoughts((q) => (q.length > 0 ? q.slice(1) : q));
         }
       } catch {
         // Bad payload — ignore.
       }
-    })
+    });
 
-    source.addEventListener('delta', (raw) => {
+    source.addEventListener("delta", (raw) => {
       try {
         const d = JSON.parse((raw as MessageEvent).data) as {
-          kind: 'text_delta' | 'tool_input_delta' | 'block_start'
-          delta: string
-          blockKind?: string
-        }
-        if (d.kind === 'block_start') {
+          kind: "text_delta" | "tool_input_delta" | "block_start";
+          delta: string;
+          blockKind?: string;
+        };
+        if (d.kind === "block_start") {
           // `contentBlock` in the Anthropic SDK fires when a block COMPLETES,
           // not when it starts. `block_start: blockKind=text` means "the text
           // block we were streaming just finished." Read the captured text
           // from the ref (always current), push to pending, clear both ref
           // and state. Two setState calls run sequentially in the event-loop
           // callback — no nesting, no double-push under concurrent rendering.
-          if (d.blockKind === 'text') {
-            const captured = streamingTextRef.current
-            streamingTextRef.current = ''
-            setStreamingText('')
-            setStreamingActive(false)
+          if (d.blockKind === "text") {
+            const captured = streamingTextRef.current;
+            streamingTextRef.current = "";
+            setStreamingText("");
+            setStreamingActive(false);
             if (captured.trim().length > 0) {
-              setPendingThoughts((q) => [...q, captured])
+              setPendingThoughts((q) => [...q, captured]);
             }
           } else {
             // Non-text block completed (tool_use / server_tool_use). Streamed
             // text state is unaffected — text deltas don't arrive during
             // these. Just turn the caret off in case it was still on.
-            setStreamingActive(false)
+            setStreamingActive(false);
           }
-        } else if (d.kind === 'text_delta') {
-          streamingTextRef.current += d.delta
-          setStreamingActive(true)
-          setStreamingText(streamingTextRef.current)
+        } else if (d.kind === "text_delta") {
+          streamingTextRef.current += d.delta;
+          setStreamingActive(true);
+          setStreamingText(streamingTextRef.current);
         }
       } catch {
         // Bad payload — ignore.
       }
-    })
+    });
 
     source.onerror = () => {
       // Browser auto-reconnects. Nothing to do.
-    }
+    };
 
-    return () => source.close()
-  }, [])
+    return () => source.close();
+  }, []);
 
   useEffect(() => {
-    if (!finished) return
-    void router.invalidate()
-  }, [finished, router])
+    if (!finished) return;
+    void router.invalidate();
+  }, [finished, router]);
 
   // Snapshot the finished state on first render so we can distinguish
   // "run just completed in this session" from "revisiting a finished run".
   // Only the former gets the auto-jump to the profile preview.
   useEffect(() => {
     if (wasFinishedOnMountRef.current === null) {
-      wasFinishedOnMountRef.current = finished
+      wasFinishedOnMountRef.current = finished;
     }
-  }, [finished])
+  }, [finished]);
 
   useEffect(() => {
-    setProfile(loaded.profile)
-    setCompetitors(loaded.competitors)
-  }, [loaded.profile, loaded.competitors])
+    setProfile(loaded.profile);
+    setCompetitors(loaded.competitors);
+  }, [loaded.profile, loaded.competitors]);
 
   async function onConfirm() {
-    setConfirming(true)
+    setConfirming(true);
     try {
-      await confirmProfile()
-      await router.navigate({ to: '/app/digests' })
+      await confirmProfile();
+      await router.navigate({ to: "/app/digests" });
     } catch {
-      setConfirming(false)
+      setConfirming(false);
     }
   }
 
   async function onSaveEdit(next: ProfileView) {
     await editProfile({
       data: {
-        position: next.position ?? '',
-        companyName: next.companyName ?? '',
-        ultimateGoal: next.ultimateGoal ?? '',
+        position: next.position ?? "",
+        companyName: next.companyName ?? "",
+        ultimateGoal: next.ultimateGoal ?? "",
         focusAreas: next.focusAreas ?? [],
       },
-    })
-    setProfile(next)
-    setEditingProfile(false)
+    });
+    setProfile(next);
+    setEditingProfile(false);
   }
 
   async function onAddCompetitor(input: { name: string; homepageUrl: string }) {
-    const res = await addCompetitor({ data: input })
+    const res = await addCompetitor({ data: input });
     setCompetitors((prev) =>
       prev.some((c) => c.id === res.competitor.id)
         ? prev
         : [...prev, res.competitor].sort((a, b) => a.name.localeCompare(b.name)),
-    )
-    setAddingCompetitor(false)
+    );
+    setAddingCompetitor(false);
   }
 
   async function onRemoveCompetitor(competitorId: string) {
-    setCompetitors((prev) => prev.filter((c) => c.id !== competitorId))
+    setCompetitors((prev) => prev.filter((c) => c.id !== competitorId));
     try {
-      await removeCompetitor({ data: { competitorId } })
+      await removeCompetitor({ data: { competitorId } });
     } catch {
       // Surface a re-load if the server rejected. Cheap heuristic.
-      await router.invalidate()
+      await router.invalidate();
     }
   }
 
@@ -520,7 +510,7 @@ function OnboardingPage() {
     finished &&
     !!profile.position &&
     !!profile.ultimateGoal &&
-    (profile.focusAreas?.length ?? 0) > 0
+    (profile.focusAreas?.length ?? 0) > 0;
 
   // On the running → finished transition, once the profile preview is
   // mounted, smooth-scroll the page so the top of the card sits ~24px below
@@ -536,20 +526,20 @@ function OnboardingPage() {
   // math gives a deterministic landing position regardless of late-mounting
   // children inside the section.
   useEffect(() => {
-    if (!profileReady) return
-    if (scrolledToProfileRef.current) return
-    if (wasFinishedOnMountRef.current !== false) return
-    const node = profileSectionRef.current
-    if (!node) return
-    scrolledToProfileRef.current = true
+    if (!profileReady) return;
+    if (scrolledToProfileRef.current) return;
+    if (wasFinishedOnMountRef.current !== false) return;
+    const node = profileSectionRef.current;
+    if (!node) return;
+    scrolledToProfileRef.current = true;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const rect = node.getBoundingClientRect()
-        const targetY = window.scrollY + rect.top - 24
-        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
-      })
-    })
-  }, [profileReady])
+        const rect = node.getBoundingClientRect();
+        const targetY = window.scrollY + rect.top - 24;
+        window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+      });
+    });
+  }, [profileReady]);
 
   return (
     <main className="mx-auto max-w-[920px] px-6 py-12">
@@ -557,18 +547,18 @@ function OnboardingPage() {
         <div className="mb-2 inline-flex items-center gap-[10px] text-[11px] font-semibold uppercase tracking-[0.15em] text-accent">
           <span
             aria-hidden
-            className={`h-[6px] w-[6px] rounded-full ${finished ? 'bg-accent' : 'animate-pulse bg-coral'}`}
-            style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+            className={`h-[6px] w-[6px] rounded-full ${finished ? "bg-accent" : "animate-pulse bg-coral"}`}
+            style={{ boxShadow: "0 0 12px var(--color-accent)" }}
           />
-          {finished ? 'Onboarding complete' : 'Onboarding in progress'}
+          {finished ? "Onboarding complete" : "Onboarding in progress"}
         </div>
         <h1 className="text-[clamp(28px,3vw,40px)] font-extrabold leading-[1.1] tracking-[-0.02em] text-white">
-          {finished ? 'Your AI analyst is ready.' : 'Your AI analyst is thinking…'}
+          {finished ? "Your AI analyst is ready." : "Your AI analyst is thinking…"}
         </h1>
         <p className="mt-3 max-w-[640px] text-[15px] text-[#a8a8b8]">
           {finished
-            ? 'Below is the map and profile it built. Tweak anything that looks off, then confirm to land your first digest.'
-            : 'Mapping your competitive space in real time — usually a minute or two. Feel free to keep this open and watch.'}
+            ? "Below is the map and profile it built. Tweak anything that looks off, then confirm to land your first digest."
+            : "Mapping your competitive space in real time — usually a minute or two. Feel free to keep this open and watch."}
         </p>
         <ProgressChips stats={stats} running={!finished} />
       </header>
@@ -609,46 +599,46 @@ function OnboardingPage() {
         </section>
       ) : null}
     </main>
-  )
+  );
 }
 
 // ---- thinking stream --------------------------------------------------
 
 type Stats = {
-  pagesRead: number
-  webSearches: number
-  competitorsAdded: number
-  elapsedMs: number | null
-}
+  pagesRead: number;
+  webSearches: number;
+  competitorsAdded: number;
+  elapsedMs: number | null;
+};
 
 function findSaveProfileTs(events: FteEventRow[]): number | null {
   for (const e of events) {
-    if (e.kind === 'tool_use' && e.payload.name === 'save_profile') {
-      const t = Date.parse(e.ts)
-      return Number.isFinite(t) ? t : null
+    if (e.kind === "tool_use" && e.payload.name === "save_profile") {
+      const t = Date.parse(e.ts);
+      return Number.isFinite(t) ? t : null;
     }
   }
-  return null
+  return null;
 }
 
 function buildStats(events: FteEventRow[]): Stats {
-  let pagesRead = 0
-  let webSearches = 0
-  let competitorsAdded = 0
-  let startTs: number | null = null
-  let lastTs: number | null = null
+  let pagesRead = 0;
+  let webSearches = 0;
+  let competitorsAdded = 0;
+  let startTs: number | null = null;
+  let lastTs: number | null = null;
   for (const e of events) {
-    const t = Date.parse(e.ts)
+    const t = Date.parse(e.ts);
     if (Number.isFinite(t)) {
-      if (startTs === null) startTs = t
-      lastTs = t
+      if (startTs === null) startTs = t;
+      lastTs = t;
     }
-    if (e.kind === 'tool_result') {
-      const name = typeof e.payload.name === 'string' ? e.payload.name : ''
-      if (name === 'fetch_url' && !e.payload.error) pagesRead++
-      if (name === 'add_competitor' && !e.payload.error) competitorsAdded++
-    } else if (e.kind === 'server_tool_use') {
-      webSearches++
+    if (e.kind === "tool_result") {
+      const name = typeof e.payload.name === "string" ? e.payload.name : "";
+      if (name === "fetch_url" && !e.payload.error) pagesRead++;
+      if (name === "add_competitor" && !e.payload.error) competitorsAdded++;
+    } else if (e.kind === "server_tool_use") {
+      webSearches++;
     }
   }
   return {
@@ -656,27 +646,27 @@ function buildStats(events: FteEventRow[]): Stats {
     webSearches,
     competitorsAdded,
     elapsedMs: startTs !== null && lastTs !== null ? lastTs - startTs : null,
-  }
+  };
 }
 
 function ProgressChips({ stats, running }: { stats: Stats; running: boolean }) {
   const items: Array<{ label: string; value: string | null }> = [
-    { label: 'pages read', value: stats.pagesRead ? String(stats.pagesRead) : null },
+    { label: "pages read", value: stats.pagesRead ? String(stats.pagesRead) : null },
     {
-      label: 'web searches',
+      label: "web searches",
       value: stats.webSearches ? String(stats.webSearches) : null,
     },
     {
-      label: 'competitors',
+      label: "competitors",
       value: stats.competitorsAdded ? String(stats.competitorsAdded) : null,
     },
     {
-      label: 'elapsed',
+      label: "elapsed",
       value: stats.elapsedMs ? formatElapsed(stats.elapsedMs) : null,
     },
-  ]
-  const visible = items.filter((i) => i.value)
-  if (visible.length === 0) return null
+  ];
+  const visible = items.filter((i) => i.value);
+  if (visible.length === 0) return null;
   return (
     <div className="mt-6 flex flex-wrap items-center gap-2">
       {visible.map((item) => (
@@ -684,9 +674,7 @@ function ProgressChips({ stats, running }: { stats: Stats; running: boolean }) {
           key={item.label}
           className="inline-flex items-center gap-[8px] rounded-pill border border-[#2a2a38] bg-ink-soft/60 px-3 py-[6px] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a8a8b8]"
         >
-          <span className="font-mono text-xs tracking-normal text-accent">
-            {item.value}
-          </span>
+          <span className="font-mono text-xs tracking-normal text-accent">{item.value}</span>
           {item.label}
         </span>
       ))}
@@ -697,15 +685,15 @@ function ProgressChips({ stats, running }: { stats: Stats; running: boolean }) {
         </span>
       ) : null}
     </div>
-  )
+  );
 }
 
 function formatElapsed(ms: number): string {
-  const totalSec = Math.max(0, Math.round(ms / 1000))
-  const m = Math.floor(totalSec / 60)
-  const s = totalSec % 60
-  if (m === 0) return `${s}s`
-  return `${m}m ${s.toString().padStart(2, '0')}s`
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
 function ThinkingStream({
@@ -718,14 +706,14 @@ function ThinkingStream({
   hasRun,
   streamEndRef,
 }: {
-  thoughts: Array<{ id: string; ts: string; text: string }>
-  pendingThoughts: string[]
-  streamingText: string
-  streamingActive: boolean
-  liveStatus: string | null
-  running: boolean
-  hasRun: boolean
-  streamEndRef: React.RefObject<HTMLDivElement | null>
+  thoughts: Array<{ id: string; ts: string; text: string }>;
+  pendingThoughts: string[];
+  streamingText: string;
+  streamingActive: boolean;
+  liveStatus: string | null;
+  running: boolean;
+  hasRun: boolean;
+  streamEndRef: React.RefObject<HTMLDivElement | null>;
 }) {
   // Auto-scroll the bottom anchor into view as content lands. Dogfood iter 3
   // (round 2) asked for visibly animated scrolling — the iter-3-round-1 fix
@@ -737,16 +725,15 @@ function ThinkingStream({
   // 600px proximity gate still freezes the follow when the user scrolls up
   // to re-read; rAF defers the scroll until layout has settled.
   useEffect(() => {
-    if (!running) return
-    const node = streamEndRef.current
-    if (!node) return
+    if (!running) return;
+    const node = streamEndRef.current;
+    if (!node) return;
     const distanceFromBottom =
-      document.documentElement.scrollHeight -
-      (window.scrollY + window.innerHeight)
-    if (distanceFromBottom > 600) return
+      document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+    if (distanceFromBottom > 600) return;
     requestAnimationFrame(() => {
-      node.scrollIntoView({ behavior: 'smooth', block: 'end' })
-    })
+      node.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
   }, [
     running,
     streamingText,
@@ -754,7 +741,7 @@ function ThinkingStream({
     thoughts.length,
     pendingThoughts.length,
     streamEndRef,
-  ])
+  ]);
 
   if (!hasRun) {
     return (
@@ -763,16 +750,16 @@ function ThinkingStream({
           Warming up
         </div>
         <p className="text-[15px] text-[#a8a8b8]">
-          Your analyst will start any moment now. If nothing happens within a
-          minute, refresh the page.
+          Your analyst will start any moment now. If nothing happens within a minute, refresh the
+          page.
         </p>
       </div>
-    )
+    );
   }
 
-  const showLive = running && streamingActive
-  const pendingStart = thoughts.length + 1
-  const liveIndex = thoughts.length + pendingThoughts.length + 1
+  const showLive = running && streamingActive;
+  const pendingStart = thoughts.length + 1;
+  const liveIndex = thoughts.length + pendingThoughts.length + 1;
 
   return (
     <div>
@@ -792,13 +779,7 @@ function ThinkingStream({
             text={text}
           />
         ))}
-        {showLive ? (
-          <LiveThought
-            key="live"
-            index={liveIndex}
-            text={streamingText}
-          />
-        ) : null}
+        {showLive ? <LiveThought key="live" index={liveIndex} text={streamingText} /> : null}
       </ol>
       {/* Status sits at the BOTTOM (dogfood iter 3) so the auto-scroll target
           and the "what's happening" indicator are the same element — the
@@ -807,7 +788,7 @@ function ThinkingStream({
       <BottomStatusLine status={liveStatus} running={running} />
       <div ref={streamEndRef} aria-hidden className="h-px" />
     </div>
-  )
+  );
 }
 
 // Live + durable cards share identical chrome. The only differences:
@@ -816,26 +797,20 @@ function ThinkingStream({
 // event lands, React swaps the keyed live node out and the new durable
 // node in at the same position — same border, same shadow, same badge,
 // so the transition reads as "cursor goes away, formatting kicks in".
-function ThoughtCard({
-  index,
-  children,
-}: {
-  index: number
-  children: React.ReactNode
-}) {
+function ThoughtCard({ index, children }: { index: number; children: React.ReactNode }) {
   return (
     <li
       className="relative grid grid-cols-[auto_1fr] gap-5 rounded-card-lg border border-[#2a2a38] bg-ink-soft px-7 py-6"
-      style={{ boxShadow: '0 20px 40px -20px rgba(0,0,0,0.5)' }}
+      style={{ boxShadow: "0 20px 40px -20px rgba(0,0,0,0.5)" }}
     >
       <div className="flex flex-col items-center">
         <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#2a2a38] bg-ink font-mono text-[12px] font-bold text-[#8a8a98]">
-          {index.toString().padStart(2, '0')}
+          {index.toString().padStart(2, "0")}
         </div>
       </div>
       <div className="min-w-0">{children}</div>
     </li>
-  )
+  );
 }
 
 function DurableThought({ index, text }: { index: number; text: string }) {
@@ -843,7 +818,7 @@ function DurableThought({ index, text }: { index: number; text: string }) {
     <ThoughtCard index={index}>
       <ThoughtBody text={text} />
     </ThoughtCard>
-  )
+  );
 }
 
 function LiveThought({ index, text }: { index: number; text: string }) {
@@ -851,7 +826,7 @@ function LiveThought({ index, text }: { index: number; text: string }) {
     <ThoughtCard index={index}>
       <PlainStreamingBody text={text} />
     </ThoughtCard>
-  )
+  );
 }
 
 // Bridge card: streamed text we've already shown the user, awaiting the
@@ -866,7 +841,7 @@ function PendingThought({ index, text }: { index: number; text: string }) {
     <ThoughtCard index={index}>
       <ThoughtBody text={text} />
     </ThoughtCard>
-  )
+  );
 }
 
 // Light prose renderer for durable planner_text. Splits on blank-line
@@ -874,9 +849,9 @@ function PendingThought({ index, text }: { index: number; text: string }) {
 // uses PlainStreamingBody so half-typed `**bold` doesn't flicker as
 // markup parsing kicks in and out.
 function ThoughtBody({ text }: { text: string }) {
-  const paragraphs = splitParagraphs(text)
+  const paragraphs = splitParagraphs(text);
   if (paragraphs.length === 0) {
-    return <p className="text-[15px] text-[#a8a8b8]">…</p>
+    return <p className="text-[15px] text-[#a8a8b8]">…</p>;
   }
   return (
     <div className="grid gap-3 text-[15px] leading-[1.65] text-white">
@@ -886,31 +861,31 @@ function ThoughtBody({ text }: { text: string }) {
         </p>
       ))}
     </div>
-  )
+  );
 }
 
 function PlainStreamingBody({ text }: { text: string }) {
-  const paragraphs = splitParagraphs(text)
+  const paragraphs = splitParagraphs(text);
   if (paragraphs.length === 0) {
     return (
       <p className="text-[15px] leading-[1.65] text-white">
         <Caret />
       </p>
-    )
+    );
   }
   return (
     <div className="grid gap-3 text-[15px] leading-[1.65] text-white">
       {paragraphs.map((para, i) => {
-        const isLast = i === paragraphs.length - 1
+        const isLast = i === paragraphs.length - 1;
         return (
           <p key={i} className="whitespace-pre-wrap">
             {para}
             {isLast ? <Caret /> : null}
           </p>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 function Caret() {
@@ -919,29 +894,29 @@ function Caret() {
       aria-hidden
       className="ml-[2px] inline-block h-[1em] w-[2px] -translate-y-[2px] animate-pulse rounded-sm bg-accent align-middle"
     />
-  )
+  );
 }
 
 function splitParagraphs(text: string): string[] {
   return text
-    .replace(/\r\n/g, '\n')
+    .replace(/\r\n/g, "\n")
     .split(/\n{2,}/)
     .map((p) => p.trim())
-    .filter((p) => p.length > 0)
+    .filter((p) => p.length > 0);
 }
 
 function renderInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       return (
         <strong key={i} className="font-semibold text-white">
           {part.slice(2, -2)}
         </strong>
-      )
+      );
     }
-    return <span key={i}>{part}</span>
-  })
+    return <span key={i}>{part}</span>;
+  });
 }
 
 // ---- live status line ------------------------------------------------
@@ -951,80 +926,74 @@ function renderInline(text: string): React.ReactNode[] {
 // bottom margins (`my-5`) give the scroll anchor below the same breathing
 // room as the gap above — the pill never butts against the last card or the
 // page bottom.
-function BottomStatusLine({
-  status,
-  running,
-}: {
-  status: string | null
-  running: boolean
-}) {
-  if (!running) return null
+function BottomStatusLine({ status, running }: { status: string | null; running: boolean }) {
+  if (!running) return null;
   return (
     <div className="my-5 flex justify-start">
       <div
         className="inline-flex items-center gap-[10px] rounded-pill border border-[#2a2a38] bg-ink-soft/90 px-4 py-[8px] text-[13px] text-[#cfcfd6]"
-        style={{ boxShadow: '0 8px 24px -12px rgba(0,0,0,0.6)' }}
+        style={{ boxShadow: "0 8px 24px -12px rgba(0,0,0,0.6)" }}
       >
         <span
           aria-hidden
           className="h-[6px] w-[6px] animate-pulse rounded-full bg-accent"
-          style={{ boxShadow: '0 0 12px var(--color-accent)' }}
+          style={{ boxShadow: "0 0 12px var(--color-accent)" }}
         />
-        <span>{status ?? 'Thinking…'}</span>
+        <span>{status ?? "Thinking…"}</span>
       </div>
     </div>
-  )
+  );
 }
 
 function computeLiveStatus(events: FteEventRow[]): string | null {
   for (let i = events.length - 1; i >= 0; i--) {
-    const e = events[i]
-    if (e.kind === 'tool_use' || e.kind === 'server_tool_use') {
-      return humanizeToolUse(e)
+    const e = events[i];
+    if (e.kind === "tool_use" || e.kind === "server_tool_use") {
+      return humanizeToolUse(e);
     }
   }
-  return events.length > 0 ? 'Getting started…' : null
+  return events.length > 0 ? "Getting started…" : null;
 }
 
 function humanizeToolUse(e: FteEventRow): string {
-  const name = typeof e.payload.name === 'string' ? e.payload.name : ''
-  const rawInput = e.payload.input
+  const name = typeof e.payload.name === "string" ? e.payload.name : "";
+  const rawInput = e.payload.input;
   const input: Record<string, JsonValue> =
-    rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput)
+    rawInput && typeof rawInput === "object" && !Array.isArray(rawInput)
       ? (rawInput as Record<string, JsonValue>)
-      : {}
+      : {};
   switch (name) {
-    case 'fetch_url': {
-      const url = typeof input.url === 'string' ? input.url : ''
-      const host = prettyHost(url)
-      return host ? `Reading ${host}` : 'Reading a page'
+    case "fetch_url": {
+      const url = typeof input.url === "string" ? input.url : "";
+      const host = prettyHost(url);
+      return host ? `Reading ${host}` : "Reading a page";
     }
-    case 'discover_rss': {
-      const url = typeof input.homepage_url === 'string' ? input.homepage_url : ''
-      const host = prettyHost(url)
-      return host ? `Looking for RSS on ${host}` : 'Looking for an RSS feed'
+    case "discover_rss": {
+      const url = typeof input.homepage_url === "string" ? input.homepage_url : "";
+      const host = prettyHost(url);
+      return host ? `Looking for RSS on ${host}` : "Looking for an RSS feed";
     }
-    case 'add_competitor': {
-      const n = typeof input.name === 'string' ? input.name : ''
-      return n ? `Adding ${n}` : 'Adding a competitor'
+    case "add_competitor": {
+      const n = typeof input.name === "string" ? input.name : "";
+      return n ? `Adding ${n}` : "Adding a competitor";
     }
-    case 'save_profile':
-      return 'Saving your profile'
-    case 'web_search': {
-      const q = typeof input.query === 'string' ? input.query : ''
-      return q ? `Searching “${q}”` : 'Searching the web'
+    case "save_profile":
+      return "Saving your profile";
+    case "web_search": {
+      const q = typeof input.query === "string" ? input.query : "";
+      return q ? `Searching “${q}”` : "Searching the web";
     }
     default:
-      return name ? `Running ${name}` : 'Thinking…'
+      return name ? `Running ${name}` : "Thinking…";
   }
 }
 
 function prettyHost(url: string): string {
-  if (!url) return ''
+  if (!url) return "";
   try {
-    return new URL(url).hostname.replace(/^www\./, '')
+    return new URL(url).hostname.replace(/^www\./, "");
   } catch {
-    return url
+    return url;
   }
 }
 
@@ -1042,29 +1011,29 @@ function ProfileCard({
   onAddCompetitor,
   onRemoveCompetitor,
 }: {
-  profile: ProfileView
-  competitors: CompetitorView[]
-  onEditProfile: () => void
-  onConfirm: () => void
-  confirming: boolean
-  addingCompetitor: boolean
-  onShowAdd: () => void
-  onHideAdd: () => void
-  onAddCompetitor: (input: { name: string; homepageUrl: string }) => Promise<void>
-  onRemoveCompetitor: (competitorId: string) => Promise<void>
+  profile: ProfileView;
+  competitors: CompetitorView[];
+  onEditProfile: () => void;
+  onConfirm: () => void;
+  confirming: boolean;
+  addingCompetitor: boolean;
+  onShowAdd: () => void;
+  onHideAdd: () => void;
+  onAddCompetitor: (input: { name: string; homepageUrl: string }) => Promise<void>;
+  onRemoveCompetitor: (competitorId: string) => Promise<void>;
 }) {
   return (
     <div
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+      style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
     >
       <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
         <div className="text-[13px] text-[#888]">
-          <strong className="font-semibold text-white">Profile preview</strong>{' '}
-          · review and edit before confirming
+          <strong className="font-semibold text-white">Profile preview</strong> · review and edit
+          before confirming
         </div>
         <div className="font-mono text-xs text-[#666]">
-          {competitors.length} competitor{competitors.length === 1 ? '' : 's'}
+          {competitors.length} competitor{competitors.length === 1 ? "" : "s"}
         </div>
       </div>
 
@@ -1092,7 +1061,7 @@ function ProfileCard({
           disabled={confirming}
           className="group inline-flex h-11 items-center justify-center gap-[10px] rounded-pill bg-accent px-7 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
         >
-          {confirming ? 'Confirming…' : 'Looks good'}
+          {confirming ? "Confirming…" : "Looks good"}
           <span
             aria-hidden
             className="transition-transform duration-150 group-hover:translate-x-[3px] group-disabled:hidden"
@@ -1109,7 +1078,7 @@ function ProfileCard({
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 function ProfileEditor({
@@ -1117,37 +1086,35 @@ function ProfileEditor({
   onCancel,
   onSave,
 }: {
-  initial: ProfileView
-  onCancel: () => void
-  onSave: (next: ProfileView) => Promise<void> | void
+  initial: ProfileView;
+  onCancel: () => void;
+  onSave: (next: ProfileView) => Promise<void> | void;
 }) {
-  const [position, setPosition] = useState(initial.position ?? '')
-  const [companyName, setCompanyName] = useState(initial.companyName ?? '')
-  const [ultimateGoal, setUltimateGoal] = useState(initial.ultimateGoal ?? '')
-  const [focusAreas, setFocusAreas] = useState(
-    (initial.focusAreas ?? []).join(', '),
-  )
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [position, setPosition] = useState(initial.position ?? "");
+  const [companyName, setCompanyName] = useState(initial.companyName ?? "");
+  const [ultimateGoal, setUltimateGoal] = useState(initial.ultimateGoal ?? "");
+  const [focusAreas, setFocusAreas] = useState((initial.focusAreas ?? []).join(", "));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSaving(true)
-    setError(null)
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
     const parsedFocus = focusAreas
-      .split(',')
+      .split(",")
       .map((s) => s.trim())
-      .filter((s) => s.length > 0)
+      .filter((s) => s.length > 0);
     const result = editSchema.safeParse({
       position,
       companyName,
       ultimateGoal,
       focusAreas: parsedFocus,
-    })
+    });
     if (!result.success) {
-      setError(result.error.issues[0]?.message ?? 'Please fill in every field.')
-      setSaving(false)
-      return
+      setError(result.error.issues[0]?.message ?? "Please fill in every field.");
+      setSaving(false);
+      return;
     }
     try {
       await onSave({
@@ -1156,11 +1123,11 @@ function ProfileEditor({
         companyName: result.data.companyName,
         ultimateGoal: result.data.ultimateGoal,
         focusAreas: result.data.focusAreas,
-      })
+      });
     } catch {
-      setError('Could not save changes. Try again.')
+      setError("Could not save changes. Try again.");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
@@ -1168,11 +1135,11 @@ function ProfileEditor({
     <form
       onSubmit={onSubmit}
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+      style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
     >
       <div className="border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5 text-[13px] text-[#888]">
-        <strong className="font-semibold text-white">Edit profile</strong> ·
-        change anything the agent got wrong
+        <strong className="font-semibold text-white">Edit profile</strong> · change anything the
+        agent got wrong
       </div>
 
       <div className="grid gap-5 px-7 py-7">
@@ -1214,7 +1181,7 @@ function ProfileEditor({
           disabled={saving}
           className="inline-flex h-11 items-center gap-2 rounded-pill bg-accent px-6 text-sm font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {saving ? 'Saving…' : 'Save changes'}
+          {saving ? "Saving…" : "Save changes"}
         </button>
         <button
           type="button"
@@ -1226,7 +1193,7 @@ function ProfileEditor({
         </button>
       </div>
     </form>
-  )
+  );
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null }) {
@@ -1239,7 +1206,7 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
         {value && value.length > 0 ? value : <span className="text-[#666]">—</span>}
       </div>
     </div>
-  )
+  );
 }
 
 function FocusAreas({ areas }: { areas: string[] | null }) {
@@ -1257,12 +1224,10 @@ function FocusAreas({ areas }: { areas: string[] | null }) {
             {area}
           </span>
         ))}
-        {(areas ?? []).length === 0 ? (
-          <span className="text-[15px] text-[#666]">—</span>
-        ) : null}
+        {(areas ?? []).length === 0 ? <span className="text-[15px] text-[#666]">—</span> : null}
       </div>
     </div>
-  )
+  );
 }
 
 function CompetitorsList({
@@ -1273,12 +1238,12 @@ function CompetitorsList({
   onAddCompetitor,
   onRemoveCompetitor,
 }: {
-  competitors: CompetitorView[]
-  addingCompetitor: boolean
-  onShowAdd: () => void
-  onHideAdd: () => void
-  onAddCompetitor: (input: { name: string; homepageUrl: string }) => Promise<void>
-  onRemoveCompetitor: (competitorId: string) => Promise<void>
+  competitors: CompetitorView[];
+  addingCompetitor: boolean;
+  onShowAdd: () => void;
+  onHideAdd: () => void;
+  onAddCompetitor: (input: { name: string; homepageUrl: string }) => Promise<void>;
+  onRemoveCompetitor: (competitorId: string) => Promise<void>;
 }) {
   return (
     <div className="grid gap-3">
@@ -1306,11 +1271,7 @@ function CompetitorsList({
       {competitors.length > 0 ? (
         <ul className="divide-y divide-[#2a2a38] overflow-hidden rounded-md border border-[#2a2a38]">
           {competitors.map((c) => (
-            <CompetitorRow
-              key={c.id}
-              competitor={c}
-              onRemove={() => onRemoveCompetitor(c.id)}
-            />
+            <CompetitorRow key={c.id} competitor={c} onRemove={() => onRemoveCompetitor(c.id)} />
           ))}
         </ul>
       ) : null}
@@ -1319,26 +1280,22 @@ function CompetitorsList({
         <AddCompetitorForm onCancel={onHideAdd} onSubmit={onAddCompetitor} />
       ) : null}
     </div>
-  )
+  );
 }
 
 function CompetitorRow({
   competitor,
   onRemove,
 }: {
-  competitor: CompetitorView
-  onRemove: () => void | Promise<void>
+  competitor: CompetitorView;
+  onRemove: () => void | Promise<void>;
 }) {
-  const [removing, setRemoving] = useState(false)
+  const [removing, setRemoving] = useState(false);
   return (
     <li className="group flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-white">
-          {competitor.name}
-        </div>
-        <div className="truncate font-mono text-[11px] text-[#666]">
-          {competitor.homepageUrl}
-        </div>
+        <div className="truncate text-sm font-semibold text-white">{competitor.name}</div>
+        <div className="truncate font-mono text-[11px] text-[#666]">{competitor.homepageUrl}</div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {competitor.rssUrl ? (
@@ -1349,8 +1306,8 @@ function CompetitorRow({
         <button
           type="button"
           onClick={async () => {
-            setRemoving(true)
-            await onRemove()
+            setRemoving(true);
+            await onRemove();
           }}
           disabled={removing}
           aria-label={`Remove ${competitor.name}`}
@@ -1360,39 +1317,39 @@ function CompetitorRow({
         </button>
       </div>
     </li>
-  )
+  );
 }
 
 function AddCompetitorForm({
   onCancel,
   onSubmit,
 }: {
-  onCancel: () => void
-  onSubmit: (input: { name: string; homepageUrl: string }) => Promise<void>
+  onCancel: () => void;
+  onSubmit: (input: { name: string; homepageUrl: string }) => Promise<void>;
 }) {
-  const [name, setName] = useState('')
-  const [homepageUrl, setHomepageUrl] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState("");
+  const [homepageUrl, setHomepageUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSubmitting(true)
-    setError(null)
-    const parsed = addCompetitorSchema.safeParse({ name, homepageUrl })
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const parsed = addCompetitorSchema.safeParse({ name, homepageUrl });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Enter a name and a homepage URL.')
-      setSubmitting(false)
-      return
+      setError(parsed.error.issues[0]?.message ?? "Enter a name and a homepage URL.");
+      setSubmitting(false);
+      return;
     }
     try {
-      await onSubmit(parsed.data)
-      setName('')
-      setHomepageUrl('')
+      await onSubmit(parsed.data);
+      setName("");
+      setHomepageUrl("");
     } catch {
-      setError('Could not add competitor. Try again.')
+      setError("Could not add competitor. Try again.");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
@@ -1425,7 +1382,7 @@ function AddCompetitorForm({
           disabled={submitting}
           className="inline-flex h-10 items-center gap-2 rounded-pill bg-accent px-5 text-sm font-semibold text-ink hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {submitting ? 'Adding…' : 'Add competitor'}
+          {submitting ? "Adding…" : "Add competitor"}
         </button>
         <button
           type="button"
@@ -1440,7 +1397,7 @@ function AddCompetitorForm({
         </span>
       </div>
     </form>
-  )
+  );
 }
 
 function EditField({
@@ -1448,9 +1405,9 @@ function EditField({
   hint,
   children,
 }: {
-  label: string
-  hint?: string
-  children: React.ReactNode
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
 }) {
   return (
     <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
@@ -1464,5 +1421,5 @@ function EditField({
       </span>
       {children}
     </label>
-  )
+  );
 }

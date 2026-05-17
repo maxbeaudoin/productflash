@@ -32,12 +32,12 @@ This is a **demand-validation PoC**, not a feature-complete MVP. Everything belo
 
 ## 3. Sources (priority order)
 
-| # | Source | Why | How |
-|---|--------|-----|-----|
-| 1 | RSS (changelog/blog) | Highest signal-to-noise; most SaaS publishes one | Per-competitor RSS URL stored in DB; autodetect at signup |
-| 2 | Product Hunt API | Free, public, great for launch detection | Match by competitor slug / name |
-| 3 | Firehose API ([docs](https://firehose.com/api-docs)) | Broader news + post coverage | Per-competitor query, batched |
-| 4 | Firecrawl ([docs](https://docs.firecrawl.dev/api-reference/introduction)) | Catch pages without RSS (pricing, marketing) | Daily pricing-page scrape + diff |
+| #   | Source                                                                    | Why                                              | How                                                       |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------- |
+| 1   | RSS (changelog/blog)                                                      | Highest signal-to-noise; most SaaS publishes one | Per-competitor RSS URL stored in DB; autodetect at signup |
+| 2   | Product Hunt API                                                          | Free, public, great for launch detection         | Match by competitor slug / name                           |
+| 3   | Firehose API ([docs](https://firehose.com/api-docs))                      | Broader news + post coverage                     | Per-competitor query, batched                             |
+| 4   | Firecrawl ([docs](https://docs.firecrawl.dev/api-reference/introduction)) | Catch pages without RSS (pricing, marketing)     | Daily pricing-page scrape + diff                          |
 
 **Policy**: prefer existing APIs/services over custom crawlers. No bespoke scraping unless Firecrawl can't handle it.
 
@@ -136,6 +136,7 @@ DEBUG  (NODE_ENV !== 'production')
 Two agentic moments in this product. The first ships in v1; the second evolves over time.
 
 **Moment 1 — FTE agent (signup).** When a new user submits `/signup`, a pg-boss singleton job runs an Anthropic SDK tool-use loop with `claude-sonnet-4-6` as planner. Tools:
+
 - `web_search_20250305` — Anthropic's server-side web search tool
 - `fetch_url(url)` — plain-text extraction of a URL
 - `discover_rss(homepage_url)` — RSS autodetect (from task #5)
@@ -172,15 +173,15 @@ Better Auth manages its own session / account / verification tables via its Driz
 
 Two trigger paths into the same jobs: the daily cron, and an on-demand fast path triggered when a new user confirms their FTE-generated profile.
 
-| Trigger | Job | What it does |
-|---|---|---|
-| 04:00 UTC (cron) | `ingest` | Fan out per competitor → pull RSS, PH, Firehose, Firecrawl → insert `raw_items` w/ dedupe |
-| 05:00 UTC (cron) | `score` | For each user, take last-24h items for their competitors → Haiku classifies + scores |
-| 05:30 UTC (cron) | `synthesize` | Sonnet writes headlines/snippets/impact for top-N items per user → persist `digest_items` + `digests` |
-| User submits `/signup` | `fte` | Anthropic agent loop builds profile (§4.4); streams to `fte_events` (task #28) |
+| Trigger                                    | Job                                                          | What it does                                                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| 04:00 UTC (cron)                           | `ingest`                                                     | Fan out per competitor → pull RSS, PH, Firehose, Firecrawl → insert `raw_items` w/ dedupe                                       |
+| 05:00 UTC (cron)                           | `score`                                                      | For each user, take last-24h items for their competitors → Haiku classifies + scores                                            |
+| 05:30 UTC (cron)                           | `synthesize`                                                 | Sonnet writes headlines/snippets/impact for top-N items per user → persist `digest_items` + `digests`                           |
+| User submits `/signup`                     | `fte`                                                        | Anthropic agent loop builds profile (§4.4); streams to `fte_events` (task #28)                                                  |
 | User confirms profile at `/app/onboarding` | `ingest(user_id)` → `score(user_id)` → `synthesize(user_id)` | On-demand one-off run for that user only — bypasses cron so first digest lands at `/app/digests/:id` within ~3–5 min (task #30) |
-| Per-TZ ≤08:00 local (cron, later phase) | `send` | Resend email out; embed tracking pixel + feedback URLs (task #11/#17) |
-| async | `feedback` | `/r/:digest_item_id/:rating` records and redirects |
+| Per-TZ ≤08:00 local (cron, later phase)    | `send`                                                       | Resend email out; embed tracking pixel + feedback URLs (task #11/#17)                                                           |
+| async                                      | `feedback`                                                   | `/r/:digest_item_id/:rating` records and redirects                                                                              |
 
 ## 7. Milestones
 

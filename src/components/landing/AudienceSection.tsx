@@ -1,5 +1,5 @@
-import { AUDIENCE } from '~/data/landing'
-import { PersonaCard } from './PersonaCard'
+import { AUDIENCE } from "~/data/landing";
+import { PersonaCard } from "./PersonaCard";
 
 export function AudienceSection() {
   return (
@@ -19,5 +19,5 @@ export function AudienceSection() {
         </div>
       </div>
     </section>
-  )
+  );
 }

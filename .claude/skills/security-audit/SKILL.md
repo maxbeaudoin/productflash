@@ -35,13 +35,13 @@ emit one ranked report.
 
 ## Severity rubric
 
-| Severity | Definition |
-|----------|-----------|
+| Severity     | Definition                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Critical** | Trivially exploitable by an unauthenticated attacker → data breach, account takeover, RCE, or unbounded financial loss. Fix immediately, before next deploy. |
-| **High** | Exploitable by an authenticated low-privilege user → cross-tenant data access, privilege escalation, significant cost abuse. Fix this sprint. |
-| **Medium** | Requires user interaction, chained conditions, or limited blast radius. Fix soon. |
-| **Low** | Defense-in-depth gap; no current exploit path but reduces resilience. |
-| **Info** | Hygiene/observation; not a vuln but worth noting. |
+| **High**     | Exploitable by an authenticated low-privilege user → cross-tenant data access, privilege escalation, significant cost abuse. Fix this sprint.                |
+| **Medium**   | Requires user interaction, chained conditions, or limited blast radius. Fix soon.                                                                            |
+| **Low**      | Defense-in-depth gap; no current exploit path but reduces resilience.                                                                                        |
+| **Info**     | Hygiene/observation; not a vuln but worth noting.                                                                                                            |
 
 Likelihood is `High | Medium | Low` based on attacker effort and required
 preconditions. Impact follows the same scale based on what the attacker gains.
@@ -99,7 +99,7 @@ rg -n 'httpOnly|sameSite|secure:\s*(true|false)' src/
 
 For every server function / API route / mutation:
 
-- Is `auth()` / `getSession()` / equivalent called *before* the DB query?
+- Is `auth()` / `getSession()` / equivalent called _before_ the DB query?
 - Does the DB query filter by `userId` / `orgId` / equivalent, or does it
   trust an `id` passed by the client?
 - Admin endpoints: is the role check on the **server**, not just the UI?
@@ -215,7 +215,7 @@ Modern apps have a unique attack surface around LLM calls.
 
 - **Tracking pixel / open endpoints.** Validate the id is opaque (not an
   incrementing integer that lets an attacker enumerate recipients).
-- **Unsubscribe.** One-click unsub should not require login *and* should not
+- **Unsubscribe.** One-click unsub should not require login _and_ should not
   let an attacker unsub arbitrary users (token must be HMAC'd to recipient).
 - **From-address spoofing.** Resend/SES `from:` field — server-controlled?
 
@@ -262,15 +262,17 @@ release, `overrides` that downgrade a transitive dep below its patched version.
 
 Emit a single markdown report. Structure:
 
-```markdown
+````markdown
 # Security Audit — <project> (<YYYY-MM-DD>)
 
 ## Executive summary
+
 - N findings: X Critical, Y High, Z Medium, W Low, V Info
 - Top three risks (one line each)
 - Overall posture verdict (1–2 sentences)
 
 ## Scope & methodology
+
 - What was reviewed (paths, commit SHA)
 - What was NOT reviewed (runtime, infra, third-party config)
 - Tools/commands used
@@ -278,12 +280,15 @@ Emit a single markdown report. Structure:
 ## Findings (ranked, Critical → Info)
 
 ### F-001 — <Short title> [Severity: High] [Likelihood: Medium] [Impact: High]
+
 **Where:** `src/routes/api/foo.ts:42–58`
 **What:**
+
 > ```ts
 > // 3–10 line excerpt
 > ```
-The handler does X without checking Y, so an attacker can …
+>
+> The handler does X without checking Y, so an attacker can …
 
 **Why it matters:** concrete attacker scenario in one paragraph.
 
@@ -293,7 +298,7 @@ pattern already used elsewhere in the codebase.
 **Verification needed (if any):** what would confirm exploitability at runtime.
 
 ### F-002 — …
-```
+````
 
 Order findings strictly by severity, then by likelihood. Use stable IDs
 (`F-001`, `F-002`) so they can be referenced in follow-up commits.

@@ -1,5 +1,5 @@
-import { FOOTER, TOPBAR } from '~/data/landing'
-import { BrandMark } from './BrandMark'
+import { FOOTER, TOPBAR } from "~/data/landing";
+import { BrandMark } from "./BrandMark";
 
 export function Footer() {
   return (
@@ -10,5 +10,5 @@ export function Footer() {
       </div>
       <div>{FOOTER.copy}</div>
     </footer>
-  )
+  );
 }

@@ -3,9 +3,9 @@
 // llm-cost.ts (pino, drizzle, pg, Anthropic SDK).
 
 export function formatUsd(microUsd: number): string {
-  const usd = microUsd / 1_000_000
-  if (usd === 0) return '$0.00'
-  if (usd < 0.01) return `$${usd.toFixed(4)}`
-  if (usd < 1) return `$${usd.toFixed(3)}`
-  return `$${usd.toFixed(2)}`
+  const usd = microUsd / 1_000_000;
+  if (usd === 0) return "$0.00";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
 }

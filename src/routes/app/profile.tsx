@@ -1,18 +1,18 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { and, asc, eq, sql } from 'drizzle-orm'
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { z } from 'zod'
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { and, asc, eq } from "drizzle-orm";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { z } from "zod";
 import {
   competitors as competitorsTable,
   itemScores,
   userCompetitors,
   users as usersTable,
-} from '~/db/schema'
-import { requireSession } from '~/lib/auth-server'
-import { getDb } from '~/lib/db'
-import { autodetectRSSForHomepage } from '~/sources/rss'
+} from "~/db/schema";
+import { requireSession } from "~/lib/auth-server";
+import { getDb } from "~/lib/db";
+import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // /app/profile (#32). Standalone view + edit of the AI-generated profile.
 //
@@ -22,29 +22,29 @@ import { autodetectRSSForHomepage } from '~/sources/rss'
 // header, tweaks fields, adds/removes competitors, and leaves.
 
 type ProfileView = {
-  position: string | null
-  companyName: string | null
-  companyUrl: string | null
-  ultimateGoal: string | null
-  focusAreas: string[] | null
-}
+  position: string | null;
+  companyName: string | null;
+  companyUrl: string | null;
+  ultimateGoal: string | null;
+  focusAreas: string[] | null;
+};
 
 type CompetitorView = {
-  id: string
-  name: string
-  homepageUrl: string
-  rssUrl: string | null
-}
+  id: string;
+  name: string;
+  homepageUrl: string;
+  rssUrl: string | null;
+};
 
 type ProfileLoaderData = {
-  profile: ProfileView
-  competitors: CompetitorView[]
-}
+  profile: ProfileView;
+  competitors: CompetitorView[];
+};
 
-const loadProfile = createServerFn({ method: 'GET' }).handler(
+const loadProfile = createServerFn({ method: "GET" }).handler(
   async (): Promise<ProfileLoaderData> => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
 
     const [user] = await db
       .select({
@@ -56,7 +56,7 @@ const loadProfile = createServerFn({ method: 'GET' }).handler(
       })
       .from(usersTable)
       .where(eq(usersTable.id, session.user.id))
-      .limit(1)
+      .limit(1);
 
     const competitors = await db
       .select({
@@ -68,7 +68,7 @@ const loadProfile = createServerFn({ method: 'GET' }).handler(
       .from(userCompetitors)
       .innerJoin(competitorsTable, eq(userCompetitors.competitorId, competitorsTable.id))
       .where(eq(userCompetitors.userId, session.user.id))
-      .orderBy(asc(competitorsTable.name))
+      .orderBy(asc(competitorsTable.name));
 
     return {
       profile: {
@@ -79,9 +79,9 @@ const loadProfile = createServerFn({ method: 'GET' }).handler(
         focusAreas: user?.focusAreas ?? null,
       },
       competitors,
-    }
+    };
   },
-)
+);
 
 const editSchema = z.object({
   position: z.string().trim().min(2).max(120),
@@ -89,13 +89,13 @@ const editSchema = z.object({
   companyUrl: z.string().trim().url().max(500),
   ultimateGoal: z.string().trim().min(8).max(400),
   focusAreas: z.array(z.string().trim().min(1).max(80)).min(1).max(8),
-})
+});
 
-const editProfile = createServerFn({ method: 'POST' })
+const editProfile = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => editSchema.parse(data))
   .handler(async ({ data }) => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
     await db
       .update(usersTable)
       .set({
@@ -106,29 +106,29 @@ const editProfile = createServerFn({ method: 'POST' })
         focusAreas: data.focusAreas,
         updatedAt: new Date(),
       })
-      .where(eq(usersTable.id, session.user.id))
+      .where(eq(usersTable.id, session.user.id));
     // Profile fields are baked into Haiku scoring (#35). Drop the stale
     // cache so the next score run re-classifies under the new context.
-    await db.delete(itemScores).where(eq(itemScores.userId, session.user.id))
-    return { ok: true as const }
-  })
+    await db.delete(itemScores).where(eq(itemScores.userId, session.user.id));
+    return { ok: true as const };
+  });
 
 const addCompetitorSchema = z.object({
   name: z.string().trim().min(1).max(120),
   homepageUrl: z.string().trim().url().max(500),
-})
+});
 
-const addCompetitor = createServerFn({ method: 'POST' })
+const addCompetitor = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => addCompetitorSchema.parse(data))
   .handler(async ({ data }): Promise<{ competitor: CompetitorView }> => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
 
-    let rssUrl: string | null = null
+    let rssUrl: string | null = null;
     try {
-      rssUrl = await autodetectRSSForHomepage(data.homepageUrl)
+      rssUrl = await autodetectRSSForHomepage(data.homepageUrl);
     } catch {
-      rssUrl = null
+      rssUrl = null;
     }
 
     // First-writer-wins on the competitors row: insert if the URL is new,
@@ -144,7 +144,7 @@ const addCompetitor = createServerFn({ method: 'POST' })
         homepageUrl: data.homepageUrl,
         rssUrl,
       })
-      .onConflictDoNothing({ target: competitorsTable.homepageUrl })
+      .onConflictDoNothing({ target: competitorsTable.homepageUrl });
 
     const [c] = await db
       .select({
@@ -155,26 +155,26 @@ const addCompetitor = createServerFn({ method: 'POST' })
       })
       .from(competitorsTable)
       .where(eq(competitorsTable.homepageUrl, data.homepageUrl))
-      .limit(1)
-    if (!c) throw new Error('competitor_upsert_failed')
+      .limit(1);
+    if (!c) throw new Error("competitor_upsert_failed");
 
     await db
       .insert(userCompetitors)
       .values({ userId: session.user.id, competitorId: c.id })
-      .onConflictDoNothing()
+      .onConflictDoNothing();
 
-    return { competitor: c }
-  })
+    return { competitor: c };
+  });
 
 const removeCompetitorSchema = z.object({
   competitorId: z.string().uuid(),
-})
+});
 
-const removeCompetitor = createServerFn({ method: 'POST' })
+const removeCompetitor = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => removeCompetitorSchema.parse(data))
   .handler(async ({ data }) => {
-    const session = await requireSession()
-    const db = getDb()
+    const session = await requireSession();
+    const db = getDb();
     await db
       .delete(userCompetitors)
       .where(
@@ -182,69 +182,69 @@ const removeCompetitor = createServerFn({ method: 'POST' })
           eq(userCompetitors.userId, session.user.id),
           eq(userCompetitors.competitorId, data.competitorId),
         ),
-      )
-    return { ok: true as const }
-  })
+      );
+    return { ok: true as const };
+  });
 
-export const Route = createFileRoute('/app/profile')({
+export const Route = createFileRoute("/app/profile")({
   loader: () => loadProfile(),
   component: ProfilePage,
-})
+});
 
 function ProfilePage() {
-  const loaded = Route.useLoaderData()
-  const router = useRouter()
+  const loaded = Route.useLoaderData();
+  const router = useRouter();
 
-  const [profile, setProfile] = useState<ProfileView>(loaded.profile)
-  const [competitors, setCompetitors] = useState<CompetitorView[]>(loaded.competitors)
-  const [editing, setEditing] = useState(false)
-  const [addingCompetitor, setAddingCompetitor] = useState(false)
+  const [profile, setProfile] = useState<ProfileView>(loaded.profile);
+  const [competitors, setCompetitors] = useState<CompetitorView[]>(loaded.competitors);
+  const [editing, setEditing] = useState(false);
+  const [addingCompetitor, setAddingCompetitor] = useState(false);
 
   useEffect(() => {
-    setProfile(loaded.profile)
-    setCompetitors(loaded.competitors)
-  }, [loaded.profile, loaded.competitors])
+    setProfile(loaded.profile);
+    setCompetitors(loaded.competitors);
+  }, [loaded.profile, loaded.competitors]);
 
   async function onSaveEdit(next: ProfileView) {
     await editProfile({
       data: {
-        position: next.position ?? '',
-        companyName: next.companyName ?? '',
-        companyUrl: next.companyUrl ?? '',
-        ultimateGoal: next.ultimateGoal ?? '',
+        position: next.position ?? "",
+        companyName: next.companyName ?? "",
+        companyUrl: next.companyUrl ?? "",
+        ultimateGoal: next.ultimateGoal ?? "",
         focusAreas: next.focusAreas ?? [],
       },
-    })
-    setProfile(next)
-    setEditing(false)
-    toast.success('Profile updated')
+    });
+    setProfile(next);
+    setEditing(false);
+    toast.success("Profile updated");
   }
 
   async function onAddCompetitor(input: { name: string; homepageUrl: string }) {
-    const res = await addCompetitor({ data: input })
+    const res = await addCompetitor({ data: input });
     setCompetitors((prev) =>
       prev.some((c) => c.id === res.competitor.id)
         ? prev
         : [...prev, res.competitor].sort((a, b) => a.name.localeCompare(b.name)),
-    )
-    setAddingCompetitor(false)
+    );
+    setAddingCompetitor(false);
     toast.success(
       res.competitor.rssUrl
         ? `Added ${res.competitor.name} · RSS detected`
         : `Added ${res.competitor.name}`,
-    )
+    );
   }
 
   async function onRemoveCompetitor(competitor: CompetitorView) {
-    const previous = competitors
-    setCompetitors((prev) => prev.filter((c) => c.id !== competitor.id))
+    const previous = competitors;
+    setCompetitors((prev) => prev.filter((c) => c.id !== competitor.id));
     try {
-      await removeCompetitor({ data: { competitorId: competitor.id } })
-      toast.success(`Removed ${competitor.name}`)
+      await removeCompetitor({ data: { competitorId: competitor.id } });
+      toast.success(`Removed ${competitor.name}`);
     } catch {
-      setCompetitors(previous)
-      toast.error('Could not remove competitor')
-      await router.invalidate()
+      setCompetitors(previous);
+      toast.error("Could not remove competitor");
+      await router.invalidate();
     }
   }
 
@@ -258,17 +258,13 @@ function ProfilePage() {
           Tune what your analyst watches for.
         </h1>
         <p className="mt-3 max-w-[640px] text-[15px] text-[#a8a8b8]">
-          Edit your role, goal, and focus areas; add or drop competitors. Changes
-          land in tomorrow's digest.
+          Edit your role, goal, and focus areas; add or drop competitors. Changes land in tomorrow's
+          digest.
         </p>
       </header>
 
       {editing ? (
-        <ProfileEditor
-          initial={profile}
-          onCancel={() => setEditing(false)}
-          onSave={onSaveEdit}
-        />
+        <ProfileEditor initial={profile} onCancel={() => setEditing(false)} onSave={onSaveEdit} />
       ) : (
         <ProfileCard profile={profile} onEdit={() => setEditing(true)} />
       )}
@@ -284,27 +280,21 @@ function ProfilePage() {
         />
       </section>
     </main>
-  )
+  );
 }
 
 // ---- profile card ----------------------------------------------------
 
-function ProfileCard({
-  profile,
-  onEdit,
-}: {
-  profile: ProfileView
-  onEdit: () => void
-}) {
+function ProfileCard({ profile, onEdit }: { profile: ProfileView; onEdit: () => void }) {
   return (
     <div
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+      style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
     >
       <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
         <div className="text-[13px] text-[#888]">
-          <strong className="font-semibold text-white">Your profile</strong>{' '}
-          · used to score and synthesize each daily brief
+          <strong className="font-semibold text-white">Your profile</strong> · used to score and
+          synthesize each daily brief
         </div>
         <button
           type="button"
@@ -325,7 +315,7 @@ function ProfileCard({
         <FocusAreas areas={profile.focusAreas} />
       </div>
     </div>
-  )
+  );
 }
 
 function ProfileEditor({
@@ -333,39 +323,37 @@ function ProfileEditor({
   onCancel,
   onSave,
 }: {
-  initial: ProfileView
-  onCancel: () => void
-  onSave: (next: ProfileView) => Promise<void> | void
+  initial: ProfileView;
+  onCancel: () => void;
+  onSave: (next: ProfileView) => Promise<void> | void;
 }) {
-  const [position, setPosition] = useState(initial.position ?? '')
-  const [companyName, setCompanyName] = useState(initial.companyName ?? '')
-  const [companyUrl, setCompanyUrl] = useState(initial.companyUrl ?? '')
-  const [ultimateGoal, setUltimateGoal] = useState(initial.ultimateGoal ?? '')
-  const [focusAreas, setFocusAreas] = useState(
-    (initial.focusAreas ?? []).join(', '),
-  )
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [position, setPosition] = useState(initial.position ?? "");
+  const [companyName, setCompanyName] = useState(initial.companyName ?? "");
+  const [companyUrl, setCompanyUrl] = useState(initial.companyUrl ?? "");
+  const [ultimateGoal, setUltimateGoal] = useState(initial.ultimateGoal ?? "");
+  const [focusAreas, setFocusAreas] = useState((initial.focusAreas ?? []).join(", "));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSaving(true)
-    setError(null)
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
     const parsedFocus = focusAreas
-      .split(',')
+      .split(",")
       .map((s) => s.trim())
-      .filter((s) => s.length > 0)
+      .filter((s) => s.length > 0);
     const result = editSchema.safeParse({
       position,
       companyName,
       companyUrl,
       ultimateGoal,
       focusAreas: parsedFocus,
-    })
+    });
     if (!result.success) {
-      setError(result.error.issues[0]?.message ?? 'Please fill in every field.')
-      setSaving(false)
-      return
+      setError(result.error.issues[0]?.message ?? "Please fill in every field.");
+      setSaving(false);
+      return;
     }
     try {
       await onSave({
@@ -374,11 +362,11 @@ function ProfileEditor({
         companyUrl: result.data.companyUrl,
         ultimateGoal: result.data.ultimateGoal,
         focusAreas: result.data.focusAreas,
-      })
+      });
     } catch {
-      setError('Could not save changes. Try again.')
+      setError("Could not save changes. Try again.");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
@@ -386,11 +374,11 @@ function ProfileEditor({
     <form
       onSubmit={onSubmit}
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+      style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
     >
       <div className="border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5 text-[13px] text-[#888]">
-        <strong className="font-semibold text-white">Edit profile</strong> ·
-        change anything that's drifted
+        <strong className="font-semibold text-white">Edit profile</strong> · change anything that's
+        drifted
       </div>
 
       <div className="grid gap-5 px-7 py-7">
@@ -441,7 +429,7 @@ function ProfileEditor({
           disabled={saving}
           className="inline-flex h-11 items-center gap-2 rounded-pill bg-accent px-6 text-sm font-semibold text-ink transition-transform duration-150 hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {saving ? 'Saving…' : 'Save changes'}
+          {saving ? "Saving…" : "Save changes"}
         </button>
         <button
           type="button"
@@ -453,7 +441,7 @@ function ProfileEditor({
         </button>
       </div>
     </form>
-  )
+  );
 }
 
 function DetailRow({
@@ -461,22 +449,20 @@ function DetailRow({
   value,
   mono = false,
 }: {
-  label: string
-  value: string | null
-  mono?: boolean
+  label: string;
+  value: string | null;
+  mono?: boolean;
 }) {
   return (
     <div className="grid gap-1">
       <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#666]">
         {label}
       </div>
-      <div
-        className={`text-[15px] text-white ${mono ? 'font-mono text-sm' : ''}`}
-      >
+      <div className={`text-[15px] text-white ${mono ? "font-mono text-sm" : ""}`}>
         {value && value.length > 0 ? value : <span className="text-[#666]">—</span>}
       </div>
     </div>
-  )
+  );
 }
 
 function FocusAreas({ areas }: { areas: string[] | null }) {
@@ -494,12 +480,10 @@ function FocusAreas({ areas }: { areas: string[] | null }) {
             {area}
           </span>
         ))}
-        {(areas ?? []).length === 0 ? (
-          <span className="text-[15px] text-[#666]">—</span>
-        ) : null}
+        {(areas ?? []).length === 0 ? <span className="text-[15px] text-[#666]">—</span> : null}
       </div>
     </div>
-  )
+  );
 }
 
 // ---- competitors -----------------------------------------------------
@@ -512,22 +496,22 @@ function CompetitorsList({
   onAddCompetitor,
   onRemoveCompetitor,
 }: {
-  competitors: CompetitorView[]
-  addingCompetitor: boolean
-  onShowAdd: () => void
-  onHideAdd: () => void
-  onAddCompetitor: (input: { name: string; homepageUrl: string }) => Promise<void>
-  onRemoveCompetitor: (competitor: CompetitorView) => Promise<void>
+  competitors: CompetitorView[];
+  addingCompetitor: boolean;
+  onShowAdd: () => void;
+  onHideAdd: () => void;
+  onAddCompetitor: (input: { name: string; homepageUrl: string }) => Promise<void>;
+  onRemoveCompetitor: (competitor: CompetitorView) => Promise<void>;
 }) {
   return (
     <div
       className="overflow-hidden rounded-card-lg border border-[#2a2a38] bg-ink-soft"
-      style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.4)' }}
+      style={{ boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}
     >
       <div className="flex items-center justify-between border-b border-[#2a2a38] bg-[#1a1a23] px-7 py-5">
         <div className="text-[13px] text-[#888]">
-          <strong className="font-semibold text-white">Competitors</strong>{' '}
-          · {competitors.length} tracked
+          <strong className="font-semibold text-white">Competitors</strong> · {competitors.length}{" "}
+          tracked
         </div>
         {!addingCompetitor ? (
           <button
@@ -550,39 +534,33 @@ function CompetitorsList({
         {competitors.length > 0 ? (
           <ul className="divide-y divide-[#2a2a38] overflow-hidden rounded-md border border-[#2a2a38]">
             {competitors.map((c) => (
-              <CompetitorRow
-                key={c.id}
-                competitor={c}
-                onRemove={() => onRemoveCompetitor(c)}
-              />
+              <CompetitorRow key={c.id} competitor={c} onRemove={() => onRemoveCompetitor(c)} />
             ))}
           </ul>
         ) : null}
 
         {addingCompetitor ? (
-          <div className={competitors.length > 0 ? 'mt-4' : ''}>
+          <div className={competitors.length > 0 ? "mt-4" : ""}>
             <AddCompetitorForm onCancel={onHideAdd} onSubmit={onAddCompetitor} />
           </div>
         ) : null}
       </div>
     </div>
-  )
+  );
 }
 
 function CompetitorRow({
   competitor,
   onRemove,
 }: {
-  competitor: CompetitorView
-  onRemove: () => void | Promise<void>
+  competitor: CompetitorView;
+  onRemove: () => void | Promise<void>;
 }) {
-  const [removing, setRemoving] = useState(false)
+  const [removing, setRemoving] = useState(false);
   return (
     <li className="group flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-white">
-          {competitor.name}
-        </div>
+        <div className="truncate text-sm font-semibold text-white">{competitor.name}</div>
         <a
           href={competitor.homepageUrl}
           target="_blank"
@@ -607,11 +585,11 @@ function CompetitorRow({
         <button
           type="button"
           onClick={async () => {
-            setRemoving(true)
+            setRemoving(true);
             try {
-              await onRemove()
+              await onRemove();
             } finally {
-              setRemoving(false)
+              setRemoving(false);
             }
           }}
           disabled={removing}
@@ -622,39 +600,39 @@ function CompetitorRow({
         </button>
       </div>
     </li>
-  )
+  );
 }
 
 function AddCompetitorForm({
   onCancel,
   onSubmit,
 }: {
-  onCancel: () => void
-  onSubmit: (input: { name: string; homepageUrl: string }) => Promise<void>
+  onCancel: () => void;
+  onSubmit: (input: { name: string; homepageUrl: string }) => Promise<void>;
 }) {
-  const [name, setName] = useState('')
-  const [homepageUrl, setHomepageUrl] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState("");
+  const [homepageUrl, setHomepageUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setSubmitting(true)
-    setError(null)
-    const parsed = addCompetitorSchema.safeParse({ name, homepageUrl })
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const parsed = addCompetitorSchema.safeParse({ name, homepageUrl });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Enter a name and a homepage URL.')
-      setSubmitting(false)
-      return
+      setError(parsed.error.issues[0]?.message ?? "Enter a name and a homepage URL.");
+      setSubmitting(false);
+      return;
     }
     try {
-      await onSubmit(parsed.data)
-      setName('')
-      setHomepageUrl('')
+      await onSubmit(parsed.data);
+      setName("");
+      setHomepageUrl("");
     } catch {
-      setError('Could not add competitor. Try again.')
+      setError("Could not add competitor. Try again.");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
@@ -687,7 +665,7 @@ function AddCompetitorForm({
           disabled={submitting}
           className="inline-flex h-10 items-center gap-2 rounded-pill bg-accent px-5 text-sm font-semibold text-ink hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {submitting ? 'Adding…' : 'Add competitor'}
+          {submitting ? "Adding…" : "Add competitor"}
         </button>
         <button
           type="button"
@@ -702,7 +680,7 @@ function AddCompetitorForm({
         </span>
       </div>
     </form>
-  )
+  );
 }
 
 function EditField({
@@ -710,9 +688,9 @@ function EditField({
   hint,
   children,
 }: {
-  label: string
-  hint?: string
-  children: React.ReactNode
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
 }) {
   return (
     <label className="grid gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a8a98]">
@@ -726,5 +704,5 @@ function EditField({
       </span>
       {children}
     </label>
-  )
+  );
 }

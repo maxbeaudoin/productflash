@@ -1,9 +1,9 @@
-import { Link } from '@tanstack/react-router'
-import { BrandMark } from '~/components/landing/BrandMark'
+import { Link } from "@tanstack/react-router";
+import { BrandMark } from "~/components/landing/BrandMark";
 
 type Props = {
-  email: string
-}
+  email: string;
+};
 
 export function AdminHeader({ email }: Props) {
   return (
@@ -22,7 +22,7 @@ export function AdminHeader({ email }: Props) {
           <Link
             to="/admin/users"
             className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-accent hover:text-white"
-            activeProps={{ className: 'border-accent text-white' }}
+            activeProps={{ className: "border-accent text-white" }}
             activeOptions={{ includeSearch: false }}
           >
             Users
@@ -30,7 +30,7 @@ export function AdminHeader({ email }: Props) {
           <Link
             to="/admin/waitlist"
             className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-accent hover:text-white"
-            activeProps={{ className: 'border-accent text-white' }}
+            activeProps={{ className: "border-accent text-white" }}
           >
             Waitlist
           </Link>
@@ -53,5 +53,5 @@ export function AdminHeader({ email }: Props) {
         </nav>
       </div>
     </header>
-  )
+  );
 }

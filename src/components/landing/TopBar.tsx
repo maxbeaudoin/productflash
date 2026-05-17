@@ -1,6 +1,6 @@
-import { Link } from '@tanstack/react-router'
-import { TOPBAR } from '~/data/landing'
-import { BrandMark } from './BrandMark'
+import { Link } from "@tanstack/react-router";
+import { TOPBAR } from "~/data/landing";
+import { BrandMark } from "./BrandMark";
 
 export function TopBar() {
   return (
@@ -16,5 +16,5 @@ export function TopBar() {
         {TOPBAR.login.label}
       </Link>
     </div>
-  )
+  );
 }

@@ -3,6 +3,7 @@
 _Generated 2026-05-13, restructured 2026-05-15 for the agentic-SaaS pivot. Source of truth for active work behind `SCOPE.md`._
 
 **Legend:**
+
 - ☐ pending · ⏳ in-progress · ✅ completed
 - **Blocked by:** task must finish first
 - **Blocks:** other tasks that wait on this one
@@ -32,14 +33,14 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 17. **#41** — per-item timestamps when truthful, omit when unknown ✅
 18. **#42** — next-digest banner on `/app/digests` listing ✅
 19. **#13** — Maxime full FTE dogfood ✅
-19a. **#43** — fix planner_text disappear/reappear flicker (dogfood iter 2) ✅
-19b. **#44** — sticky status header + auto-scroll for streaming (dogfood iter 2) ✅
-19c. **#45** — diversify digest items across competitors (dogfood iter 2) ✅
-19d. **#46** — fix pending-push double-counting + smoother auto-scroll (dogfood iter 3) ✅
-19e. **#47** — move status to bottom + parse markdown in pending cards (dogfood iter 3) ✅
-19f. **#48** — agent prompt: ≤2-sentence steps, ban competitor recaps (dogfood iter 3) ✅
-19g. **#49** — status pill polish + smooth scrolling everywhere + jump to profile on completion (dogfood iter 3, second pass) ✅
-19h. **#50** — catch-up digest: 10 items, cap-3, full per-competitor pool (dogfood iter 3, "still all Lattice") ✅
+    19a. **#43** — fix planner_text disappear/reappear flicker (dogfood iter 2) ✅
+    19b. **#44** — sticky status header + auto-scroll for streaming (dogfood iter 2) ✅
+    19c. **#45** — diversify digest items across competitors (dogfood iter 2) ✅
+    19d. **#46** — fix pending-push double-counting + smoother auto-scroll (dogfood iter 3) ✅
+    19e. **#47** — move status to bottom + parse markdown in pending cards (dogfood iter 3) ✅
+    19f. **#48** — agent prompt: ≤2-sentence steps, ban competitor recaps (dogfood iter 3) ✅
+    19g. **#49** — status pill polish + smooth scrolling everywhere + jump to profile on completion (dogfood iter 3, second pass) ✅
+    19h. **#50** — catch-up digest: 10 items, cap-3, full per-competitor pool (dogfood iter 3, "still all Lattice") ✅
 20. **#32** — `/app/profile` view + edit ✅
 21. **#16** — admin app (`/admin/users/*`) ✅
 22. **#11** — Resend email template + send ✅
@@ -54,13 +55,16 @@ Current focus is the **agentic SaaS + dogfood loop** — single app for marketin
 ## Foundation (do first)
 
 ### #1 Init TanStack Start + Railway + Postgres + Pino — ✅
+
 Bootstrap TanStack Start (pnpm). Install Drizzle + drizzle-kit, pg-boss, Pino, posthog-node, `@anthropic-ai/sdk`, resend, react-email. Create Neon project (with a `main` branch for prod and `dev` branch for migrations). Create Railway project with two services: web (TanStack Start) + worker (long-running pg-boss host). Wire env config (Neon `DATABASE_URL`, Anthropic, Firehose, Firecrawl, Resend, Product Hunt, PostHog). Implement `/healthz` that proves DB is reachable. Set up Pino structured logging baseline.
 **Blocks:** #21
 
 ### #2 Define schema + Drizzle migrations — ✅
+
 Implement schema per `SCOPE.md` §5: `users`, `competitors`, `user_competitors`, `raw_items` (unique on `source+source_id`), `digest_items`, `digests`, `feedback`. Write initial migration, seed script for a handful of known competitors.
 
 ### #21 Design system foundations (tokens + Tailwind v4 + shadcn + fonts) — ✅
+
 Create `src/design/tokens.ts` mirroring `executive-summary.html` CSS variables (ink/paper/accent/coral palette, font families, radii). Configure Tailwind v4 `@theme` to consume tokens. Run `npx shadcn@latest init` with Base UI primitives. Install components: button, input, label, form, combobox, dialog, toast, select. Add Lucide. Self-host Inter + JetBrains Mono via `@fontsource`. Prereq for all UI work.
 **Blocked by:** #1 · **Blocks:** #14, #16, #29, #31, #32
 
@@ -69,20 +73,25 @@ Create `src/design/tokens.ts` mirroring `executive-summary.html` CSS variables (
 ## Week 1 — Ingestion pipeline
 
 ### #5 RSS source adapter — ✅
+
 Wrap a feed parser. Input: competitor + `rss_url`. Output: normalized `raw_item` rows. Handle malformed feeds, missing `pubDate`, dedupe via guid/link. Includes an autodetect helper that tries `/feed`, `/rss`, `/changelog.rss`, `/blog/feed` for a given homepage URL — used by the FTE agent (#28) as a tool.
 
 ### #3 Product Hunt source adapter — ✅
+
 Use the PH public GraphQL API. Query recent posts; filter by competitor name/slug/domain. Normalize to `raw_items`. Token from env.
 
 ### #6 Firehose source adapter — ✅
 
 ### #4 Firecrawl pricing-page scraper — ✅
+
 Daily scrape of competitor `pricing_url` via Firecrawl (https://docs.firecrawl.dev/api-reference/introduction). Store latest snapshot; on change emit a `raw_item` with a unified diff in the body. Skip competitors without a `pricing_url`.
 
 ### #7 Ingestion orchestrator job — ✅
+
 pg-boss scheduled job (04:00 UTC) that fans out per competitor: invoke all 4 source adapters in parallel, write `raw_items` with dedupe (on conflict do nothing). Emit per-source metrics via Pino + a PostHog server event (`ingestion_run` with counts per source). Retries via pg-boss config.
 
 ### #8 Seed competitors + validate end-to-end ingestion — ✅
+
 Seed 5 real competitors (mix of analytics/CRM/devtools SaaS). Run ingestion locally end-to-end. Eyeball `raw_items` — confirm signal is real and dedupe holds across 2 consecutive runs. Note: the seeded competitors are scaffolding for ingestion validation; the FTE agent (#28) populates per-user competitors from scratch in the real flow.
 
 ---
@@ -90,12 +99,15 @@ Seed 5 real competitors (mix of analytics/CRM/devtools SaaS). Run ingestion loca
 ## Synthesis pipeline
 
 ### #9 Anthropic SDK + classify-and-score job (Haiku) — ✅
+
 Wire `@anthropic-ai/sdk` with `claude-haiku-4-5-20251001`. Prompt: given a `raw_item` (title + body excerpt), output JSON `{ category: launch|pricing|feature|positioning|noise, score: 0-100, why: string }`. Batched per user (only items for that user's competitors, last 24h). Persist scores.
 
 ### #10 Synthesis job (Sonnet) → digest_items + digests — ✅
+
 Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at ~5). Output: per-item headline + snippet + impact_note in Product Flash editorial tone (see the digest sample on the landing route `/`, sourced from `src/data/landing.ts`). Persist `digest_items` + `digests`. If fewer than 1 item qualifies, persist an empty-digest record so the send job emits the "nothing notable" template.
 
 ### #12 Feedback redirect endpoint — ✅
+
 `GET /r/:digest_item_id/:rating` — records feedback row (upsert on user+item), then redirects to a static thanks page. Validate rating in `{up, down}`. Use a signed token to prevent third-party tampering.
 
 ---
@@ -103,10 +115,12 @@ Use `claude-sonnet-4-6`. Input per user: top-N scored items (drop noise, cap at 
 ## Landing (public marketing)
 
 ### #14 Port executive-summary.html to public landing route (1:1 visual) — ✅
+
 Ported the original `executive-summary.html` into TanStack Start route `/` as componentized React. Components: `TopBar`, `Hero`, `ProblemSection` (+ `StatCard` x3), `SolutionSection` (+ `FeatureCard` x4), `DigestPreview` (+ `DigestItem` x3), `AudienceSection` (+ `PersonaCard` x3), `ProofSection`, `CTASection`, `Footer`. Page content (stats, features, personas, sample digest items) lives in `src/data/landing.ts`. Styled with Tailwind v4 against design tokens — zero custom CSS. After pixel parity was confirmed, the source `executive-summary.html` and the temporary `/executive-summary` route (originally #24) were removed; the React port is the canonical landing. CTA buttons link to `/signup` (entry point to the agentic FTE in #29).
 **Blocked by:** #21
 
 ### #33 Waitlist capture + invite-gated landing — ✅
+
 Pivot the public funnel from open signup to waitlist + invite. Concrete deliverables:
 
 - **Schema** — new `waitlist` table: `id uuid PK`, `email text NOT NULL UNIQUE`, `name text`, `position text`, `company_url text`, `source text` (e.g. `'hero'`, `'cta-section'`, `'footer'`), `created_at`, `invited_at timestamptz` (NULL until an admin issues an invite later). Drizzle migration + types.
@@ -115,6 +129,7 @@ Pivot the public funnel from open signup to waitlist + invite. Concrete delivera
 - **`/signup` gating** — without a `?invite=<token>` search param, render an "invite-only" placeholder pointing back to the waitlist. Don't yet validate the token cryptographically (admin invite issuance is its own work) — for now any non-empty `invite` param shows the magic-link form unchanged, empty/missing param shows the gate.
 
 Out of scope (later tasks):
+
 - Admin UI for issuing invites — folds into #16 (extend with an "invite" action that signs a token + opens a mail draft / shareable URL with `?invite=<token>`).
 - Cryptographic invite-token validation — reuse the HMAC pattern from `src/lib/feedback-token.ts`; wire in alongside the admin invite UI.
 - Magic-link redemption that flips `waitlist.invited_at` and seeds `users.email` from the waitlist row — overlaps with #29 once admin invite UI exists.
@@ -124,6 +139,7 @@ Validation: real submit lands a `waitlist` row; landing has no public `/signup` 
 **Blocks:** #29 (signup form must accept `?invite=<token>`), #16 (admin invite UI), #34 (admin invite issuance).
 
 ### #34 Admin waitlist + invite issuance — ✅
+
 The minimum viable admin surface to invite real beta users off the waitlist. Lives at `/admin/waitlist` and ships its own minimal admin scaffold so we don't have to wait on the full users admin (#16) — the two converge later. Required because #33 currently accepts any non-empty `?invite=` value, so there's no auditable record of who was invited and no way to revoke.
 
 Concrete deliverables:
@@ -135,6 +151,7 @@ Concrete deliverables:
 - **Re-issue / revoke** — re-issuing on a row that already has `invited_at` just re-signs a fresh token (helpful when the user lost the link). No revoke action yet; if needed, manually clear `invited_at` and re-issue.
 
 Out of scope (deferred):
+
 - Magic-link redemption that flips waitlist row → users row (overlaps with #29 — the FTE signup form has access to the verified invite payload via `Route.useSearch()` and can seed `users.email` from it).
 - Bulk invite ("invite next 10") — fine to add later if manual clicks get tedious.
 - Auto-send via Resend — folds into #11 once the template + send infra is back online.
@@ -148,11 +165,14 @@ Validation: bare `/signup` still shows the gate; `/signup?invite=<bogus>` shows 
 ## Agentic SaaS + dogfood loop (current focus)
 
 ### #26 Better Auth + magic-link via Resend — ✅
+
 Installed `better-auth` 1.6 with the Drizzle adapter (`usePlural: true`, `generateId: false` so Postgres `defaultRandom()` supplies UUIDs). Magic-link plugin delivers via the existing Resend client (reuses `RESEND_API_KEY` / `RESEND_FROM`); when the key is absent in dev, the link is printed to the Pino log instead. Admin-role plugin replaces a hand-rolled `is_admin` boolean — role lives on `users.role` (default `'user'`). Schema additions: `sessions`, `accounts`, `verifications` plus `email_verified`, `image`, `updated_at`, `role`, `banned`, `ban_reason`, `ban_expires` on `users`. `users.name` and `users.tz` are now nullable since magic-link signup creates a row before the FTE agent (#28) fills those in — the synthesis job (#10) falls back to the email local-part when `name` is null. Auth handler mounted at `/api/auth/$`; `src/lib/auth-server.ts` exposes `getSession()`, `requireSession()`, `requireAdminSession()`. `routes/app.tsx` + `routes/admin.tsx` use these in `beforeLoad` server fns to gate every child route; non-admins hitting `/admin` bounce to `/app`. Minimal `/signup`, `/login`, `/logout` routes shipped (full FTE entry is #29). `BETTER_AUTH_SECRET` + `BETTER_AUTH_URL` added to env schema + `.env.example`. Validated end-to-end: POST `/api/auth/sign-in/magic-link` → verify URL → session cookie → 200 on `/app` → 307 on `/admin` → `/logout` clears cookies and the next get-session returns `null`.
 **Blocked by:** #2 · **Blocks:** #28, #29, #31, #32
 
 ### #27 Profile schema expansion — ✅
+
 Add nullable columns to `users` for the AI-generated profile:
+
 - `position` (text) — e.g. "Head of Product"
 - `company_name` (text)
 - `company_url` (text)
@@ -165,7 +185,9 @@ Drizzle generate + migrate. Drop the seeded `competitors` rows from `db:seed` �
 **Blocked by:** #2 · **Blocks:** #28, #32
 
 ### #31 App shell + `/app/digests` list + `/app/digests/:id` detail — ✅
+
 Auth-gated TanStack Start layout under `/app`. Header w/ user menu, sign-out, link to `/app/profile`. Routes:
+
 - `/app` → redirect to `/app/digests`
 - `/app/digests` — list of past digests, newest first (date, item_count, one-line peek)
 - `/app/digests/:id` — full digest rendered natively with shadcn + brand tokens (NOT the email template — in-app rendering is intentionally higher fidelity than email; the two surfaces diverge by design)
@@ -174,11 +196,14 @@ Components: `DigestHeader`, `DigestItem` (matches executive-summary mock), `Feed
 **Blocked by:** #21, #26 · **Blocks:** #13, #16, #18, #25
 
 ### #25 Dev digest preview route — ✅
+
 Dev-only variant of `/app/digests/:id` that bypasses auth. Same React components as #31, exposed at `GET /debug/digest/:user_id`. Optional `?refresh=1` query param re-runs `score → synthesize` for the most recent 24h of `raw_items` before render — fast-iteration escape hatch for prompt tuning. Gated by `NODE_ENV !== 'production'` (returns 404 in prod).
 **Blocked by:** #31
 
 ### #28 FTE agent backend — ✅
+
 pg-boss singleton job per user (`fte:${user_id}`). Anthropic SDK tool-use loop with `claude-sonnet-4-6` as the planner. Tools:
+
 - `web_search_20250305` (Anthropic server tool) — competitor + market research
 - `fetch_url(url)` — plain-text extraction of a URL (reuse Firecrawl scrape if richer content is needed)
 - `discover_rss(homepage_url)` — wraps the autodetect helper shipped in #5
@@ -189,6 +214,7 @@ Stream every event (model output, tool call, tool result, decision) to a new `ft
 **Blocked by:** #26, #27 · **Blocks:** #29, #30
 
 ### #29 FTE flow frontend — ✅
+
 `/signup` is now an invite-gated TanStack Start route that renders the FTE intake form when `verifyInviteToken(?invite=…)` succeeds (email locked from the signed payload). Submit upserts the `users` row with `status='onboarding'` + the seed profile fields (`company_url`, `position`, `ultimate_goal`), enqueues the FTE agent via a lazy pg-boss web client (`src/lib/boss.ts`), then sends the magic-link via Better Auth's server API — all in one request. The "check your inbox" card replaces the form after submit.
 
 `/app/onboarding` is auth-gated under the existing `/app` shell. The loader replays the latest run's `fte_events` for the user + the current profile + linked competitors; the client opens an SSE stream against `/api/onboarding/stream` and tails NOTIFYs on the per-user `fte_events:<userId>` + `fte_events_delta:<userId>` channels via a dedicated direct-pg listener (`src/lib/notify.ts`, honoring `DATABASE_URL_DIRECT`). The terminal-feel event log renders each event kind (planner_text / tool_use / tool_result / server_tool_use / web_search_tool_result / iteration / run_started / run_finished) in JetBrains Mono with colored prefixes; transient text_delta + block_start deltas drive a typewriter line that flushes when the durable block lands.
@@ -199,6 +225,7 @@ Out of scope here (deferred to #30): on-demand ingest → score → synthesize f
 **Blocked by:** #21, #26, #28 · **Blocks:** #30
 
 ### #30 Time-to-first-digest fast path — ✅
+
 On profile confirmation in `/app/onboarding` (#29), the `confirmProfile` server fn enqueues a one-off `fast-path-run` pg-boss job (singleton on `userId`) via the web-side `getBoss()` client. The handler in `src/jobs/fast-path.ts` runs the same `ingest → score → synthesize` chain the daily crons use, but scoped to one user: `runIngestionForUser(userId)` (new — extracted shared `runIngestionForRefs` so the orchestrator now has both global-cron and per-user paths) then the already-existing `runScoringForUser` + `runSynthesisForUser`. Each stage stays idempotent — the cron path can still overwrite later that day.
 
 `/app/digests` polls the loader every 4s while the user has zero digests, rendering a "Brewing your first brief" card with a live elapsed counter; when the first row lands it auto-navigates to `/app/digests/:id`. Returning users with existing digests skip the brewing state entirely (auto-route gate keyed on whether the page mounted brewing).
@@ -207,13 +234,14 @@ A failed enqueue is non-fatal — the 05:30 UTC synthesis cron is the safety net
 **Blocked by:** #28 · **Blocks:** #13
 
 ### #35 Personalize classify + synthesize on user profile — ✅
-**Critical for product–market fit.** Today the AI-generated profile (`position`, `company_name`, `ultimate_goal`, `focus_areas`) is UI-only: the FTE agent (#28) writes it, `/app/profile` (#32) and `/app/onboarding` (#29) display/edit it, but neither the Haiku classifier nor the Sonnet synthesizer reads it. Same item ⇒ same category, same score, same headline regardless of reader. The product reduces to a competitor-news aggregator filtered by company list — *not* the personalized brief the landing page promises. If we run #13 dogfood on the current chain, we'll be testing whether universal classification is acceptable, which is the wrong question.
+
+**Critical for product–market fit.** Today the AI-generated profile (`position`, `company_name`, `ultimate_goal`, `focus_areas`) is UI-only: the FTE agent (#28) writes it, `/app/profile` (#32) and `/app/onboarding` (#29) display/edit it, but neither the Haiku classifier nor the Sonnet synthesizer reads it. Same item ⇒ same category, same score, same headline regardless of reader. The product reduces to a competitor-news aggregator filtered by company list — _not_ the personalized brief the landing page promises. If we run #13 dogfood on the current chain, we'll be testing whether universal classification is acceptable, which is the wrong question.
 
 Concrete deliverables:
 
 - **Classify prompt — profile-aware scoring.** Extend `classifyItem({...})` in `src/lib/classify.ts` to accept an optional `reader: { position, ultimateGoal, focusAreas }` and inject a short "Reader context" block. Score tilts up when an item resonates with a focus area or goal, down when off-axis (even when globally newsworthy). The `category` enum stays unchanged — it's a property of the item, not the reader. Update `runScoringForUser` + `runScoring` in `src/jobs/score.ts` to fetch the profile (one SELECT per user) and thread it through.
 
-- **Synthesize prompt — profile-aware framing.** Extend `SynthesisInput` in `src/lib/synthesize.ts` to carry the same `reader` shape; render it in the system message ("Reader is a Head of Product at Linear; their goal is …; they care about pricing changes, AI features, …"). The `impactNote` is the load-bearing surface — it must explicitly reference the reader's goal/focus where relevant ("Pressures *your* enterprise pricing positioning" beats a generic "Pricing pressure on the category"). Update `runForUser` in `src/jobs/synthesize.ts` to fetch + pass the profile.
+- **Synthesize prompt — profile-aware framing.** Extend `SynthesisInput` in `src/lib/synthesize.ts` to carry the same `reader` shape; render it in the system message ("Reader is a Head of Product at Linear; their goal is …; they care about pricing changes, AI features, …"). The `impactNote` is the load-bearing surface — it must explicitly reference the reader's goal/focus where relevant ("Pressures _your_ enterprise pricing positioning" beats a generic "Pricing pressure on the category"). Update `runForUser` in `src/jobs/synthesize.ts` to fetch + pass the profile.
 
 - **Cache invalidation on profile change.** Now that scores carry profile-derived weights, edits to `position` / `ultimate_goal` / `focus_areas` must invalidate `item_scores` for that user so the next score run re-classifies. Wire this into both write paths: `editProfile` server fn in `src/routes/app/profile.tsx` AND the FTE agent's `save_profile` tool in `src/agents/fte/tools.ts`. Simple `DELETE FROM item_scores WHERE user_id = $1` is fine for the PoC. The fast path (#30) will then re-score from scratch on profile confirm — exactly the desired behavior.
 
@@ -222,6 +250,7 @@ Concrete deliverables:
 - **Eval evidence before merging.** Capture before/after digest markdown for one seeded user (e.g. `fte-iso-b`) — run the current generic chain, snapshot to `/tmp/eval-generic-<userId>.md`; deploy the personalized chain, snapshot to `/tmp/eval-personalized-<userId>.md`. Eyeball whether `impact_note` actually shifts from generic ("Pricing pressure on the category") to reader-specific ("Pressures your enterprise positioning vs. Asana"). Don't merge unless the diff is visible.
 
 Out of scope:
+
 - Per-focus_area numeric boost weights — the prompt does this work, not a multiplier.
 - Long-term memory of 👍/👎 feedback influencing future scoring (separate task — feedback loop).
 - Position/goal flowing into the FTE planner prompt — already there as the seed input to the agent.
@@ -229,9 +258,11 @@ Out of scope:
 **Blocked by:** none (all surfaces exist) · **Blocks:** #13 (dogfood is the test of whether personalization lands well), #18 (beta launch).
 
 ### #13 Maxime full FTE dogfood — ✅
+
 Sign up at `/signup` against your own company. Watch the FTE agent run end-to-end at `/app/onboarding`. Read the resulting profile critically: did it identify the right competitors? Right framing of your role + goal? Confirm and check the fast-path digest. Repeat for 3 consecutive days: open the daily digest at `/app/digests/:id`, look for quality, missed items, hallucinations. Tune prompts in #28 / #10 / #9 / #35 between runs. **Block real beta launch until 3 clean days in a row.**
 
 Iteration log:
+
 - **2026-05-16 (iter 1)** — surfaced #36, #37, #38, #39, #40, #41, #42. All landed.
 - **2026-05-16 (iter 2)** — smoother overall. Three issues left: streaming still flickers (#43 — root cause is durable planner_text events being written only after stream.finalMessage(), so the live card vanishes the moment a block ends and reappears once the full iteration completes); streaming status scrolls out of view on long runs and there's no auto-scroll (#44); digest content was 100% Lattice — one competitor monopolizing the 5 slots (#45). Pause iter 3 until those land.
 - **2026-05-16 (iter 3)** — pending queue helped the disappear/reappear feel but introduced its own regression: the step count climbed to ~#13 then collapsed to ~6 when save_profile cleared pending (#46 — nested setState double-pushed pending under concurrent rendering). Sticky-top status got lost again on long runs — user proposed moving the indicator to the BOTTOM and auto-scrolling into it (chat-app pattern, #47). Markdown lagged because pending cards rendered as plain text and waited for the durable event before parsing (#47 — fix: pending cards parse markdown immediately). Steps were too verbose and the final card duplicated the competitor list already shown in the profile preview (#48 — agent prompt tightened to ≤2-sentence cards, ban recaps).
@@ -240,16 +271,20 @@ Iteration log:
 **Blocked by:** #30, #35, #43, #44, #45, #46, #47, #48, #49
 
 ### #32 `/app/profile` view + edit — ✅
+
 TanStack Start route at `/app/profile` (auth-gated under the existing `/app` shell) renders an inline view + edit of the AI-generated profile: position, company name, company URL, ultimate goal, and focus_areas chips. "Edit" toggles the card into a form (re-uses the same Zod schema between client validation and the server fn). A second card lists tracked competitors with homepage + RSS badge (links open in new tab), an "Add" button that opens an inline form, and a per-row `×` to remove. `addCompetitor` server fn runs the same RSS autodetect helper the onboarding form uses, so newly added competitors get an RSS badge automatically when one resolves. Toasts confirm save / add / remove. A `Profile` pill link was added to `AppHeader` so the page is reachable from anywhere in `/app`.
 
 Deviations from spec, kept as follow-ups rather than expanding scope:
+
 - **Soft-delete deferred.** Remove is still a hard delete on `user_competitors`, matching the existing onboarding behavior. Adding `removed_at` would have required touching all four readers (ingest / score / FTE tools / onboarding) and an upsert path so re-adding clears the tombstone — out of scope for a viewer/editor screen.
 - **focus_areas cache invalidation skipped.** `focus_areas` isn't currently read by the classifier or synthesizer, so there's no cached weight to invalidate. The hook lands naturally when scoring starts consuming the profile.
 
 **Blocked by:** #26, #27, #31
 
 ### #16 Admin app (`/admin/users/*`) — ✅
+
 TanStack Start route at `/admin/*` gated by Better Auth's admin-role plugin (#26). Views:
+
 - `/admin/users` — list with email, status, last digest date, competitor count
 - `/admin/users/:id` — profile, recent digests (rendered via #31's components), FTE event timeline (from `fte_events`), button to re-run FTE / re-trigger digest
 
@@ -257,15 +292,17 @@ Used for personal QA + future beta babysitting.
 **Blocked by:** #26, #31
 
 ### #36 Admins skip onboarding — ✅
+
 Admin users hit `/app` and get redirected to `/app/onboarding` because their `profile_confirmed_at` is null — but onboarding is irrelevant to admins, who use the product as operators. Surfaced in dogfood iteration 1 (2026-05-16).
 
-In `src/routes/app/index.tsx`, when the session has `role === 'admin'`, redirect to `/admin` (which itself bounces to `/admin/users`) regardless of `profile_confirmed_at`. Admins who *also* want to dogfood the user-facing app can navigate to `/app/digests` or `/app/onboarding` manually — we just stop dropping them into the onboarding flow.
+In `src/routes/app/index.tsx`, when the session has `role === 'admin'`, redirect to `/admin` (which itself bounces to `/admin/users`) regardless of `profile_confirmed_at`. Admins who _also_ want to dogfood the user-facing app can navigate to `/app/digests` or `/app/onboarding` manually — we just stop dropping them into the onboarding flow.
 
 Validation: log in as an admin with `profile_confirmed_at = NULL`, hit `/app`, land on `/admin/users`. Log in as a regular user with the same null state, still land on `/app/onboarding`.
 
 **Blocked by:** none
 
 ### #37 Pre-fill `/signup` from the waitlist row — ✅
+
 Waitlist capture (#33) collects `email`, `name`, `position`, `company_url`. The `/signup` FTE intake then asks for `position`, `company_url`, and `ultimate_goal` again — flagged in dogfood iteration 1 (2026-05-16) as duplicate effort that erodes trust.
 
 In `src/routes/signup.tsx`'s loader, after `verifyInviteToken` succeeds, look up the matching `waitlist` row (by email, or by `waitlist.id` if added to the token payload) and pass `{ position, companyUrl }` as form defaults. Goal stays empty (no waitlist counterpart). Defaults are editable, not locked — a user might want to revise.
@@ -275,6 +312,7 @@ Validation: submit the waitlist with email + position + company_url → admin is
 **Blocked by:** none (#33 + #34 already shipped)
 
 ### #38 Auto-sign-in after `/signup` submit — ✅
+
 The HMAC invite token (#34) is already proof-of-ownership, so the magic-link email after `/signup` submit was redundant friction. Now the submit path mints a single-use Better Auth verification row server-side (`issueAutoSignInUrl` in `src/lib/auth-server.ts`: `randomBytes(32)` → `verifications` insert with 60s TTL, identifier=token, value=`{email}`) and returns the `/api/auth/magic-link/verify?token=…&callbackURL=/app` URL to the client. The client does a full-page `window.location.href` nav so Better Auth's standard verify route can consume the row, create the session, set the signed `session_token` cookie via `tanstackStartCookies`, and 302 to `/app` — which then routes to `/app/onboarding` for unconfirmed non-admins.
 
 Reused the existing magic-link verify endpoint instead of hand-rolling cookie signing: same trust anchor, same cookie attributes, no parallel auth path to maintain. `/login` for returning users still goes through `auth.api.signInMagicLink` and emails the link — unchanged. `SentCard` ("Check your inbox") component removed; the form button transitions `submitting → redirecting → /app/onboarding`.
@@ -282,6 +320,7 @@ Reused the existing magic-link verify endpoint instead of hand-rolling cookie si
 **Blocked by:** #34
 
 ### #39 Polish FTE streaming UI clunkiness — ✅
+
 The agentic thinking stream (#29) lands in a usable but jittery state. Dogfood iteration 1 (2026-05-16) flagged:
 
 - Current step appears, then disappears, as streaming progresses — a partial card flashes, then vanishes, then a different durable card lands.
@@ -291,7 +330,7 @@ The agentic thinking stream (#29) lands in a usable but jittery state. Dogfood i
 
 Per [[feedback_agentic_ui]] the user surface is "thinking steps", not the raw event log — the current implementation surfaces too much transience.
 
-**Scope expanded mid-task (2026-05-16):** the user's second pass on this clarified that the *content* of `planner_text` is also part of the clunkiness — phrases like "Good — Workleap is..." or "Now let me search..." leak internal reasoning instead of reading as a story to the user. Two architectural changes folded in:
+**Scope expanded mid-task (2026-05-16):** the user's second pass on this clarified that the _content_ of `planner_text` is also part of the clunkiness — phrases like "Good — Workleap is..." or "Now let me search..." leak internal reasoning instead of reading as a story to the user. Two architectural changes folded in:
 
 1. **Story-form planner_text.** Rewrite `SYSTEM_PROMPT` in `src/agents/fte/agent.ts` so each text block is a user-facing observation written in narrative third-person ("Workleap is a manager enablement platform focused on…"). No filler openers, no first-person reasoning narration.
 2. **Ephemeral status line ≠ historical cards.** Cards = durable narrative paragraphs (planner_text). A new live status line — derived on the frontend from the latest `tool_use` / `server_tool_use` event — replaces the previous status as activity moves forward. Status humanization is a frontend-only mapping (fetch_url → "Reading X", web_search → "Searching for 'Y'", add_competitor → "Adding Z", save_profile → "Saving your profile"). No new agent surface or tool needed.
@@ -311,6 +350,7 @@ Out of scope: an agent-side `set_status` tool (kept the status frontend-derived 
 **Blocked by:** none
 
 ### #40 Catch-up framing + visible date ranges on digests — ✅
+
 The first digest a user receives covers ~7 days (fast-path #30 pulls a wider window so there's enough material to synthesize). Subsequent digests cover 24h. Today both render with identical "five things that mattered overnight" framing — misleading for the first digest, which the user noticed in dogfood iteration 1 (2026-05-16).
 
 Concrete deliverables:
@@ -327,14 +367,15 @@ Out of scope: per-item timestamps (#41). Configurable catch-up window length.
 **Blocked by:** none
 
 ### #41 Per-item timestamps when truthful, omit when unknown — ✅
-Each digest item has no visible timestamp today, which makes the "this week's news" framing impossible for the user to verify. The user wants to see *when* each item happened — but **only when we know**.
+
+Each digest item has no visible timestamp today, which makes the "this week's news" framing impossible for the user to verify. The user wants to see _when_ each item happened — but **only when we know**.
 
 **No hallucination.** Per [[feedback_rtfm]] (broader principle: don't fabricate data we don't have), missing timestamps must render as no-timestamp, not as "today" or "recently" or current-date.
 
 Concrete deliverables:
 
 - **Carry `occurred_at` raw_item → digest_item.** `raw_items` already stores a publication timestamp from each source. Plumb it through to `digest_items` as a nullable `occurred_at`. Drizzle migration.
-- **Sonnet does not invent the timestamp.** `src/lib/synthesize.ts` takes `occurred_at` as input *metadata*; the LLM-generated text does not reference it. The frontend renders the timestamp separately, beside the headline.
+- **Sonnet does not invent the timestamp.** `src/lib/synthesize.ts` takes `occurred_at` as input _metadata_; the LLM-generated text does not reference it. The frontend renders the timestamp separately, beside the headline.
 - **Frontend: friendly + truthful.** `DigestItem` shows `May 14 · 2 days ago` when present; renders nothing when null. No placeholder, no "recently", no current-day fallback.
 - **Source adapters surface their best-available date.** Each of #3/#4/#5/#6 must set `raw_items.published_at` when the source provides one. When the source genuinely has no date (some Firehose events), leave it null — that's the truthful answer.
 
@@ -345,9 +386,10 @@ Out of scope: client-side relative-time auto-update (server-rendered static is f
 **Blocked by:** none
 
 ### #43 Fix planner_text disappear/reappear flicker — ✅
+
 Dogfood iter 2 (2026-05-16) confirmed the streaming UI still flickers — each paragraph appears as it streams, then vanishes, then re-appears (with markdown) seconds later. #39 made the chrome consistent but didn't fix the underlying timing.
 
-Root cause: the Anthropic SDK's `contentBlock` event fires *at the END* of each content block. The agent code (`src/agents/fte/agent.ts`) emits this as a `block_start` delta on the wire. The frontend handler in `src/routes/app/onboarding.tsx` then resets `streamingText` to `''`, blanking the live card. Meanwhile, the durable `planner_text` event isn't written until *after* `stream.finalMessage()` resolves for the whole iteration — which can be several seconds later if a tool_use follows the text. So the user sees: text streams in fully → live card blanks → (multi-second gap) → durable card lands.
+Root cause: the Anthropic SDK's `contentBlock` event fires _at the END_ of each content block. The agent code (`src/agents/fte/agent.ts`) emits this as a `block_start` delta on the wire. The frontend handler in `src/routes/app/onboarding.tsx` then resets `streamingText` to `''`, blanking the live card. Meanwhile, the durable `planner_text` event isn't written until _after_ `stream.finalMessage()` resolves for the whole iteration — which can be several seconds later if a tool_use follows the text. So the user sees: text streams in fully → live card blanks → (multi-second gap) → durable card lands.
 
 Fix: introduce a `pendingThoughts` FIFO queue on the frontend. On `block_start` with `blockKind: 'text'` (which is misnamed in the SDK — really means "text block just ended"), snapshot `streamingText` into the queue instead of dropping it. Render pending entries as durable-looking cards with plain (unparsed) text. When the durable `planner_text` event lands, FIFO-pop the queue — the durable card with parsed markdown takes the same slot. The transition becomes a single style swap, not a disappear/reappear.
 
@@ -356,9 +398,11 @@ Validation: run a fresh FTE. Each paragraph should stay visible continuously fro
 **Blocked by:** none
 
 ### #44 Sticky status header + auto-scroll for streaming — ✅
-Dogfood iter 2 (2026-05-16) flagged that on longer runs the streaming status indicator at the top of the page scrolls out of view, leaving the user unable to tell *what* the agent is doing as new paragraphs land. The auto-scroll-to-latest-step is also missing — users have to manually scroll to follow.
+
+Dogfood iter 2 (2026-05-16) flagged that on longer runs the streaming status indicator at the top of the page scrolls out of view, leaving the user unable to tell _what_ the agent is doing as new paragraphs land. The auto-scroll-to-latest-step is also missing — users have to manually scroll to follow.
 
 Fix:
+
 - Promote `LiveStatusLine` into a `StickyStatusBar` that pins to the viewport top (`sticky top-0`, backdrop-blur, high z-index) for the duration of the run. Hides itself once `run_finished` lands.
 - Add an auto-scroll effect: on each change to `streamingText` / `thoughts.length` / `pendingThoughts.length`, scroll the bottom-of-stream sentinel into view, but only when the user is already within ~320px of the bottom (so manual scrolling up to re-read doesn't get hijacked).
 
@@ -367,6 +411,7 @@ Validation: as the agent emits paragraph after paragraph, the live status stays 
 **Blocked by:** none
 
 ### #45 Diversify digest items across competitors — ✅
+
 Dogfood iter 2 (2026-05-16) opened a digest where all five slots were occupied by Lattice. The synthesis pipeline (`src/jobs/synthesize.ts`) was selecting the top N items globally by score, with no diversity guarantees — a single high-volume competitor with strong scores can monopolize the digest.
 
 Fix: two-pass selection inside `runForUser`. First pass pulls a wider candidate pool and applies `MAX_ITEMS_PER_COMPETITOR = 2`. Second pass relaxes the cap and fills any remaining slots from the leftover pool (still ordered by score) — protects the small-N case where the user genuinely only has news from one or two competitors and we'd rather ship a full 5-item digest from one competitor than half-fill it.
@@ -380,9 +425,11 @@ Validation: synth run for a user whose pool is skewed toward one competitor shou
 **Blocked by:** none
 
 ### #50 Catch-up digest: 10 items, cap-3, full per-competitor pool — ✅
+
 Dogfood iter 3 (2026-05-16) on a re-run of the catch-up flow: with the iter-2 diversity fix the digest landed at 5/5 split across two competitors (Lattice + Leapsome), still no 15Five. User asked whether the first digest should be wider so users see the breadth of what the product will surface over time.
 
 Two changes, both fast-path only:
+
 - `FAST_PATH_MAX_ITEMS_PER_DIGEST = 10` (vs daily 5). Meatier first impression without doubling Sonnet cost much.
 - `FAST_PATH_MAX_ITEMS_PER_COMPETITOR = 3` (vs daily 2). At 10 items, cap-2 leaves the second pass to backfill 4+ slots from the top-scored competitor — 60% Lattice. Cap-3 lands closer to a 50/30/20 split.
 
@@ -393,15 +440,16 @@ Threaded `maxItemsPerCompetitor` through `SynthesisOptions`. Removed the score-b
 **Blocked by:** none
 
 ### #46 Fix pending-push double-counting + smoother auto-scroll — ✅
+
 Dogfood iter 3 (2026-05-16) surfaced a regression introduced by #43's pending queue. The block-end snapshot was written as a nested setState:
 
 ```ts
 setStreamingText((prev) => {
   if (prev.trim().length > 0) {
-    setPendingThoughts((q) => [...q, prev])  // ← nested
+    setPendingThoughts((q) => [...q, prev]); // ← nested
   }
-  return ''
-})
+  return "";
+});
 ```
 
 Under React 18 concurrent rendering the outer updater can be discarded and replayed; when it replays, the nested `setPendingThoughts` fires again with the same `prev`, pushing the same text twice. After a handful of iterations the pending queue carries 6+ ghost duplicates — the live card index climbs to ~#13 while only ~6 distinct text blocks have actually streamed. When `save_profile` lands the `wrappingUp` gate empties pending and the count collapses to the durable count (~6). Reads to the user as the step counter "jumping around".
@@ -415,12 +463,14 @@ Validation: run a fresh FTE. The numbered card index should grow monotonically a
 **Blocked by:** none
 
 ### #47 Status at bottom + parse markdown in pending cards — ✅
+
 Dogfood iter 3 (2026-05-16) flagged two issues with the iter-2 fixes:
 
 1. **Sticky-top status got lost again.** Even though `sticky top-0` is set, on longer runs the user perceives the status as scrolling out of view (likely because the user is scrolling actively and the top doesn't catch their eye). User proposed moving the status to the BOTTOM of the stream and auto-scrolling into it — chat-app pattern. The status is then always at the user's natural reading position.
 2. **Markdown rendering lagged.** Pending cards rendered as plain text (`PlainBody`) and only swapped to parsed markdown when the durable `planner_text` event landed — which can be several seconds after the block ended on the wire (`stream.finalMessage()` only resolves at end of iteration). Reads as a delayed "reformat".
 
 Fix:
+
 - Replace `StickyStatusBar` with `BottomStatusLine` rendered AFTER the cards (and before the scroll sentinel). Auto-scroll target is the sentinel just below it, so the status is always in view as the page follows downward.
 - `PendingThought` now renders with `ThoughtBody` (parsed markdown) instead of `PlainBody`. The text is complete by the time it lands in pending — no risk of half-typed `**bold` flickering. The durable arrival is now a no-op visual swap rather than a delayed reformat.
 
@@ -429,9 +479,11 @@ Validation: status pill sits at the bottom of the stream throughout the run, fol
 **Blocked by:** none
 
 ### #48 Agent prompt: ≤2-sentence cards, ban competitor recaps — ✅
+
 Dogfood iter 3 (2026-05-16) flagged that the planner_text cards were too verbose (multi-paragraph walls) and that the final card before `save_profile` was a recap of the competitor list — which the user immediately sees again in the profile preview card directly below the stream. Pure duplication.
 
 Fix: tighten `SYSTEM_PROMPT` in `src/agents/fte/agent.ts`:
+
 - Hard cap: **≤ 2 sentences per text block, often 1**. Cards longer than that "bury the signal".
 - Each block must ADD information the user can't see elsewhere on the page. The profile preview is right below; do NOT re-list competitors in a card.
 - Explicit ban on recaps / summaries / sign-offs / competitor lists either BEFORE or after `save_profile`.
@@ -443,6 +495,7 @@ Validation: run a fresh FTE. Each card reads as 1–2 sentences. No final "Here'
 **Blocked by:** none
 
 ### #49 Status pill polish + smooth scrolling + jump to profile on completion — ✅
+
 Dogfood iter 3, second pass (2026-05-16). Three small polish items on top of #46/#47/#48:
 
 - **Status pill** — was center-aligned at the bottom of the stream, which felt "floaty" relative to the left-aligned cards above. Switch to `justify-start` so the pill sits flush with the card column. Add `my-5` (matching top/bottom margin) so the scroll anchor sentinel beneath the pill has the same breathing room as the gap above — no more pill-butting-against-bottom-of-viewport.
@@ -454,6 +507,7 @@ Validation: pill sits flush left with matching whitespace top and bottom; scroll
 **Blocked by:** none
 
 ### #42 Next-digest banner on `/app/digests` listing — ✅
+
 The list page at `/app/digests` shows only past digests, with no indication of when the next one arrives or where it'll land. Dogfood iteration 1 (2026-05-16) flagged this as a missed anticipation/engagement moment.
 
 Above the list, render a card or banner:
@@ -473,9 +527,11 @@ Out of scope: per-user delivery time customization (folds into #17). Slack/Teams
 ## Email + send + launch (later phase)
 
 ### #11 Resend email template + send — ✅
+
 Resend client + React Email template for the daily digest. Visual layout mirrors `/app/digests/:id` (dark card on dark body, brand mark + wordmark above) but the code path is intentionally distinct from #31's in-app render: inline styles only, ~640px container, table-based row layout, no shadcn/Tailwind. Both surfaces consume `src/design/tokens.ts` (`colors`, `fonts`, `fontWeights`, `digestTags`) so the brand stays unified.
 
 Pipeline:
+
 - `src/emails/DigestEmail.tsx` — React Email component (`Html`/`Body`/`Container`/`Section`/`Link`/`Img` from `@react-email/components`). Header eyebrow ("daily brief" / "catch-up brief") + date range chip, then per-item rows: tag pill, optional `Mar 17` occurred-at chip, headline (linked when `sourceUrl` present), snippet with italic `impactNote` in accent color, and inline 👍 Useful / 👎 Skip pills carrying signed feedback URLs. Empty-digest variant ships a "nothing notable" block. Inbox `<Preview>` is the top headline.
 - `src/emails/build-email-props.ts` — DB loader: pulls `digests` + `digest_items` + `users`, reuses `deriveDigestPeriod` for catchup/daily framing, signs every feedback URL via `signFeedbackToken` (HMAC from #12), builds absolute URLs against `BETTER_AUTH_URL` (override `EMAIL_PUBLIC_URL` reserved for split-domain prod). Returns the email props + subject + sentAt for the send job to consume.
 - `src/jobs/send.ts` — `runSendForDigest(digestId, { dryRun?, force? })` and `runSendForUnsent()`. Idempotent: bails when `digests.sent_at IS NOT NULL` (unless `force`), skips users where `status != 'active'`. Renders HTML + text via `@react-email/components`'s `render`, sends via Resend, stamps `sent_at = now()`, fires PostHog `digest_sent` with `digest_id` + `item_count` + `resend_id`. Custom header `X-PF-Digest-ID` + Resend `tags` carry the digest id so future webhook plumbing can correlate without URL parsing.
@@ -485,6 +541,7 @@ Pipeline:
 Brand-mark rendering: Gmail strips inline `<svg>`, so the web BrandMark's CSS clip-path can't be reused. `scripts/gen-brand-mark.ts` (zero-dep, hand-rolled PNG via `node:zlib`) emits a 44×44 transparent PNG with the same polygon coords as `src/components/landing/BrandMark.tsx` to `src/emails/assets/brand-mark.png`. `src/jobs/send.ts` reads the file once at module load and attaches it as a CID inline image (`inlineContentId: 'brand-mark'`); the template references it via `<Img src="cid:brand-mark" />`. Works identically in dev and prod — no public URL dependency.
 
 Manual triggers:
+
 - `pnpm send:run` — flushes every unsent digest for active users.
 - `pnpm send:run <digestId>` / `--email <addr>` / `--force` / `--dry`.
 - `pnpm email:preview --email <addr>` — renders the email to `/tmp/digest-<id>.html` + `.txt` for visual check without sending.
@@ -494,6 +551,7 @@ Validated end-to-end: 10-item catch-up digest for beaudoin.maxime@gmail.com rend
 Domain cleanup folded in: `productflash.dev` → `productflash.ai` across `.env.example`, `src/lib/env.ts` default `RESEND_FROM`, `src/sources/rss.ts` user-agent, `docs/rss.md`, and the email footer copy.
 
 Out of scope (deferred):
+
 - Resend webhook with Svix signature verification for opens / clicks / bounces. Today's open-pixel covers opens at PoC fidelity; click/bounce telemetry waits until volume justifies the verification surface.
 - Per-TZ scheduling — `SEND_QUEUE` is in place but no cron schedules it yet; that's #17.
 - Unsubscribe / preferences link in the footer — beta cohort is small and opt-in via admin invite, so a "reply to opt out" line is acceptable until launch.
@@ -501,9 +559,11 @@ Out of scope (deferred):
 **Blocked by:** #13
 
 ### #17 Per-TZ send scheduling — ✅
+
 Hourly pg-boss cron (`send-dispatch`, `0 * * * *` UTC) scans every unsent digest for active users. For each user it computes the local hour/weekday from `users.tz` via `Intl.DateTimeFormat` and enqueues a `SEND_QUEUE` job when the local hour matches `DEFAULT_SEND_HOUR = 7` AND the local day is Mon-Fri. Weekends are skipped entirely (no dispatch and no synthesize — see below). The send-time `singletonKey: digestId` plus the existing `digests.sent_at IS NOT NULL` bailout in `runSendForDigest` keep replays from double-sending.
 
 Synthesize side (`src/jobs/synthesize.ts`) now takes two opt-in flags driven by the cron path only:
+
 - `skipWeekends: true` — `runSynthesis` returns immediately on UTC Sat/Sun, producing no digests for delivery days that wouldn't ship anyway.
 - `useWeekendAwareDefaults: true` — when the caller hasn't overridden `lookbackHours`, Monday auto-widens to `MONDAY_LOOKBACK_HOURS = 72` so the Monday digest covers Fri+Sat+Sun ingestion instead of just Sunday. Tue–Fri stay on the standard 24h window.
 
@@ -515,17 +575,21 @@ Next-digest banner (`/app/digests`) was rewritten to forecast against the same r
 **Blocked by:** #11
 
 ### #18 Onboard 5–10 real beta users — ☐
+
 Recruit from network. Each goes through `/signup` → agentic FTE → first-digest fast path on their own. Confirm their generated profile + first digest look sane (admin app, #16). Flip status to active if FTE failed for any reason and manually re-run.
 **Blocked by:** #13, #16
 
 ### #20 PostHog integration for funnel + digest events — ✅
+
 posthog-js on landing route (page views) + posthog-node in server functions and worker. Events: `signup_started`, `fte_completed` (with `competitor_count`, `tool_call_count`, `duration_seconds`), `profile_confirmed`, `digest_rendered_in_app` (with `item_count`), `digest_sent` (when #11/#17 live), `digest_opened` (forwarded from Resend webhook), `digest_feedback` (up/down). Project key via env.
 
 ### #19 Launch + monitor first 2 weeks — ☐
+
 First broadcast day. Track open rate, click rate, feedback ratio, FTE completion rate, time-to-first-digest, LLM + Firehose + Firecrawl + web-search cost. Talk to each user at end of week 1. Decide go/no-go against success criteria in `SCOPE.md` §8.
 **Blocked by:** #11, #17, #18, #20
 
 ### #51 PostHog error tracking + Slack alerts — ✅
+
 Reuse the PostHog wiring from #20 as an error aggregator so unhandled exceptions surface in one place (client + server), with Slack pings for new issues. Avoids standing up a second vendor (Sentry) at PoC scale; trades depth for "errors correlated with the user's funnel state and events."
 
 Concrete deliverables:
@@ -541,6 +605,7 @@ Concrete deliverables:
 - **Slack subscriptions.** No code. PostHog → Settings → Integrations → install Slack app → subscribe to "New issues" in Error Tracking + a threshold subscription on `fte_completed where finished_reason='error'`. Document the steps in the commit / `.env.example` comment so it's reproducible.
 
 Out of scope:
+
 - A Pino transport that mirrors `logger.error` into PostHog. Tempting, but most useful errors are already thrown (not just logged) — wire explicit captures first; tap Pino if signal is missing.
 - Source-map upload via `posthog-cli` in the Railway build.
 - Replacing or augmenting Sentry. We're not running Sentry; the trade is "PostHog as the single observability vendor" vs adding a second one.
@@ -577,12 +642,14 @@ Tasks #3, #4, #5, #7, #8, #9, #10, #12, #24 have no inter-task blockers — they
 ## Editing this file
 
 This is the durable copy. If you import to Linear:
+
 1. Each `###` heading becomes an issue title.
 2. Body below is the description.
 3. Hand-translate "Blocked by:" lines to Linear relations.
 4. Apply labels by section.
 
 Retired (deleted from this file, kept in git history):
+
 - #15 — Competitor picker with RSS autodetect (replaced by FTE agent tool, #28)
 - #22 — Signup form section on landing page (replaced by `/signup` + agentic FTE, #29)
 - #24 — Serve `executive-summary.html` at `/executive-summary` (temporary share path; removed after #14 landed and the React port at `/` became canonical)

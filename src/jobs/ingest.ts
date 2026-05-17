@@ -1,22 +1,15 @@
-import { eq, inArray } from 'drizzle-orm'
-import {
-  competitors as competitorsTable,
-  rawItems,
-  userCompetitors,
-} from '~/db/schema'
-import type { NewRawItem } from '~/db/schema'
-import { getDb } from '~/lib/db'
-import { logger } from '~/lib/logger'
-import { captureServerEvent } from '~/lib/posthog'
-import { scrapePricingPagesForCompetitors } from '~/sources/firecrawl'
-import {
-  loadLatestPricingSnapshots,
-  saveLatestPricingSnapshot,
-} from '~/sources/firecrawl-store'
-import { fetchFirehoseForCompetitors } from '~/sources/firehose'
-import { fetchPHForCompetitors } from '~/sources/ph'
-import { fetchRSSForCompetitors } from '~/sources/rss'
-import type { CompetitorRef, NormalizedItem, SourceName } from '~/sources/types'
+import { eq, inArray } from "drizzle-orm";
+import { competitors as competitorsTable, rawItems, userCompetitors } from "~/db/schema";
+import type { NewRawItem } from "~/db/schema";
+import { getDb } from "~/lib/db";
+import { logger } from "~/lib/logger";
+import { captureServerEvent } from "~/lib/posthog";
+import { scrapePricingPagesForCompetitors } from "~/sources/firecrawl";
+import { loadLatestPricingSnapshots, saveLatestPricingSnapshot } from "~/sources/firecrawl-store";
+import { fetchFirehoseForCompetitors } from "~/sources/firehose";
+import { fetchPHForCompetitors } from "~/sources/ph";
+import { fetchRSSForCompetitors } from "~/sources/rss";
+import type { CompetitorRef, NormalizedItem, SourceName } from "~/sources/types";
 
 // Daily ingestion orchestrator.
 //
@@ -33,51 +26,48 @@ import type { CompetitorRef, NormalizedItem, SourceName } from '~/sources/types'
 // ON CONFLICT DO NOTHING and use RETURNING to count actual inserts vs
 // duplicates seen before.
 
-export const INGEST_QUEUE = 'ingest-run'
-export const INGEST_CRON = '0 4 * * *' // 04:00 UTC daily, per SCOPE.md §6
+export const INGEST_QUEUE = "ingest-run";
+export const INGEST_CRON = "0 4 * * *"; // 04:00 UTC daily, per SCOPE.md §6
 
 export interface SourceMetrics {
-  fetched: number
-  inserted: number
-  errored: boolean
+  fetched: number;
+  inserted: number;
+  errored: boolean;
 }
 
 export interface IngestionMetrics {
-  competitors: number
-  durationMs: number
-  perSource: Record<SourceName, SourceMetrics>
-  totalFetched: number
-  totalInserted: number
+  competitors: number;
+  durationMs: number;
+  perSource: Record<SourceName, SourceMetrics>;
+  totalFetched: number;
+  totalInserted: number;
 }
 
 export async function runIngestion(): Promise<IngestionMetrics> {
-  const db = getDb()
-  const rows = await db.select().from(competitorsTable)
-  const refs: CompetitorRef[] = rows.map(rowToRef)
-  return runIngestionForRefs(refs, 'ingest: starting run')
+  const db = getDb();
+  const rows = await db.select().from(competitorsTable);
+  const refs: CompetitorRef[] = rows.map(rowToRef);
+  return runIngestionForRefs(refs, "ingest: starting run");
 }
 
 // On-demand variant used by the time-to-first-digest fast path (#30). Scopes
 // adapters to a single user's competitors so we don't pay for the full
 // global crawl when a brand-new user finishes onboarding.
 export async function runIngestionForUser(userId: string): Promise<IngestionMetrics> {
-  const db = getDb()
+  const db = getDb();
   const ids = (
     await db
       .select({ id: userCompetitors.competitorId })
       .from(userCompetitors)
       .where(eq(userCompetitors.userId, userId))
-  ).map((r) => r.id)
+  ).map((r) => r.id);
   if (ids.length === 0) {
-    const metrics = emptyMetrics(0, 0)
-    logger.warn({ userId, ...metrics }, 'ingest: user has no competitors, skipping run')
-    return metrics
+    const metrics = emptyMetrics(0, 0);
+    logger.warn({ userId, ...metrics }, "ingest: user has no competitors, skipping run");
+    return metrics;
   }
-  const rows = await db
-    .select()
-    .from(competitorsTable)
-    .where(inArray(competitorsTable.id, ids))
-  return runIngestionForRefs(rows.map(rowToRef), 'ingest: starting per-user run', { userId })
+  const rows = await db.select().from(competitorsTable).where(inArray(competitorsTable.id, ids));
+  return runIngestionForRefs(rows.map(rowToRef), "ingest: starting per-user run", { userId });
 }
 
 async function runIngestionForRefs(
@@ -85,80 +75,80 @@ async function runIngestionForRefs(
   startLog: string,
   context: Record<string, unknown> = {},
 ): Promise<IngestionMetrics> {
-  const started = Date.now()
-  const db = getDb()
+  const started = Date.now();
+  const db = getDb();
 
-  logger.info({ ...context, competitors: refs.length }, startLog)
+  logger.info({ ...context, competitors: refs.length }, startLog);
 
   if (refs.length === 0) {
-    const metrics = emptyMetrics(0, Date.now() - started)
-    logger.warn({ ...context, ...metrics }, 'ingest: no competitors, skipping run')
-    emitPosthog(metrics)
-    return metrics
+    const metrics = emptyMetrics(0, Date.now() - started);
+    logger.warn({ ...context, ...metrics }, "ingest: no competitors, skipping run");
+    emitPosthog(metrics);
+    return metrics;
   }
 
   const prevSnapshots = await loadLatestPricingSnapshots(
     db,
     refs.map((c) => c.id),
-  )
+  );
 
   const [rssResult, phResult, firehoseResult, firecrawlResult] = await Promise.allSettled([
     fetchRSSForCompetitors(refs),
     fetchPHForCompetitors(refs),
     fetchFirehoseForCompetitors(refs),
     scrapePricingPagesForCompetitors(refs, prevSnapshots),
-  ])
+  ]);
 
   const perSource: Record<SourceName, SourceMetrics> = {
-    rss: settleToFanoutMetrics(rssResult, 'rss'),
-    ph: settleToFanoutMetrics(phResult, 'ph'),
-    firehose: settleToFanoutMetrics(firehoseResult, 'firehose'),
-    firecrawl: { fetched: 0, inserted: 0, errored: firecrawlResult.status === 'rejected' },
-  }
+    rss: settleToFanoutMetrics(rssResult, "rss"),
+    ph: settleToFanoutMetrics(phResult, "ph"),
+    firehose: settleToFanoutMetrics(firehoseResult, "firehose"),
+    firecrawl: { fetched: 0, inserted: 0, errored: firecrawlResult.status === "rejected" },
+  };
 
-  const inserts: NewRawItem[] = []
-  collectFanout(rssResult, inserts)
-  collectFanout(phResult, inserts)
-  collectFanout(firehoseResult, inserts)
+  const inserts: NewRawItem[] = [];
+  collectFanout(rssResult, inserts);
+  collectFanout(phResult, inserts);
+  collectFanout(firehoseResult, inserts);
 
-  if (firecrawlResult.status === 'fulfilled') {
+  if (firecrawlResult.status === "fulfilled") {
     for (const [competitorId, result] of firecrawlResult.value) {
       try {
-        await saveLatestPricingSnapshot(db, competitorId, result.newSnapshot)
+        await saveLatestPricingSnapshot(db, competitorId, result.newSnapshot);
       } catch (err) {
-        logger.warn({ err, competitorId }, 'ingest: failed to persist pricing snapshot')
+        logger.warn({ err, competitorId }, "ingest: failed to persist pricing snapshot");
       }
       if (result.item) {
-        inserts.push(toNewRawItem(competitorId, result.item))
-        perSource.firecrawl.fetched++
+        inserts.push(toNewRawItem(competitorId, result.item));
+        perSource.firecrawl.fetched++;
       }
     }
   } else {
-    logger.warn({ err: firecrawlResult.reason }, 'ingest: firecrawl batch rejected')
+    logger.warn({ err: firecrawlResult.reason }, "ingest: firecrawl batch rejected");
   }
 
-  let insertedRows: Array<{ source: SourceName }> = []
+  let insertedRows: Array<{ source: SourceName }> = [];
   if (inserts.length > 0) {
     insertedRows = await db
       .insert(rawItems)
       .values(inserts)
       .onConflictDoNothing({ target: [rawItems.source, rawItems.sourceId] })
-      .returning({ source: rawItems.source })
+      .returning({ source: rawItems.source });
   }
   for (const row of insertedRows) {
-    perSource[row.source].inserted++
+    perSource[row.source].inserted++;
   }
 
   const totalFetched =
     perSource.rss.fetched +
     perSource.ph.fetched +
     perSource.firehose.fetched +
-    perSource.firecrawl.fetched
+    perSource.firecrawl.fetched;
   const totalInserted =
     perSource.rss.inserted +
     perSource.ph.inserted +
     perSource.firehose.inserted +
-    perSource.firecrawl.inserted
+    perSource.firecrawl.inserted;
 
   const metrics: IngestionMetrics = {
     competitors: refs.length,
@@ -166,11 +156,11 @@ async function runIngestionForRefs(
     perSource,
     totalFetched,
     totalInserted,
-  }
+  };
 
-  logger.info(metrics, 'ingest: run complete')
-  emitPosthog(metrics)
-  return metrics
+  logger.info(metrics, "ingest: run complete");
+  emitPosthog(metrics);
+  return metrics;
 }
 
 function rowToRef(r: typeof competitorsTable.$inferSelect): CompetitorRef {
@@ -181,30 +171,30 @@ function rowToRef(r: typeof competitorsTable.$inferSelect): CompetitorRef {
     rssUrl: r.rssUrl,
     phSlug: r.phSlug,
     pricingUrl: r.pricingUrl,
-  }
+  };
 }
 
 export function settleToFanoutMetrics(
   result: PromiseSettledResult<Map<string, NormalizedItem[]>>,
   source: SourceName,
 ): SourceMetrics {
-  if (result.status === 'rejected') {
-    logger.warn({ err: result.reason, source }, 'ingest: source batch rejected')
-    return { fetched: 0, inserted: 0, errored: true }
+  if (result.status === "rejected") {
+    logger.warn({ err: result.reason, source }, "ingest: source batch rejected");
+    return { fetched: 0, inserted: 0, errored: true };
   }
-  let fetched = 0
-  for (const items of result.value.values()) fetched += items.length
-  return { fetched, inserted: 0, errored: false }
+  let fetched = 0;
+  for (const items of result.value.values()) fetched += items.length;
+  return { fetched, inserted: 0, errored: false };
 }
 
 export function collectFanout(
   result: PromiseSettledResult<Map<string, NormalizedItem[]>>,
   out: NewRawItem[],
 ): void {
-  if (result.status !== 'fulfilled') return
+  if (result.status !== "fulfilled") return;
   for (const [competitorId, items] of result.value) {
     for (const item of items) {
-      out.push(toNewRawItem(competitorId, item))
+      out.push(toNewRawItem(competitorId, item));
     }
   }
 }
@@ -218,7 +208,7 @@ function toNewRawItem(competitorId: string, item: NormalizedItem): NewRawItem {
     title: item.title,
     body: item.body,
     publishedAt: item.publishedAt,
-  }
+  };
 }
 
 function emptyMetrics(competitors: number, durationMs: number): IngestionMetrics {
@@ -233,11 +223,11 @@ function emptyMetrics(competitors: number, durationMs: number): IngestionMetrics
     },
     totalFetched: 0,
     totalInserted: 0,
-  }
+  };
 }
 
 function emitPosthog(m: IngestionMetrics): void {
-  captureServerEvent('worker', 'ingestion_run', {
+  captureServerEvent("worker", "ingestion_run", {
     competitors: m.competitors,
     duration_ms: m.durationMs,
     total_fetched: m.totalFetched,
@@ -254,5 +244,5 @@ function emitPosthog(m: IngestionMetrics): void {
     firecrawl_fetched: m.perSource.firecrawl.fetched,
     firecrawl_inserted: m.perSource.firecrawl.inserted,
     firecrawl_errored: m.perSource.firecrawl.errored,
-  })
+  });
 }
