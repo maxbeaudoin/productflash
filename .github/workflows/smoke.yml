@@ -1,0 +1,55 @@
+name: Smoke
+
+# External heartbeat for the production deployment. Railway already runs
+# `healthcheckPath = "/healthz"` against the same endpoint internally; this
+# job is the *external* leg — catches "Railway thinks the service is up
+# but the public DNS / TLS / CDN path is broken" failure modes.
+#
+# Gated on the `PRODUCTION_URL` repo secret. Until that's set in the
+# GitHub repo Settings → Secrets, every run is a no-op (cheap on
+# Actions minutes). Set it to e.g. https://productflash.ai to activate.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # every 15 minutes
+  workflow_dispatch: # manual trigger from the Actions UI
+
+concurrency:
+  group: smoke
+  cancel-in-progress: false # let any in-flight check finish
+
+jobs:
+  ping:
+    name: Ping /healthz
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Skip if PRODUCTION_URL secret is unset
+        if: ${{ secrets.PRODUCTION_URL == '' }}
+        run: |
+          echo "PRODUCTION_URL secret is not set — skipping smoke check."
+          echo "Set it in repo Settings → Secrets → Actions to activate."
+          exit 0
+
+      - name: Hit /healthz
+        if: ${{ secrets.PRODUCTION_URL != '' }}
+        env:
+          URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          set -eu
+          # The endpoint returns 200 with {"ok":true,"db":{"ok":true,...}}
+          # on a healthy deploy, 503 when the DB ping fails. Anything else
+          # (404, 5xx from a reverse proxy, TLS error) is a real outage.
+          response=$(curl -fsS --max-time 15 -w "\n%{http_code}" "${URL%/}/healthz")
+          body=$(echo "$response" | sed '$d')
+          status=$(echo "$response" | tail -n1)
+          echo "Status: $status"
+          echo "Body: $body"
+          if [ "$status" != "200" ]; then
+            echo "::error::healthz returned $status"
+            exit 1
+          fi
+          if ! echo "$body" | grep -q '"ok":true'; then
+            echo "::error::healthz body does not include \"ok\":true"
+            exit 1
+          fi
