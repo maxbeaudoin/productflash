@@ -273,7 +273,7 @@ function AdminFeedbackPage() {
               }
               options={[
                 { value: "all", label: "All users" },
-                ...userOptions.map((u) => ({ value: u.id, label: u.email })),
+                ...userOptions.map((u: UserOption) => ({ value: u.id, label: u.email })),
               ]}
             />
           </div>
