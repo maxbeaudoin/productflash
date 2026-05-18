@@ -21,10 +21,7 @@ emit one ranked report.
 
 ## Operating contract
 
-1. **Read-only.** Do not edit application code. The only file you may write is
-   the final report (default: `SECURITY-AUDIT.md` in the repo root, or wherever
-   the user asks). If the user said "take no action," do not write the report
-   to disk either — emit it inline.
+1. **Read-only.** Do not edit application code.
 2. **Evidence-first.** Every finding cites `path/to/file.ts:LINE` and a short
    code excerpt. No vague claims like "consider hardening auth."
 3. **No false confidence.** When something would require runtime access to

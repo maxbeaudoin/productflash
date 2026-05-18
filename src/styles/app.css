@@ -13,29 +13,12 @@
 @import "shadcn/tailwind.css";
 
 /*
- * Brand tokens — single source of truth lives in src/design/tokens.ts.
- * Values below MUST stay in sync; React Email components read tokens.ts
- * directly (inline styles), web utilities are generated from this @theme.
+ * Brand @theme block is generated from src/design/tokens.ts so tokens.ts stays
+ * the single source of truth for web utilities AND React Email inline styles.
+ * Regenerate via `pnpm theme:gen` (also runs as predev/prebuild). Drift is
+ * caught by src/design/tokens.test.ts.
  */
-@theme {
-  --color-ink: #0a0a0f;
-  --color-ink-soft: #15151c;
-  --color-ink-line: #1f1f2a;
-  --color-paper: #fafaf7;
-  --color-paper-warm: #f4f3ee;
-  --color-text: #1a1a22;
-  --color-text-muted: #5a5a6a;
-  --color-accent: #d9ff3a;
-  --color-accent-warm: #ffd60a;
-  --color-coral: #ff5b3a;
-
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  --radius-card: 16px;
-  --radius-card-lg: 20px;
-  --radius-pill: 999px;
-}
+@import "./_theme.generated.css";
 
 /*
  * shadcn semantic tokens → brand mapping.

@@ -1,0 +1,23 @@
+/*
+ * GENERATED FROM src/design/tokens.ts — DO NOT EDIT BY HAND.
+ * Run `pnpm theme:gen` to regenerate. CI fails on drift.
+ */
+@theme {
+  --color-ink: #0a0a0f;
+  --color-ink-soft: #15151c;
+  --color-ink-line: #1f1f2a;
+  --color-paper: #fafaf7;
+  --color-paper-warm: #f4f3ee;
+  --color-text: #1a1a22;
+  --color-text-muted: #5a5a6a;
+  --color-accent: #d9ff3a;
+  --color-accent-warm: #ffd60a;
+  --color-coral: #ff5b3a;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-card: 16px;
+  --radius-card-lg: 20px;
+  --radius-pill: 999px;
+}
