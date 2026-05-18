@@ -1,5 +1,7 @@
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
+import { FilterChipRow } from "~/components/admin/FilterChipRow";
+import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
 import { issueInvite, listWaitlist } from "~/features/waitlist/server/admin-fns";
 import type { WaitlistRow } from "~/features/waitlist/shared/types";
 import { WaitlistRowItem } from "~/features/waitlist/ui/admin/waitlist-row-item";
@@ -8,9 +10,14 @@ import { WaitlistRowItem } from "~/features/waitlist/ui/admin/waitlist-row-item"
 // Lives at /admin/waitlist behind requireAdminSession. Shares no nav with
 // the future /admin/users (#16) yet — those converge once #16 lands.
 
+const STATE_VALUES = ["all", "waitlist", "invited", "accepted"] as const;
+
 const filterSchema = z.object({
-  state: z.enum(["all", "waitlist", "invited", "accepted"]).catch("all"),
+  state: z.enum(STATE_VALUES).catch("all"),
+  q: z.string().trim().max(120).optional().catch(undefined),
 });
+
+type Filters = z.infer<typeof filterSchema>;
 
 export const Route = createFileRoute("/admin/waitlist")({
   validateSearch: filterSchema,
@@ -18,25 +25,35 @@ export const Route = createFileRoute("/admin/waitlist")({
   component: AdminWaitlistPage,
 });
 
-const FILTERS: { value: z.infer<typeof filterSchema>["state"]; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "waitlist", label: "Waitlist" },
-  { value: "invited", label: "Invited" },
-  { value: "accepted", label: "Accepted" },
-];
+const STATE_LABELS: Record<Filters["state"], string> = {
+  all: "All",
+  waitlist: "Waitlist",
+  invited: "Invited",
+  accepted: "Accepted",
+};
 
 function AdminWaitlistPage() {
   const { rows } = Route.useLoaderData();
-  const { state: stateFilter } = Route.useSearch();
+  const filters = Route.useSearch();
   const router = useRouter();
-  const counts = {
-    all: rows.length,
-    waitlist: rows.filter((r: WaitlistRow) => r.state === "waitlist").length,
-    invited: rows.filter((r: WaitlistRow) => r.state === "invited").length,
-    accepted: rows.filter((r: WaitlistRow) => r.state === "accepted").length,
+
+  const filtered = applyFilters(rows, filters);
+  // State chip counts respect the email search so operators can see "2
+  // invited rows match 'acme'" rather than the unfiltered total.
+  const stateCounts: Record<Filters["state"], number> = {
+    all: applyFilters(rows, { ...filters, state: "all" }).length,
+    waitlist: applyFilters(rows, { ...filters, state: "waitlist" }).length,
+    invited: applyFilters(rows, { ...filters, state: "invited" }).length,
+    accepted: applyFilters(rows, { ...filters, state: "accepted" }).length,
   };
-  const filtered =
-    stateFilter === "all" ? rows : rows.filter((r: WaitlistRow) => r.state === stateFilter);
+
+  function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    router.navigate({
+      to: "/admin/waitlist",
+      search: { ...filters, [key]: value },
+      replace: true,
+    });
+  }
 
   async function onIssueInvite(id: string) {
     const result = await issueInvite({ data: { id } });
@@ -56,38 +73,33 @@ function AdminWaitlistPage() {
           </div>
         </header>
 
-        <nav className="mb-4 flex flex-wrap gap-2" aria-label="Filter by status">
-          {FILTERS.map((f) => {
-            const active = stateFilter === f.value;
-            const count = counts[f.value];
-            return (
-              <Link
-                key={f.value}
-                to="/admin/waitlist"
-                search={{ state: f.value }}
-                replace
-                className={`inline-flex items-center gap-2 rounded-pill border px-3 py-1 text-xs uppercase tracking-[0.1em] transition-colors ${
-                  active
-                    ? "border-ink bg-ink text-paper"
-                    : "border-ink-line bg-paper-warm text-text-muted hover:border-ink hover:text-text"
-                }`}
-              >
-                {f.label}
-                <span
-                  className={`font-mono text-[10px] ${active ? "text-paper/70" : "text-text-muted"}`}
-                >
-                  {count}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="mb-6 space-y-3">
+          <FilterChipRow
+            ariaLabel="Filter by status"
+            active={filters.state}
+            onChange={(v) => updateFilter("state", v)}
+            options={STATE_VALUES.map((v) => ({
+              value: v,
+              label: STATE_LABELS[v],
+              count: stateCounts[v],
+            }))}
+          />
+
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <FilterSearchInput
+              label="Search"
+              placeholder="email"
+              value={filters.q}
+              onChange={(v) => updateFilter("q", v)}
+            />
+          </div>
+        </div>
 
         {filtered.length === 0 ? (
           <p className="rounded-2xl border border-ink-line bg-paper-warm p-6 text-sm text-text-muted">
             {rows.length === 0
               ? "Nobody has joined the waitlist yet."
-              : "No rows match this filter."}
+              : "No rows match these filters."}
           </p>
         ) : (
           <ul className="divide-y divide-ink-line rounded-2xl border border-ink-line bg-paper-warm">
@@ -99,4 +111,13 @@ function AdminWaitlistPage() {
       </div>
     </main>
   );
+}
+
+function applyFilters(rows: WaitlistRow[], filters: Filters): WaitlistRow[] {
+  const needle = filters.q?.toLowerCase() ?? "";
+  return rows.filter((r) => {
+    if (filters.state !== "all" && r.state !== filters.state) return false;
+    if (needle && !r.email.toLowerCase().includes(needle)) return false;
+    return true;
+  });
 }
