@@ -37,6 +37,19 @@ export function AdminHeader({ email }: Props) {
               Users
             </Link>
             <Link
+              to="/admin/competitors"
+              search={{
+                source: "all",
+                tracked: "any",
+                recent: "all",
+              }}
+              className="rounded-pill border border-[#2a2a38] px-3 py-[6px] uppercase tracking-[0.1em] text-[#a8a8b8] transition-colors hover:border-accent hover:text-white"
+              activeProps={{ className: "border-accent text-white" }}
+              activeOptions={{ includeSearch: false }}
+            >
+              Competitors
+            </Link>
+            <Link
               to="/admin/feedback"
               search={{
                 rating: "all",
