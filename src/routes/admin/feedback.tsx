@@ -2,6 +2,9 @@ import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { FilterChipRow } from "~/components/admin/FilterChipRow";
+import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
+import { FilterSelect } from "~/components/admin/FilterSelect";
 import { digestItems, digests, feedback, rawItems, users } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
 import { requireAdminSession } from "~/features/auth/server/session";
@@ -187,85 +190,49 @@ function AdminFeedbackPage() {
         </header>
 
         <div className="mb-6 space-y-3">
-          <nav className="flex flex-wrap gap-2" aria-label="Filter by rating">
-            {RATING_FILTERS.map((f) => {
-              const active = filters.rating === f.value;
-              return (
-                <Link
-                  key={f.value}
-                  to="/admin/feedback"
-                  search={{ ...filters, rating: f.value }}
-                  replace
-                  className={`inline-flex items-center gap-2 rounded-pill border px-3 py-1 text-xs uppercase tracking-[0.1em] transition-colors ${
-                    active
-                      ? "border-ink bg-ink text-paper"
-                      : "border-ink-line bg-paper-warm text-text-muted hover:border-ink hover:text-text"
-                  }`}
-                >
-                  {f.label}
-                  <span
-                    className={`font-mono text-[10px] ${active ? "text-paper/70" : "text-text-muted"}`}
-                  >
-                    {counts[f.value]}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
+          <FilterChipRow
+            ariaLabel="Filter by rating"
+            active={filters.rating}
+            onChange={(v) => updateFilter("rating", v)}
+            options={RATING_FILTERS.map((f) => ({
+              value: f.value,
+              label: f.label,
+              count: counts[f.value],
+            }))}
+          />
 
-          <nav className="flex flex-wrap gap-2" aria-label="Filter by date range">
-            {RANGE_FILTERS.map((f) => {
-              const active = filters.range === f.value;
-              return (
-                <Link
-                  key={f.value}
-                  to="/admin/feedback"
-                  search={{ ...filters, range: f.value }}
-                  replace
-                  className={`inline-flex items-center rounded-pill border px-3 py-1 text-xs uppercase tracking-[0.1em] transition-colors ${
-                    active
-                      ? "border-ink bg-ink text-paper"
-                      : "border-ink-line bg-paper-warm text-text-muted hover:border-ink hover:text-text"
-                  }`}
-                >
-                  {f.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <FilterChipRow
+            ariaLabel="Filter by date range"
+            active={filters.range}
+            onChange={(v) => updateFilter("range", v)}
+            options={RANGE_FILTERS}
+          />
 
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <FilterSelect
               label="Source"
               value={filters.source}
-              onChange={(v) => updateFilter("source", v as Filters["source"])}
+              onChange={(v) => updateFilter("source", v)}
               options={[
-                { value: "all", label: "All sources" },
+                { value: "all" as const, label: "All sources" },
                 ...SOURCE_VALUES.map((s) => ({ value: s, label: SOURCE_LABEL[s] })),
               ]}
             />
             <FilterSelect
               label="Category"
               value={filters.category}
-              onChange={(v) => updateFilter("category", v as Filters["category"])}
+              onChange={(v) => updateFilter("category", v)}
               options={[
-                { value: "all", label: "All categories" },
+                { value: "all" as const, label: "All categories" },
                 ...CATEGORY_VALUES.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
               ]}
             />
-            <label className="inline-flex items-center gap-2 text-text-muted">
-              <span className="uppercase tracking-[0.1em] text-[10px]">User</span>
-              <input
-                type="search"
-                value={filters.q ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  updateFilter("q", v.length ? v : undefined);
-                }}
-                placeholder="email"
-                className="rounded-pill border border-ink-line bg-paper px-3 py-1 text-xs text-text placeholder:text-text-muted hover:border-ink focus:border-ink focus:outline-none"
-              />
-            </label>
+            <FilterSearchInput
+              label="User"
+              placeholder="email"
+              value={filters.q}
+              onChange={(v) => updateFilter("q", v)}
+            />
           </div>
         </div>
 
@@ -284,35 +251,6 @@ function AdminFeedbackPage() {
         )}
       </div>
     </main>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <label className="inline-flex items-center gap-2 text-text-muted">
-      <span className="uppercase tracking-[0.1em] text-[10px]">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-pill border border-ink-line bg-paper px-3 py-1 text-xs text-text hover:border-ink focus:border-ink focus:outline-none"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

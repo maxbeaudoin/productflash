@@ -1,6 +1,10 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq, sql } from "drizzle-orm";
+import { z } from "zod";
+import { FilterChipRow } from "~/components/admin/FilterChipRow";
+import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
+import { FilterSelect } from "~/components/admin/FilterSelect";
 import { digests, llmUsage, userCompetitors, users } from "~/db/schema";
 import { requireAdminSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
@@ -118,17 +122,66 @@ const listUsers = createServerFn({ method: "GET" }).handler(async () => {
   };
 });
 
+const STATUS_VALUES = ["all", "pending", "onboarding", "active", "paused"] as const;
+const ROLE_VALUES = ["all", "admin", "user"] as const;
+
+const filterSchema = z.object({
+  status: z.enum(STATUS_VALUES).catch("all"),
+  role: z.enum(ROLE_VALUES).catch("all"),
+  q: z.string().trim().max(120).optional().catch(undefined),
+});
+
+type Filters = z.infer<typeof filterSchema>;
+
+const STATUS_LABELS: Record<Filters["status"], string> = {
+  all: "All",
+  pending: "Pending",
+  onboarding: "Onboarding",
+  active: "Active",
+  paused: "Paused",
+};
+
+const ROLE_OPTIONS: { value: Filters["role"]; label: string }[] = [
+  { value: "all", label: "All roles" },
+  { value: "admin", label: "Admin" },
+  { value: "user", label: "User" },
+];
+
 export const Route = createFileRoute("/admin/users/")({
+  validateSearch: filterSchema,
   loader: () => listUsers(),
   component: AdminUsersListPage,
 });
 
 function AdminUsersListPage() {
   const { rows } = Route.useLoaderData();
+  const filters = Route.useSearch();
+  const router = useRouter();
+
+  const filtered = applyFilters(rows, filters);
+  // Status chip counts respect the other active filters (role + search) so
+  // operators can see "3 active users with 'acme' in their email" rather than
+  // an always-the-same total.
+  const statusCounts: Record<Filters["status"], number> = {
+    all: applyFilters(rows, { ...filters, status: "all" }).length,
+    pending: applyFilters(rows, { ...filters, status: "pending" }).length,
+    onboarding: applyFilters(rows, { ...filters, status: "onboarding" }).length,
+    active: applyFilters(rows, { ...filters, status: "active" }).length,
+    paused: applyFilters(rows, { ...filters, status: "paused" }).length,
+  };
+
+  function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    router.navigate({
+      to: "/admin/users",
+      search: { ...filters, [key]: value },
+      replace: true,
+    });
+  }
+
   return (
     <main className="px-6 py-12">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-8 flex items-center justify-between">
+        <header className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
             <p className="mt-1 text-sm text-text-muted">
@@ -137,13 +190,43 @@ function AdminUsersListPage() {
           </div>
         </header>
 
-        {rows.length === 0 ? (
+        <div className="mb-6 space-y-3">
+          <FilterChipRow
+            ariaLabel="Filter by status"
+            active={filters.status}
+            onChange={(v) => updateFilter("status", v)}
+            options={STATUS_VALUES.map((v) => ({
+              value: v,
+              label: STATUS_LABELS[v],
+              count: statusCounts[v],
+            }))}
+          />
+
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <FilterSelect
+              label="Role"
+              value={filters.role}
+              onChange={(v) => updateFilter("role", v)}
+              options={ROLE_OPTIONS}
+            />
+            <FilterSearchInput
+              label="Search"
+              placeholder="email"
+              value={filters.q}
+              onChange={(v) => updateFilter("q", v)}
+            />
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
           <p className="rounded-2xl border border-ink-line bg-paper-warm p-6 text-sm text-text-muted">
-            No users yet. Invites land them here once they redeem the magic link.
+            {rows.length === 0
+              ? "No users yet. Invites land them here once they redeem the magic link."
+              : "No users match these filters."}
           </p>
         ) : (
           <ul className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-paper-warm">
-            {rows.map((row: UserRow) => (
+            {filtered.map((row: UserRow) => (
               <UserRowItem key={row.id} row={row} />
             ))}
           </ul>
@@ -151,6 +234,16 @@ function AdminUsersListPage() {
       </div>
     </main>
   );
+}
+
+function applyFilters(rows: UserRow[], filters: Filters): UserRow[] {
+  const needle = filters.q?.toLowerCase() ?? "";
+  return rows.filter((r) => {
+    if (filters.status !== "all" && r.status !== filters.status) return false;
+    if (filters.role !== "all" && r.role !== filters.role) return false;
+    if (needle && !r.email.toLowerCase().includes(needle)) return false;
+    return true;
+  });
 }
 
 function UserRowItem({ row }: { row: UserRow }) {

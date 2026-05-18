@@ -379,6 +379,7 @@ function AdminUserDetailPage() {
       <div className="mx-auto max-w-5xl">
         <Link
           to="/admin/users"
+          search={{ status: "all", role: "all" }}
           className="mb-6 inline-flex items-center gap-2 text-xs uppercase tracking-[0.1em] text-text-muted hover:text-text"
         >
           <span aria-hidden>←</span> All users
