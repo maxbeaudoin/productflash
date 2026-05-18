@@ -1,93 +1,146 @@
 # Product Flash
 
-Daily AI-curated competitive intelligence digest for SaaS product leaders. Currently in **PoC phase** — validating demand with 5–10 beta users.
+Daily AI-curated competitive-intelligence digest for SaaS product leaders. One pillar (competitor moves: launches, pricing changes, feature releases, positioning shifts); per-user personalization driven by an agentic onboarding (FTE) that builds the user's profile from a minimal signup form.
 
-## Reference docs
+## Phase & goal
 
-- **`docs/`** — vendor API knowledge base (PH, Firehose, Firecrawl, RSS). Read the relevant file BEFORE writing or modifying that source adapter — captures verified schema, rate limits, working/broken query patterns. Not auto-loaded; consult on demand.
-- **`SCOPE.md`** — historical planning artifact. Useful for context on _why_ a decision was made, but not load-bearing for day-to-day work. Not a contract.
-- **Linear** (team `ProductFlash`) — single source of truth for active tasks. Backlog, blockers, status all live there; this repo no longer keeps a `TASKS.md` queue.
-- **`CHANGELOG.md`** — user-facing log of what's shipped (product framing, not git log).
-- **`MEMORY.md`** index in `~/.claude/...` — locked decisions (scope, stack, ingestion principle).
+**PoC — demand validation, not feature completeness.** Prove that 5–10 beta users open the daily digest ≥3 days/week and react (👍/👎) on items they find load-bearing.
 
-## Before you start a new task
+Go/no-go after 2 weeks of live sends: ≥60% open rate, ≥30% of items get any reaction, ≥3 users explicitly say "keep sending it", <5% missed-launch rate vs. user's own knowledge.
 
-1. Make sure you understand the requirements, ask multi-choice questions, and flag blockers.
-2. Checkout a new branch from main and make sure your local main is up to date:
+**Current focus**: agentic SaaS + dogfood loop — auth, profile schema, FTE agent, in-app digest views, fast-path TTV, admin app. Email + send + launch is the next phase.
+
+## How to work (Karpathy's 4 rules)
+
+These bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think before coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity first
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask: "Would a senior engineer call this overcomplicated?" If yes, simplify.
+
+### 3. Surgical changes
+Touch only what you must. Clean up only your own mess.
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- Remove imports/vars/functions that **your** changes orphaned. Don't delete pre-existing dead code unless asked — mention it instead.
+
+Test: every changed line should trace directly to the user's request.
+
+### 4. Goal-driven execution
+Define success criteria. Loop until verified.
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step work, state a brief plan with per-step verification before starting.
+
+## Tech stack
+
+- **Runtime**: Node.js ≥22.12, TypeScript, pnpm 9
+- **Framework**: TanStack Start (React 19, full-stack, server functions)
+- **DB / ORM**: Neon Postgres + Drizzle ORM
+- **Queue + cron**: pg-boss (Postgres-backed) in a long-running worker — NOT Railway cron, NOT Redis/BullMQ
+- **Auth**: Better Auth (Drizzle adapter, magic-link via Resend, admin-role plugin); `disableSignUp: true` — private beta, admin invite only
+- **LLM**: Anthropic SDK direct — `claude-haiku-4-5-20251001` (per-item classify/score, high fan-out) + `claude-sonnet-4-6` (digest synthesis, once per user per day)
+- **Email**: Resend + React Email; inline-styled, ~600px, no JS
+- **Frontend**: Tailwind v4 + shadcn/ui (Base UI primitives, not Radix) + TanStack Form + Zod + Lucide
+- **Design tokens**: `src/design/tokens.ts` is the single source of truth; Tailwind `@theme` and React Email both consume it — web and email must look identical
+- **Sources** (priority order): RSS, Product Hunt, Firehose (deferred no-op for PoC), Firecrawl. No custom crawlers — use existing APIs only.
+- **Analytics / logging**: PostHog cloud + Pino → Railway logs
+- **Hosting**: Railway (web service + worker service), Neon Postgres
+
+**Pillar discipline**: competitor moves only. Market-signal and VoC pillars are explicitly deferred — push back if asked to add them without a scope conversation.
+
+## Code structure
 
 ```
-git checkout main
-git status --porcelain
-git pull --ff-only
-git checkout -b feat|fix|chore|docs|refactor|test/<branch-name>
+src/
+  agents/fte/            FTE onboarding agent (Anthropic tool-use loop)
+  components/            Shared UI (admin, app, forms, ui = shadcn)
+  db/                    Drizzle schema + seed
+  design/tokens.ts       Single source of truth for brand
+  features/              Vertical slices: client | server | shared | ui
+    auth/  competitors/  digest/  landing/  onboarding/
+    profile/  waitlist/
+  routes/                TanStack Start file-based routes
+    admin/  api/  app/  debug/  r/  (+ index, login, signup, healthz)
+  shared/                Cross-feature utils: client | iso | server
+  sources/               Source adapters: rss, ph, firehose, firecrawl
+  styles/app.css         Tailwind entry
+  worker/index.ts        pg-boss worker entrypoint
+scripts/                 One-off TS scripts (migrate, run-*, smoke probes)
+tests/integration/       Vitest + testcontainers Postgres
+tests/e2e/               Playwright e2e
+drizzle/                 Generated migrations
+docs/                    Vendor API knowledge base — read before touching adapters
 ```
 
-## Validate your own work
+Unit tests are colocated next to the code (`foo.ts` + `foo.test.ts`).
 
-Using `mcp__chrome-devtools__`, and the `psql` and `curl` CLIs: 
-
-1. Write tests for your code and make sure they pass.
-2. Start the development server and test your changes in the browser.
-3. Query the database to verify that your changes are reflected correctly.
-4. Send requests to test your API endpoints if applicable.
-5. Check the console for any errors or warnings and address them.
-6. Write tmp ts scripts to validate more intricate changes if necessary.
-
-* Only run relevant e2e tests locally (they can be slow); the full suite will run in CI.
-* Always ask the user to validate the screenshots and provide feedback before moving to the PR stage.
-
-## Definition of done
-
-Using the `gh` CLIs:
-
-1. Open a pull request.
-2. Make sure all checks have passed.
-3. Squash merge into main.
-
-**Checklist:**
-- [ ] Code is complete and you validated your own work
-- [ ] User has approved screenshots and feedback is incorporated (if applicable)
-- [ ] All PR checks have passed
-- [ ] Code is merged into main
-
-* Use `Monitor` to watch for CI checks: 15s cadence, 5m timeout.
-
-## Stack
-
-- TanStack Start + Drizzle + pg-boss + Neon Postgres, deployed on Railway (web service + long-running worker)
-- Anthropic SDK direct: `claude-sonnet-4-6` (synthesis) + `claude-haiku-4-5-20251001` (classification fan-out)
-- Resend + React Email
-- Tailwind v4 + shadcn/ui (Base UI primitives) + TanStack Form + Zod + Lucide
-- PostHog (analytics) + Pino (logging) → Railway logs
-
-## Hard rules
-
-- **Use existing APIs for ingestion** — Firehose, Firecrawl, RSS, Product Hunt. No custom crawlers. User has Firehose + Firecrawl procured.
-- **pg-boss for all scheduling** — NOT Railway cron, NOT Redis/BullMQ. One long-running worker handles cron + retries + per-user fan-out queue.
-- **Shared design tokens** — `src/design/tokens.ts` is the single source of truth for brand. Tailwind `@theme` consumes it; React Email components import it for inline styles. Web UI and email must look identical.
-- **Competitor-moves pillar only** — market signal + VoC pillars are explicitly deferred. Push back if asked to add them without a scope conversation.
-
-## Common commands
+## Commands
 
 ```
-pnpm dev              # TanStack Start dev server
-pnpm db:push          # Drizzle schema push (dev branch on Neon)
-pnpm db:migrate       # Generate + apply migration
-pnpm worker           # Run the pg-boss worker locally
-pnpm typecheck        # tsc --noEmit
-pnpm env:lint         # cross-check .env / .env.example / .env.production vs schema
-pnpm test             # Vitest unit suite (one-shot)
-pnpm test:watch       # Vitest in watch mode
-pnpm test:integration # Vitest integration suite (needs Docker; ~20s container boot first run)
-pnpm test:e2e         # Playwright e2e (needs Docker; spawns pnpm dev against a fresh test container)
+# Dev loop
+pnpm dev                 # TanStack Start dev server
+pnpm worker              # pg-boss worker (watch mode)
+pnpm typecheck           # tsr generate + tsgo --noEmit
+pnpm lint                # oxlint
+pnpm format              # oxfmt
+
+# Tests
+pnpm test                # Vitest unit (one-shot)
+pnpm test:watch          # Vitest watch
+pnpm test:integration    # Vitest integration (needs Docker)
+pnpm test:e2e            # Playwright e2e (needs Docker + chromium)
+
+# DB
+pnpm db:push             # Drizzle schema push (dev branch on Neon)
+pnpm db:generate         # Generate migration
+pnpm db:migrate          # Apply migrations
+pnpm db:studio           # Drizzle Studio
+pnpm db:seed             # Seed dev data
+pnpm env:lint            # Cross-check .env files vs schema
+
+# Pipeline (manual runs)
+pnpm ingest:run          # Pull from all sources
+pnpm score:run           # Haiku classify + score
+pnpm synthesize:run      # Sonnet digest synthesis
+pnpm fte:run             # Run FTE agent manually
+pnpm send:run            # Send digests
+pnpm send:dispatch       # Per-TZ dispatch
+pnpm email:preview       # React Email preview server
 ```
 
-## Testing
+## External IDs
 
-- **Vitest for unit + integration**, **Playwright for e2e + smoke** (smoke not yet scaffolded).
-- Unit tests live alongside the code: `src/foo/bar.ts` → `src/foo/bar.test.ts`. Run with `pnpm test`.
-- Integration tests live under `tests/integration/`. They boot a real Postgres in Docker via testcontainers (`@testcontainers/postgresql`), apply Drizzle migrations, and stub only the external API surface (Anthropic, Resend). Run with `pnpm test:integration` — needs Docker.
-- E2E tests live under `tests/e2e/`. Playwright spawns `pnpm dev` against a fresh testcontainer Postgres from `tests/e2e/global-setup.ts`, drives the browser through full user flows, then tears the stack down. Run with `pnpm test:e2e` — needs Docker + chromium (`pnpm exec playwright install chromium` after install). On Linux first run, also: `sudo pnpm exec playwright install-deps chromium`.
-- Use the project-local `/test-coverage` skill to audit pyramid health on demand — it covers both missing-coverage gaps and existing-test defects (shape-only, tautological mocks, etc.).
-- **Pragmatic, not exhaustive.** Aim for a healthy pyramid covering critical flows — branching logic, money math, auth/tenant filters, external boundaries — not 100% line coverage. Skip shape-only assertions; test behavior under conditions that could plausibly fail.
-- `scripts/test-source-*.ts` / `scripts/smoke-schema.ts` are **manual probe scripts** (run via `tsx`), not assertion-based tests. They validate against real third-party APIs the unit/integration mocks can't reach — keep them, don't count them as coverage.
+| System | Name | ID / URL |
+| --- | --- | --- |
+| GitHub | `maxbeaudoin/productflash` | https://github.com/maxbeaudoin/productflash |
+| Linear team | `ProductFlash` (key `PF`) | `3f3a4fdb-a805-4032-b921-f1314e957e93` |
+| Railway project | `spectacular-flow` | `bba786ce-140e-4ac3-abcb-4062aea6dfca` |
+| Railway service: web | `web` | `dc96ae2c-9276-43b0-90ca-01b43063cb85` |
+| Railway service: worker | `worker` | `4d99faba-a0c3-4820-811e-d96b909328fd` |
+| Neon Postgres | dev + prod branches | via Railway env vars |
+| Anthropic | API key | `ANTHROPIC_API_KEY` |
+| Resend | Email API | `RESEND_API_KEY` |
+| PostHog | analytics | `POSTHOG_*` |
+| Firecrawl | scraping API | `FIRECRAWL_API_KEY` · docs.firecrawl.dev |
+| Firehose | news API (deferred no-op) | `FIREHOSE_API_KEY` · firehose.com/api-docs |
