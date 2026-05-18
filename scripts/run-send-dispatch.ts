@@ -1,6 +1,6 @@
 import PgBoss from "pg-boss";
-import { SEND_QUEUE } from "~/jobs/send";
-import { runSendDispatch, SEND_DISPATCH_QUEUE } from "~/jobs/send-dispatch";
+import { SEND_QUEUE } from "~/features/digest/server/jobs/send";
+import { runSendDispatch, SEND_DISPATCH_QUEUE } from "~/features/digest/server/jobs/send-dispatch";
 import { getPool } from "~/shared/server/db";
 import { requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";

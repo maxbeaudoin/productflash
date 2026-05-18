@@ -1,4 +1,4 @@
-import { runIngestion } from "~/jobs/ingest";
+import { runIngestion } from "~/features/digest/server/jobs/ingest";
 import { getPool } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { shutdownPosthog } from "~/shared/server/posthog";

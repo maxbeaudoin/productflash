@@ -1,4 +1,4 @@
-import { classifyItem } from "~/shared/server/classify";
+import { classifyItem } from "~/features/digest/server/classify";
 import { logger } from "~/shared/server/logger";
 
 // End-to-end probe for the Haiku classifier. Calls the live Anthropic API

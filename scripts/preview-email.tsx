@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { render } from "@react-email/components";
 import { eq } from "drizzle-orm";
 import { digests, users } from "~/db/schema";
-import { DigestEmail } from "~/emails/DigestEmail";
-import { loadDigestForEmail } from "~/emails/build-email-props";
+import { DigestEmail } from "~/features/digest/email/DigestEmail";
+import { loadDigestForEmail } from "~/features/digest/email/build-email-props";
 import { getDb, getPool } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 

@@ -1,11 +1,11 @@
 import PgBoss from "pg-boss";
 import { type FteJobData, FTE_QUEUE, handleFteJob } from "~/agents/fte/job";
-import { type FastPathJobData, FAST_PATH_QUEUE, handleFastPathJob } from "~/jobs/fast-path";
-import { INGEST_CRON, INGEST_QUEUE, runIngestion } from "~/jobs/ingest";
-import { runScoring, SCORE_CRON, SCORE_QUEUE } from "~/jobs/score";
-import { runSendForDigest, SEND_QUEUE, type SendJobData } from "~/jobs/send";
-import { runSendDispatch, SEND_DISPATCH_CRON, SEND_DISPATCH_QUEUE } from "~/jobs/send-dispatch";
-import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from "~/jobs/synthesize";
+import { type FastPathJobData, FAST_PATH_QUEUE, handleFastPathJob } from "~/features/digest/server/jobs/fast-path";
+import { INGEST_CRON, INGEST_QUEUE, runIngestion } from "~/features/digest/server/jobs/ingest";
+import { runScoring, SCORE_CRON, SCORE_QUEUE } from "~/features/digest/server/jobs/score";
+import { runSendForDigest, SEND_QUEUE, type SendJobData } from "~/features/digest/server/jobs/send";
+import { runSendDispatch, SEND_DISPATCH_CRON, SEND_DISPATCH_QUEUE } from "~/features/digest/server/jobs/send-dispatch";
+import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from "~/features/digest/server/jobs/synthesize";
 import { env, requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";
 import { captureServerException, shutdownPosthog } from "~/shared/server/posthog";

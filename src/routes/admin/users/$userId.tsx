@@ -5,7 +5,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { enqueueFteRun } from "~/agents/fte/job";
 import { Button } from "~/components/ui/button";
-import { DigestItemCard, type DigestItemView } from "~/components/app/DigestItemCard";
+import { DigestItemCard, type DigestItemView } from "~/features/digest/ui/DigestItemCard";
 import {
   competitors as competitorsTable,
   digestItems,
@@ -17,11 +17,11 @@ import {
   users,
 } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
-import { enqueueFastPath } from "~/jobs/fast-path";
+import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
 import { requireAdminSession } from "~/shared/server/auth-server";
 import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
-import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";
 import { formatUsd } from "~/shared/iso/llm-cost-format";
 import { logger } from "~/shared/server/logger";
 

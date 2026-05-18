@@ -10,7 +10,7 @@ import {
   users,
 } from "~/db/schema";
 import { startTestDb, truncateAll, type TestDb } from "./setup";
-import type { SynthesisInput, SynthesisResult } from "~/shared/server/synthesize";
+import type { SynthesisInput, SynthesisResult } from "~/features/digest/server/synthesize";
 
 // Stub Sonnet — echo back one synthesized item per input rawItemId so
 // the job's plumbing (write digest + write digest_items + record llm_usage)
@@ -19,8 +19,8 @@ import type { SynthesisInput, SynthesisResult } from "~/shared/server/synthesize
 const synthMock = vi.hoisted(() => ({
   synthesize: vi.fn<(input: SynthesisInput) => Promise<SynthesisResult>>(),
 }));
-vi.mock("~/shared/server/synthesize", async (importOriginal) => {
-  const orig = await importOriginal<typeof import("~/shared/server/synthesize")>();
+vi.mock("~/features/digest/server/synthesize", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("~/features/digest/server/synthesize")>();
   return {
     ...orig,
     synthesizeDigest: (input: SynthesisInput) => synthMock.synthesize(input),
@@ -41,7 +41,7 @@ vi.mock("~/shared/server/db", () => ({
   getPool: () => dbHolder.pool,
 }));
 
-const { runSynthesisForUser } = await import("~/jobs/synthesize");
+const { runSynthesisForUser } = await import("~/features/digest/server/jobs/synthesize");
 
 let h: TestDb;
 

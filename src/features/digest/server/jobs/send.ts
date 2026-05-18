@@ -5,8 +5,8 @@ import { render } from "@react-email/components";
 import { eq, sql } from "drizzle-orm";
 import { Resend } from "resend";
 import { digests, users as usersTable } from "~/db/schema";
-import { DigestEmail } from "~/emails/DigestEmail";
-import { loadDigestForEmail } from "~/emails/build-email-props";
+import { DigestEmail } from "~/features/digest/email/DigestEmail";
+import { loadDigestForEmail } from "~/features/digest/email/build-email-props";
 import { getDb } from "~/shared/server/db";
 import { env, requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";
@@ -21,8 +21,8 @@ const BRAND_MARK_CID = "brand-mark";
 
 function readBrandMarkPng(): Buffer {
   const here = dirname(fileURLToPath(import.meta.url));
-  // src/jobs → src/emails/assets
-  return readFileSync(join(here, "..", "emails", "assets", "brand-mark.png"));
+  // src/features/digest/server/jobs → src/features/digest/email/assets
+  return readFileSync(join(here, "..", "..", "email", "assets", "brand-mark.png"));
 }
 
 // Daily-digest send pipeline.

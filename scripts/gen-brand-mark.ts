@@ -13,7 +13,7 @@ import { colors } from "~/design/tokens";
 // No external image library — PNG is just deflate-compressed pixel rows
 // with a filter byte per row, wrapped in IHDR/IDAT/IEND chunks. ~70 lines.
 
-const OUTPUT_PATH = "src/emails/assets/brand-mark.png";
+const OUTPUT_PATH = "src/features/digest/email/assets/brand-mark.png";
 
 // 2x the on-screen 22px so it stays crisp on retina; the <img> tag caps
 // display at 22×22.

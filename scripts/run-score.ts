@@ -1,4 +1,4 @@
-import { runScoring } from "~/jobs/score";
+import { runScoring } from "~/features/digest/server/jobs/score";
 import { getPool } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { shutdownPosthog } from "~/shared/server/posthog";

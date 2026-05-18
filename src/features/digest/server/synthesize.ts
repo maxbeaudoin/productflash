@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, SONNET_MODEL } from "./anthropic";
-import { logger } from "./logger";
+import { getAnthropic, SONNET_MODEL } from "~/shared/server/anthropic";
+import { logger } from "~/shared/server/logger";
 
 // Usage envelope returned alongside synthesized items so the caller can
 // attach a digestId and write the cost row after the digest is upserted.

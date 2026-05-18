@@ -5,12 +5,12 @@ import type { SynthesisInput, SynthesisInputItem } from "./synthesize";
 const anthropicMock = vi.hoisted(() => ({
   messages: { create: vi.fn() },
 }));
-vi.mock("./anthropic", () => ({
+vi.mock("~/shared/server/anthropic", () => ({
   getAnthropic: () => anthropicMock,
   SONNET_MODEL: "claude-sonnet-4-6",
   HAIKU_MODEL: "claude-haiku-4-5-20251001",
 }));
-vi.mock("./logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
