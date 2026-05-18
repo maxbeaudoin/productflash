@@ -38,18 +38,17 @@ Using `mcp__chrome-devtools__`, and the `psql` and `curl` CLIs:
 
 Using the `gh` CLIs:
 
-1. Open a pull request and request a review from Github Copilot (`copilot-pull-request-reviewer[bot]`).
-2. Address any comments from the review and make sure all checks have passed.
-3. Merge the code into main.
-4. Monitor the deployment to production and verify that it was successful.
+1. Open a pull request.
+2. Make sure all checks have passed.
+3. Squash merge into main.
 
 **Checklist:**
 - [ ] Code is complete and you validated your own work
 - [ ] User has approved screenshots and feedback is incorporated (if applicable)
-- [ ] PR is reviewed by Github Copilot, comments are resolved, all checks have passed
+- [ ] All PR checks have passed
 - [ ] Code is merged into main
 
-* Use `Monitor` to watch for Copilot reviews and checks: 1m cadence, 5m timeout.
+* Use `Monitor` to watch for CI checks: 15s cadence, 5m timeout.
 
 ## Stack
 
