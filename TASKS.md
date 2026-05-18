@@ -522,6 +522,169 @@ Out of scope: per-user delivery time customization (folds into #17). Slack/Teams
 
 **Blocked by:** none for the in-app version. #11 + #17 unlock the richer copy.
 
+### #52 Admin feedback feed — ☐
+
+Cross-user table at `/admin/feedback` listing recently rated `digest_items` with filters: rating (👍/👎), user, source, classification/tag, date range. Default sort: most recent. The workhorse view is "👎 in the last 7 days" — the fastest path to spotting curation regressions while the cohort is small.
+
+Data: join `feedback` → `digest_items` → `digests` → `users` (+ `raw_items` for source). No schema change. Each row links through to the digest at `/admin/users/:id` so the rated item can be read in context.
+
+UI: add a **Feedback** link to the admin nav alongside Users / Waitlist. Reuse the shadcn table + filter pattern from `/admin/waitlist` so it doesn't feel like a one-off. Empty-state copy nudges to dogfood.
+
+Validation: rate a few items in `/app/digests/:id` as different users, refresh `/admin/feedback`, ratings appear; filter by 👎 narrows the list; clicking a row lands on the source digest with the rated item visible.
+
+**Blocked by:** #16
+
+### #53 Per-source / per-tag feedback rollups — ☐
+
+On `/admin/feedback` (sub-tab or side cards), aggregate `%👍` and total ratings grouped by `raw_items.source` (PH, RSS, Firecrawl, Firehose) and by `digest_items.tag` / classification. Directly answers "which inputs produce signal vs noise?" — the input to ingestion and synthesis-prompt tuning.
+
+SQL is one-liner: `count(*) filter (where rating='up')::float / nullif(count(*), 0)` grouped by source and tag, plus N. Suppress rollups with N < 5 to avoid drawing conclusions from one rating at PoC scale.
+
+Two cards side-by-side (source, tag), sorted by N descending. No charts in v1 — a table is enough; revisit if rollup-over-time becomes the question.
+
+**Blocked by:** #52
+
+### #54 Inline feedback state on admin user-digest view — ☐
+
+On `/admin/users/:id` we already render the user's recent digests via #31's components. Badge each item with its 👍/👎 state (or "no rating"). No new page — just makes the data already on screen ~5× more useful for eyeballing per-user patterns.
+
+Implementation: the loader for `/admin/users/:id` pulls `feedback` rows for the rendered digest items and passes a `ratingByItemId` map; an admin-only wrapper around `DigestItemCard` renders a small pill in the corner. Don't muddy the user-facing `DigestItemCard` itself.
+
+**Blocked by:** #16
+
+### #55 Per-user feedback health on admin user detail — ☐
+
+On `/admin/users/:id`, add a small stat block: total ratings, 👍/👎 ratio, last-rated date, days-since-last-rating. A user who stops rating is the earliest churn signal we have before #19's launch monitor sees it.
+
+No new tables. Skip charts / sparklines unless they're free with current deps — a text stat is sufficient at this cohort size.
+
+**Blocked by:** #16
+
+### #56 Close the loop: feedback as a synthesis signal — ☐
+
+Pull each user's recent 👎'd items (last ~30 days, top ~10) and inject titles + snippets into the synthesis prompt (#35) as a "user disliked these — avoid items in the same vein" block. Optional positive examples from 👍 if there's prompt-cache room.
+
+Caps: combined ~1000 tokens to stay cache-friendly; skip the block entirely for users with < 3 ratings (cold start — no signal worth encoding). Land behind an env flag so we can A/B by hand if needed.
+
+Validation: synthesize for a user with a strong 👎 history before and after the change; eyeball whether the agent steers away from disliked-flavor items. Statistical A/B is out of reach at PoC scale — accept "looks better on inspection" as the bar.
+
+**Blocked by:** #52 (need to have read enough feedback to know what's worth encoding), #35
+
+### #57 Optional "why?" comment on 👎 — ☐
+
+A binary thumb is a weak signal at 5–10 beta users. Add an optional single-line comment that surfaces only after a 👎 ("what was wrong with this?"). One input, no character minimum, posted from the same `/r/$digestItemId/$rating` route (or a small follow-up endpoint that updates the existing feedback row).
+
+Schema: `feedback.comment text null` (+ `feedback.commented_at`, so we can tell "no comment yet" from "comment was just blank"). Migration via `pnpm db:migrate`. Surface comments in #52's feed (collapsed → expandable).
+
+Out of scope: rich categories / tags on the comment, comment on 👍, comment editing. Free-text only; if patterns emerge we'll formalize.
+
+**Blocked by:** #52 (so the comments have somewhere to be read)
+
+> **Suggested first slice:** #52 + #54 + #57 in one PR — cheap, immediate, and unlocks qualitative signal. #53 + #55 follow as the rollup pass. #56 is the actual product win but only worth building after we've eyeballed ~50+ ratings and know what patterns to encode. Memory: these are queued ideas, not the next-pickup contract — see [[feedback_workflow_lighter_planning_docs]].
+
+### #58 Admin competitors list view — ☐
+
+First-class entity surface for competitors at `/admin/competitors`. Today they only surface inside `/admin/users/:id` per-user; nothing lets us reason about a competitor as a shared row across the cohort.
+
+Columns: name, domain (from `homepage_url`), **# users tracking** (`user_competitors` count), raw_items last 7d, presence chips for `rss_url` / `ph_slug` / `pricing_url`, last `raw_items.ingested_at`, `created_at`. Filters: has-RSS, has-PH, **sourceless** (no rss_url AND no ph_slug — ingestion is a no-op for these), tracked-by ≥ N, recently added. Search by name / domain. Default sort: users-tracking desc — gives us the "popular competitors" view for free.
+
+Add **Competitors** to the admin nav alongside Users / Waitlist / Feedback. Reuse the shadcn table + filter pattern from `/admin/waitlist` (#33) for consistency.
+
+Validation: list shows all rows in `competitors`; tracking-count matches `count(*)` on `user_competitors`; the sourceless filter surfaces rows that genuinely produce zero `raw_items` per day.
+
+**Blocked by:** #16
+
+### #59 Admin competitor detail view — ☐
+
+Detail page at `/admin/competitors/:id`. Editable fields: `name`, `homepage_url`, `rss_url`, `ph_slug`, `pricing_url`. The current invariant ([[schema.ts]] comment at `competitors`) is "FTE agent is the only privileged writer of fields on existing rows"; admin becomes the second privileged writer, by design, for manual repair when autodetect was wrong. Surface a **"Editing affects N users"** warning above the form — shared row, shared blast radius.
+
+Sections / tabs:
+
+- **Users tracking** — list of email + when they added it; click-through to `/admin/users/:id`.
+- **Ingestion health** — per-source counts last 24h / 7d / 30d (RSS / PH / Firecrawl / Firehose) + last successful ingest per source. Spot dead feeds.
+- **Recent raw_items** — paginated, ordered by `ingested_at` desc. Title, source, `published_at`, `ingested_at`, source URL.
+- **Digest hit rate** — of those raw_items, how many made it into a `digest_item` across all users. The signal-to-noise window.
+- **Pricing snapshot** — `competitorPricingSnapshots.content` + `scrapedAt` + `contentHash`. "Last changed" if cheap to compute from history (today we have no history — just the latest).
+- **Feedback ratio** — aggregate %👍/👎 on this competitor's items across all users. Joins to #52.
+
+Out of scope here: merge, delete, refresh-now, re-detect (those live in #61); audit-log surface (lives in #62).
+
+**Blocked by:** #58, #62 (don't land edits without an audit trail)
+
+### #60 Competitor health flags / quality dashboard — ☐
+
+Three lists computed cheaply on `/admin/competitors` (as a header card or tab) — without these, dead feeds go unnoticed for weeks at PoC scale:
+
+- **Orphans** — `user_competitors` count = 0. Usually FTE-added rows a user later removed. Candidates for deletion (via #61).
+- **Sourceless** — `rss_url IS NULL AND ph_slug IS NULL`. Ingestion silently produces no `raw_items` for these. Either re-detect (#61) or remove.
+- **Stale** — no `raw_items.ingested_at` in 30d despite having a source configured. Feed is probably broken upstream.
+
+Each list links to the competitor detail (#59) for triage. No new tables; all queries against existing `competitors` + `user_competitors` + `raw_items`.
+
+**Blocked by:** #58
+
+### #61 Manual ops on competitors (refresh / re-detect / delete / block) — ☐
+
+Action buttons on the competitor detail (#59):
+
+- **Refresh now** — kick a one-off ingest for this competitor (RSS + PH + Firecrawl + pricing scrape). Reuses `src/jobs/ingest.ts` per-competitor path; enqueued, not run inline.
+- **Re-detect feeds** — re-run the FTE agent's RSS / PH autodetect against `homepage_url` and fill missing `rss_url` / `ph_slug`. Useful when a competitor was added with no feed and the site has since added one.
+- **Delete** — only enabled if `user_competitors` count = 0. Cascades to `raw_items`, `digest_items` rows referencing them, `competitor_pricing_snapshots`, `item_scores`.
+- **Block** — adds a `competitors.blocked_at` (new column) the FTE agent's `add_competitor` tool checks before linking. Use for spam / non-SaaS rows that keep getting re-added.
+
+Schema: `competitors.blocked_at timestamptz null` + `competitors.blocked_reason text null`. Tiny migration. FTE agent (#28) needs a one-line check.
+
+**Blocked by:** #59, #62 (every action writes the audit log)
+
+### #62 Admin-action audit log — ☐
+
+Now that admin can mutate shared state (edit competitor fields in #59, run ops in #61, merge in #63), we need a trail. `admin_audit(id, actor_id → users, target_kind, target_id, action, payload jsonb, created_at)`. `actor_id` is the admin's user_id; `target_kind ∈ {'competitor','user',…}` for forward-compat. `payload` captures the diff (before/after for edits, args for ops).
+
+Surface a "Recent admin activity" tab on the relevant detail page (per competitor, per user) and an `/admin/audit` global feed. Read-only — no UI to delete entries.
+
+This isn't optional once #59 ships: editing a shared competitor row affects every user tracking it, and without an audit trail we'll silently corrupt other users' state with no forensics.
+
+**Blocked by:** #16
+
+### #63 Competitor merge tool — ☐
+
+When two `competitors` rows represent the same company (e.g. someone added `linear.com` and someone else `linear.app` — different `homepage_url` so the unique constraint didn't catch it), an admin needs to merge them. From the detail page (#59), pick a survivor, then:
+
+- Repoint `user_competitors.competitor_id` from loser → survivor (with `ON CONFLICT DO NOTHING` so users who tracked both don't violate the composite PK).
+- Repoint `raw_items.competitor_id`, `item_scores` (via raw_item already migrated), `competitor_pricing_snapshots` (resolve conflict — keep survivor's snapshot, drop loser's).
+- Optionally copy missing fields from loser → survivor (`rss_url`, `ph_slug`, `pricing_url`) when survivor's is null and loser's isn't.
+- Delete loser row.
+
+All in one transaction. Confirm dialog showing both rows + counts of what moves. Write to the audit log (#62) with full payload — this is the one action where rollback matters most.
+
+Out of scope: automatic dupe detection / suggestion. v1 is admin-initiated only; ML-flavored "we think these are the same" is a later play.
+
+**Blocked by:** #59, #62
+
+### #64 Competitor cross-cutting stats + recent additions — ☐
+
+Header cards on `/admin/competitors`:
+
+- **Source coverage** — `X of N competitors have RSS`, `Y of N have PH`, `Z of N have neither`. PoC-quality metric; if "neither" trends up we're degrading.
+- **Recently added (7d)** — list of competitors added in the last week, sorted by `created_at` desc. Answers "what are betas asking us to track that wasn't in the default seeds?" — direct signal for ingestion-default tuning and FTE prompt improvements.
+- **Most-tracked leaderboard** — top 10 by `user_competitors` count. Beta cohort overlap signal; eventually social-proof material.
+
+All read-only; no schema change.
+
+**Blocked by:** #58
+
+### #65 Competitor relations graph (deferred design note) — ☐
+
+We've committed to a "competitor database (graph later)" direction. Don't build the graph schema yet — but design #59's detail page so it can absorb a **Relationships** tab without restructure (i.e. tab-based layout, not a flat scroll).
+
+When ready, the shape is roughly: `competitor_relations(id, from_id → competitors, to_id → competitors, kind, source, confidence, created_at)` where `kind ∈ {parent, subsidiary, competes_with, integrates_with, acquired_by, rebranded_to, …}` and `source ∈ {'manual','fte','scrape'}`. Admin becomes the manual entry point; FTE / Firecrawl scraping populates it later.
+
+This entry exists so we don't forget the constraint when shaping #59. Concrete implementation stays deferred until we have a real use case (e.g. "show items from `parent_of(linear)` alongside linear's items").
+
+**Blocked by:** #59 (design-level only — no code change here)
+
+> **Suggested first slice:** #58 + #60 + #64 in one PR — all read-only, cheap, immediately useful for spotting dead feeds. Then #62 + #59 + #61 together (audit log lands first so the first edit is logged from the start). Then #63 (merge). #65 is a design-time constraint on #59, not a separate PR. Same memory caveat as the feedback cluster — queued ideas, not pickup-queue contract ([[feedback_workflow_lighter_planning_docs]]).
+
 ---
 
 ## Email + send + launch (later phase)
