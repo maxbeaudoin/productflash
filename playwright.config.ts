@@ -11,18 +11,35 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: "**/*.spec.ts",
-  timeout: 60_000,
-  fullyParallel: false,
-  workers: 1,
-  retries: 0,
-  reporter: "list",
+  // 20s per test: every spec here is a single user action plus a DB
+  // round-trip. A healthy run finishes in <3s. If we approach the wall
+  // something is wrong — fail fast rather than waiting out a 60s budget.
+  timeout: 20_000,
+  // 5s per expect/locator wait. Combined with the hydration-marker
+  // pattern (see __root.tsx), this is enough headroom for real waits
+  // but tight enough that a busted selector surfaces immediately.
+  expect: { timeout: 5_000 },
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",
+    // 5s per action (clicks/fills/scrolls). Default is 0 (no cap), which
+    // means a hung action only surfaces at the test-level wall — these
+    // tests are all single-user interactions, so 5s is plenty for a real
+    // wait and tight enough to fail fast on a broken selector.
+    actionTimeout: 5_000,
+    // 15s per `page.goto` — first nav to a route pays TanStack Start's
+    // lazy-compile cost (~500ms-1s, occasionally more on cold cache);
+    // subsequent navs are <500ms. 15s gives headroom for the cold case
+    // while still failing fast on a genuinely broken server (default 30s).
+    navigationTimeout: 15_000,
     // Same browser binary across CI + local — avoids "works on my machine"
     // failures rooted in a browser engine version mismatch.
     headless: true,
   },
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  reporter: "list",
   globalSetup: "./tests/e2e/global-setup.ts",
   // The dev server is spawned inside global-setup (not via Playwright's
   // built-in `webServer`) because that runs in parallel with globalSetup
