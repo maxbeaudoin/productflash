@@ -78,7 +78,7 @@ export const PROBLEM = {
 
 export const SOLUTION = {
   label: "Not a newsletter",
-  title: "One briefing. Only when it matters. Nothing missed.",
+  title: "One morning brief. Only when it matters. Nothing missed.",
   lede: "Product Flash watches the surfaces that matter, distills the noise with LLMs trained on product intelligence, and ships a tight digest you can read with your first coffee.",
   features: [
     {
