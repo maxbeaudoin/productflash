@@ -24,9 +24,23 @@ const MIGRATIONS_FOLDER = resolve(dirname(fileURLToPath(import.meta.url)), "../.
 
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? "3100");
 
-async function waitForHealthz(timeoutMs: number): Promise<void> {
+// Poll cadence for /healthz. 200ms is short enough that the wait wakes
+// almost immediately after the dev server reports ready, but long enough
+// not to thrash the event loop.
+const HEALTHZ_POLL_MS = 200;
+
+async function waitForHealthz(timeoutMs: number, readySignal: Promise<void>): Promise<void> {
+  // Race two observations: the dev server's "ready" stdout line, and the
+  // /healthz endpoint. Whichever fires first short-circuits the wait —
+  // /healthz is the authoritative readiness check, but the stdout signal
+  // typically beats it by ~200ms and gives us a clean ready log either way.
   const deadline = Date.now() + timeoutMs;
   let lastErr: unknown;
+  let sawReady = false;
+  void readySignal.then(() => {
+    sawReady = true;
+  });
+
   while (Date.now() < deadline) {
     try {
       const res = await fetch(`http://localhost:${PORT}/healthz`);
@@ -35,7 +49,9 @@ async function waitForHealthz(timeoutMs: number): Promise<void> {
     } catch (err) {
       lastErr = err;
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    // After we've seen the stdout ready line, poll harder — the server
+    // is up and /healthz is just about to flip green.
+    await new Promise((r) => setTimeout(r, sawReady ? 50 : HEALTHZ_POLL_MS));
   }
   throw new Error(
     `e2e: dev server did not respond to /healthz within ${timeoutMs}ms (last: ${String(lastErr)})`,
@@ -102,8 +118,45 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     }
   });
 
+  // Sniff stdout for Vite's ready line (e.g. "Local: http://localhost…"
+  // or "ready in NNNms"). Resolving this promise lets waitForHealthz drop
+  // to a 50ms poll cadence — saves ~150ms on the typical boot and gives
+  // us a deterministic readiness observation instead of a coarse 1s loop.
+  const readySignal = new Promise<void>((resolve) => {
+    const onData = (buf: Buffer) => {
+      const line = buf.toString();
+      process.stdout.write(`[dev] ${line}`);
+      if (/ready in|Local:\s+http/i.test(line)) {
+        devServer.stdout?.off("data", onData);
+        resolve();
+      }
+    };
+    devServer.stdout?.on("data", onData);
+  });
+
+  // Race the /healthz poll against the dev server's exit event. Without
+  // this, a crashed `pnpm dev` (port conflict, missing env var, syntax
+  // error in a route) would silently poll /healthz for the full 90s
+  // before failing with a misleading timeout — the actual exit code +
+  // stderr is what diagnoses the bug. Suppress the post-race rejection
+  // on the original promise so a clean SIGTERM at teardown doesn't
+  // surface as an unhandledRejection.
+  const earlyExit = new Promise<never>((_, reject) => {
+    devServer.once("exit", (code, signal) => {
+      reject(
+        new Error(
+          `e2e: dev server exited before /healthz responded (code=${code} signal=${signal})`,
+        ),
+      );
+    });
+  });
+  earlyExit.catch(() => {});
+
   try {
-    await waitForHealthz(180_000);
+    // 90s is generous for a cold boot (typical: 6-10s on this machine).
+    // The old 180s was a paranoid upper bound from before stdout sniffing —
+    // if we're past 90s the dev server isn't coming up, fail fast.
+    await Promise.race([waitForHealthz(90_000, readySignal), earlyExit]);
   } catch (err) {
     devServer.kill("SIGKILL");
     await container.stop();

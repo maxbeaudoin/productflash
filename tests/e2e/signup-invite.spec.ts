@@ -48,13 +48,16 @@ test("invite-gated signup: valid token → form submits → /app with session", 
   const token = signInviteToken({ id: row!.id, email: row!.email });
 
   // 1. Visit the invite URL. Loader should verify the token, look up the
-  //    waitlist row, and pre-seed the form. Wait for the network to settle
-  //    so React has hydrated — otherwise a click on the submit button can
-  //    fire BEFORE the onSubmit handler is bound, triggering a native form
-  //    POST that strips the search params.
-  await page.goto(`/signup?invite=${encodeURIComponent(token)}`, {
-    waitUntil: "networkidle",
-  });
+  //    waitlist row, and pre-seed the form. Wait for the hydration marker
+  //    (`data-hydrated` stamped by __root.tsx's useEffect) before clicking
+  //    — otherwise the click on submit can fire BEFORE the onSubmit
+  //    handler is bound, triggering a native form POST that strips the
+  //    search params. Deterministic; much faster than networkidle.
+  await page.goto(`/signup?invite=${encodeURIComponent(token)}`);
+  // locator.waitFor() uses page.setDefaultTimeout (30s default), NOT
+  // expect.timeout — pass an explicit budget so a missing hydration
+  // marker surfaces in 5s, matching expect/action timeouts.
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 5_000 });
 
   // 2. Email field is rendered, pre-filled, and read-only.
   const emailField = page.locator('input[type="email"]');
@@ -78,8 +81,11 @@ test("invite-gated signup: valid token → form submits → /app with session", 
   await page.locator('button[type="submit"]').click();
 
   // 6. After the auto-sign-in chain, we should land somewhere under /app.
-  //    Onboarding for a freshly-created user.
-  await page.waitForURL(/\/app(\/.*)?$/, { timeout: 30_000 });
+  //    Onboarding for a freshly-created user. 10s is generous for the
+  //    upsert → enqueue FTE → mint verify URL → Better Auth verify chain;
+  //    a healthy run completes in well under 2s. If we're past 10s the
+  //    chain is broken — fail fast rather than waiting out 30s.
+  await page.waitForURL(/\/app(\/.*)?$/, { timeout: 10_000 });
 
   // 7. Session cookie is set.
   const cookies = await page.context().cookies();

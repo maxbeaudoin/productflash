@@ -42,11 +42,15 @@ test("/login?error=<unknown code>: generic OAuth banner (safety net for new erro
 });
 
 test("magic-link submit: SentCard renders the ambiguous copy + waitlist CTA", async ({ page }) => {
-  // networkidle so React hydrates before the click — otherwise the click
-  // fires before the onSubmit handler is bound and the browser does a
-  // native form POST that navigates away (same race signup-invite.spec
-  // documents at length).
-  await page.goto("/login", { waitUntil: "networkidle" });
+  // Wait for the hydration marker (`data-hydrated` stamped by __root.tsx's
+  // useEffect) before clicking — otherwise the click can fire before the
+  // onSubmit handler is bound and the browser does a native form POST
+  // that navigates away. Deterministic and much faster than networkidle.
+  await page.goto("/login");
+  // locator.waitFor() uses page.setDefaultTimeout (30s default), NOT
+  // expect.timeout — pass an explicit budget so a missing hydration
+  // marker surfaces in 5s, matching expect/action timeouts.
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 5_000 });
 
   // Any email works — the form submits, deliverMagicLink's suppression
   // branch fires server-side (no users row), the client UX is identical

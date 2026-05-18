@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { DefaultCatchBoundary } from "~/components/DefaultCatchBoundary";
 import { NotFound } from "~/components/NotFound";
 import { PostHogTracker } from "~/components/PostHogTracker";
@@ -32,6 +32,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <HydrationMarker />
         <PostHogTracker />
         {children}
         <Toaster theme="dark" />
@@ -40,4 +41,16 @@ function RootDocument({ children }: { children: ReactNode }) {
       </body>
     </html>
   );
+}
+
+// Stamps <html data-hydrated="true"> once React has mounted on the client.
+// e2e tests await this attribute instead of `waitUntil: "networkidle"` —
+// it's a deterministic, ~0-cost signal that interactive event handlers
+// are bound, so a click won't race a not-yet-hydrated form into a native
+// POST.
+function HydrationMarker() {
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = "true";
+  }, []);
+  return null;
 }

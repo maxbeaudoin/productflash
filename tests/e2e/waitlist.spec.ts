@@ -32,9 +32,16 @@ test("landing form: visitor submits → row written with lowercased email + sour
 }) => {
   const db = drizzle(pool);
 
-  // Land on /, scroll the CTA into view so the form is interactable, then
-  // fill it as a real visitor would.
-  await page.goto("/", { waitUntil: "networkidle" });
+  // Land on /, wait for React hydration (deterministic — `data-hydrated`
+  // is stamped by a useEffect in __root.tsx), then fill the CTA form.
+  // Using a hydration marker instead of `networkidle` cuts ~500ms off
+  // the happy path and avoids hanging on PostHog/devtools chatter when
+  // a request fails.
+  await page.goto("/");
+  // locator.waitFor() uses page.setDefaultTimeout (30s default), NOT
+  // expect.timeout — pass an explicit budget so a missing hydration
+  // marker surfaces in 5s, matching expect/action timeouts.
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 5_000 });
 
   const form = page.locator("form").filter({ has: page.getByLabel("Email") });
   await form.scrollIntoViewIfNeeded();
