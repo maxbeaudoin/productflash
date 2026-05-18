@@ -2,9 +2,15 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CompetitorsList } from "~/components/app/competitors/competitors-list";
-import { ProfileEditor, type ProfileEditorValues } from "~/components/app/profile/profile-editor";
-import { ProfileFields } from "~/components/app/profile/profile-fields";
+import {
+  addCompetitor,
+  type CompetitorView,
+  removeCompetitor,
+} from "~/features/competitors/server/fns";
+import { CompetitorsList } from "~/features/competitors/ui/competitors-list";
+import { onboardingProfileFormSchema } from "~/features/profile/schema";
+import { ProfileEditor, type ProfileEditorValues } from "~/features/profile/ui/profile-editor";
+import { ProfileFields } from "~/features/profile/ui/profile-fields";
 import {
   competitors as competitorsTable,
   fteEvents,
@@ -17,12 +23,6 @@ import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { captureServerEvent } from "~/shared/server/posthog";
-import {
-  addCompetitor,
-  type CompetitorView,
-  removeCompetitor,
-} from "~/shared/server/competitor-fns";
-import { onboardingProfileFormSchema } from "~/shared/iso/validation/profile";
 
 // /app/onboarding (#29). First stop after the magic-link click.
 //

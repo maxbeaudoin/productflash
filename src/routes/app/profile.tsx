@@ -3,9 +3,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { asc, eq } from "drizzle-orm";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CompetitorsList } from "~/components/app/competitors/competitors-list";
-import { ProfileEditor, type ProfileEditorValues } from "~/components/app/profile/profile-editor";
-import { ProfileFields, type ProfileFieldsView } from "~/components/app/profile/profile-fields";
+import {
+  addCompetitor,
+  type CompetitorView,
+  removeCompetitor,
+} from "~/features/competitors/server/fns";
+import { CompetitorsList } from "~/features/competitors/ui/competitors-list";
+import { settingsProfileFormSchema } from "~/features/profile/schema";
+import { ProfileEditor, type ProfileEditorValues } from "~/features/profile/ui/profile-editor";
+import { ProfileFields, type ProfileFieldsView } from "~/features/profile/ui/profile-fields";
 import {
   competitors as competitorsTable,
   itemScores,
@@ -14,12 +20,6 @@ import {
 } from "~/db/schema";
 import { requireSession } from "~/shared/server/auth-server";
 import { getDb } from "~/shared/server/db";
-import {
-  addCompetitor,
-  type CompetitorView,
-  removeCompetitor,
-} from "~/shared/server/competitor-fns";
-import { settingsProfileFormSchema } from "~/shared/iso/validation/profile";
 
 // /app/profile (#32). Standalone view + edit of the AI-generated profile.
 //

@@ -1,7 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
-import { addCompetitorFormSchema } from "~/shared/iso/validation/competitor";
+import { addCompetitorFormSchema } from "~/features/competitors/schema";
 
 export function AddCompetitorForm({
   onCancel,
