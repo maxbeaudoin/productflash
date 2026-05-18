@@ -1,4 +1,4 @@
-import { HERO } from "~/data/landing";
+import { HERO } from "~/features/landing/content";
 
 const HERO_GRADIENT =
   "radial-gradient(circle at 85% 20%, rgba(217,255,58,0.12), transparent 50%), radial-gradient(circle at 10% 90%, rgba(255,91,58,0.08), transparent 50%)";

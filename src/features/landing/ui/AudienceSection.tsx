@@ -1,4 +1,4 @@
-import { AUDIENCE } from "~/data/landing";
+import { AUDIENCE } from "~/features/landing/content";
 import { PersonaCard } from "./PersonaCard";
 
 export function AudienceSection() {

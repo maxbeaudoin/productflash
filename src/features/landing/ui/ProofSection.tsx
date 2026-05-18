@@ -1,4 +1,4 @@
-import { PROOF } from "~/data/landing";
+import { PROOF } from "~/features/landing/content";
 
 export function ProofSection() {
   return (

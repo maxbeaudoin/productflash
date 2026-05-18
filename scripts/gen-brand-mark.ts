@@ -5,7 +5,7 @@ import { colors } from "~/design/tokens";
 
 // One-off generator for the brand-mark PNG embedded as a CID inline image
 // in the digest email. Gmail strips inline <svg>, so we ship a pre-rasterized
-// PNG of the same polygon shape as `src/components/landing/BrandMark.tsx`.
+// PNG of the same polygon shape as `src/features/landing/ui/BrandMark.tsx`.
 // Run once, commit the output:
 //
 //   pnpm tsx scripts/gen-brand-mark.ts

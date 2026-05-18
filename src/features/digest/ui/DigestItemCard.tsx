@@ -15,7 +15,7 @@ export type DigestItemView = {
   feedbackUrls?: { up: string; down: string };
 };
 
-// Color treatment mirrors `src/components/landing/DigestItem.tsx` so the
+// Color treatment mirrors `src/features/landing/ui/DigestItem.tsx` so the
 // in-app card reads identical to the email/landing mock. Source of truth
 // for the underlying palette is `src/design/tokens.ts:digestTags`.
 const TAG_TONE: Record<DigestTag, string> = {

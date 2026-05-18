@@ -1,4 +1,4 @@
-import { FOOTER, TOPBAR } from "~/data/landing";
+import { FOOTER, TOPBAR } from "~/features/landing/content";
 import { BrandMark } from "./BrandMark";
 
 export function Footer() {

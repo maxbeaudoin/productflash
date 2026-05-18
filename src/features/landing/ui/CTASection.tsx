@@ -1,4 +1,4 @@
-import { CTA } from "~/data/landing";
+import { CTA } from "~/features/landing/content";
 import { WaitlistForm } from "~/features/waitlist/ui/waitlist-form";
 
 const CTA_GRADIENT = "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.4), transparent 60%)";

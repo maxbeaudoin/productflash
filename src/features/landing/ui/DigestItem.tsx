@@ -1,4 +1,4 @@
-import type { DigestPreviewItem } from "~/data/landing";
+import type { DigestPreviewItem } from "~/features/landing/content";
 
 const TAG_TONE: Record<DigestPreviewItem["tone"], string> = {
   launch: "bg-accent/15 text-accent",

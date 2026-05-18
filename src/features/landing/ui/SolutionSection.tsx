@@ -1,4 +1,4 @@
-import { SOLUTION } from "~/data/landing";
+import { SOLUTION } from "~/features/landing/content";
 import { FeatureCard } from "./FeatureCard";
 
 export function SolutionSection() {

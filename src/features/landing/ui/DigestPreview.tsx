@@ -1,4 +1,4 @@
-import { DIGEST_PREVIEW } from "~/data/landing";
+import { DIGEST_PREVIEW } from "~/features/landing/content";
 import { DigestItem } from "./DigestItem";
 
 export function DigestPreview() {
