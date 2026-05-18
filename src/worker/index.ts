@@ -6,9 +6,9 @@ import { runScoring, SCORE_CRON, SCORE_QUEUE } from "~/jobs/score";
 import { runSendForDigest, SEND_QUEUE, type SendJobData } from "~/jobs/send";
 import { runSendDispatch, SEND_DISPATCH_CRON, SEND_DISPATCH_QUEUE } from "~/jobs/send-dispatch";
 import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from "~/jobs/synthesize";
-import { env, requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
-import { captureServerException, shutdownPosthog } from "~/lib/posthog";
+import { env, requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
+import { captureServerException, shutdownPosthog } from "~/shared/server/posthog";
 
 // Long-running pg-boss host. Hosts the daily ingest → score → synthesize
 // crons and workers today; the send queue from #17 registers here too as it

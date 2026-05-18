@@ -9,9 +9,9 @@ import {
   userCompetitors,
   users,
 } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { signFeedbackToken } from "~/lib/feedback-token";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { signFeedbackToken } from "~/shared/server/feedback-token";
+import { logger } from "~/shared/server/logger";
 
 // End-to-end probe for the GET /r/:digestItemId/:rating endpoint.
 //

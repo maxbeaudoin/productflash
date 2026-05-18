@@ -1,5 +1,5 @@
-import { requireEnv } from "~/lib/env";
-import { getPool } from "~/lib/db";
+import { requireEnv } from "~/shared/server/env";
+import { getPool } from "~/shared/server/db";
 
 // PH GraphQL schema introspection probe.
 //

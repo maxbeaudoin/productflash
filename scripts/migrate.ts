@@ -1,8 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import { requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
+import { requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
 
 // Runtime migrator used in both dev (`pnpm db:migrate`) and Railway's
 // preDeployCommand on the web service. Uses drizzle-orm (a runtime dep)

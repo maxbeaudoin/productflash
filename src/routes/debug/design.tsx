@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
-import { requireAdminSession } from "~/lib/auth-server";
+import { requireAdminSession } from "~/shared/server/auth-server";
 import {
   Dialog,
   DialogClose,

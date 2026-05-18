@@ -12,10 +12,14 @@ import {
   userCompetitors,
   users as usersTable,
 } from "~/db/schema";
-import { requireSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { addCompetitor, type CompetitorView, removeCompetitor } from "~/lib/server/competitor-fns";
-import { settingsProfileFormSchema } from "~/lib/validation/profile";
+import { requireSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import {
+  addCompetitor,
+  type CompetitorView,
+  removeCompetitor,
+} from "~/shared/server/competitor-fns";
+import { settingsProfileFormSchema } from "~/shared/iso/validation/profile";
 
 // /app/profile (#32). Standalone view + edit of the AI-generated profile.
 //

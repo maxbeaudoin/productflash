@@ -1,5 +1,5 @@
-import { getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 
 // Intentionally empty after task #27: the FTE agent (#28) populates
 // `competitors` + `user_competitors` per user on signup, so we no longer

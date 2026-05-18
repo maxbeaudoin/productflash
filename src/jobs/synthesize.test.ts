@@ -3,10 +3,10 @@ import { describe, expect, test, vi } from "vitest";
 // synthesize.ts pulls in pino-backed logger + posthog + drizzle at module
 // load. Short-circuit the side-effectful ones so the unit suite runs
 // without a DB connection or analytics writes.
-vi.mock("~/lib/logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("~/lib/posthog", () => ({
+vi.mock("~/shared/server/posthog", () => ({
   captureServerEvent: vi.fn(),
 }));
 

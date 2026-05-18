@@ -1,9 +1,9 @@
 import { eq, inArray } from "drizzle-orm";
 import { competitors as competitorsTable, rawItems, userCompetitors } from "~/db/schema";
 import type { NewRawItem } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
 import { scrapePricingPagesForCompetitors } from "~/sources/firecrawl";
 import { loadLatestPricingSnapshots, saveLatestPricingSnapshot } from "~/sources/firecrawl-store";
 import { fetchFirehoseForCompetitors } from "~/sources/firehose";

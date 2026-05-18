@@ -40,10 +40,10 @@ vi.mock("~/sources/firecrawl-store", () => ({
 
 // Logger + posthog short-circuited so test output stays clean and PostHog
 // never tries to phone home.
-vi.mock("~/lib/logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("~/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
+vi.mock("~/shared/server/posthog", () => ({ captureServerEvent: vi.fn() }));
 
 // Point production `getDb` / `getPool` at our test container — the ingest
 // job calls these at request time, not at module load, so a vi.hoisted
@@ -52,7 +52,7 @@ const dbHolder = vi.hoisted(() => ({
   db: null as unknown as TestDb["db"],
   pool: null as unknown as TestDb["pool"],
 }));
-vi.mock("~/lib/db", () => ({
+vi.mock("~/shared/server/db", () => ({
   getDb: () => dbHolder.db,
   getPool: () => dbHolder.pool,
 }));

@@ -2,7 +2,7 @@ import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
 import { WAITLIST } from "~/data/landing";
-import { waitlistFormSchema } from "~/lib/validation/waitlist";
+import { waitlistFormSchema } from "~/shared/iso/validation/waitlist";
 
 const inputClass =
   "h-11 rounded-md border-[1.5px] border-ink/20 bg-paper px-3 text-sm font-normal normal-case tracking-normal text-ink outline-none placeholder:text-ink/40 focus:border-ink aria-invalid:border-coral aria-invalid:focus:border-coral";

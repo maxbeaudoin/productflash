@@ -1,6 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { competitorPricingSnapshots } from "~/db/schema";
-import type { getDb } from "~/lib/db";
+import type { getDb } from "~/shared/server/db";
 import type { PricingSnapshot } from "./firecrawl";
 
 type Db = ReturnType<typeof getDb>;

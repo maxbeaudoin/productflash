@@ -1,6 +1,6 @@
 import { competitors } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { fetchFirehoseForCompetitors } from "~/sources/firehose";
 import type { CompetitorRef, NormalizedItem } from "~/sources/types";
 

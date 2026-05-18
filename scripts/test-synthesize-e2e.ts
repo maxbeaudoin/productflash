@@ -9,9 +9,9 @@ import {
   users,
 } from "~/db/schema";
 import { runSynthesis } from "~/jobs/synthesize";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // End-to-end DB validation for the synthesis job.
 //

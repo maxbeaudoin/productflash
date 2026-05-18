@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { users } from "~/db/schema";
 
 // Bootstraps the first admin in an environment where `disableSignUp: true`

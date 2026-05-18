@@ -12,13 +12,17 @@ import {
   users as usersTable,
 } from "~/db/schema";
 import { enqueueFastPath } from "~/jobs/fast-path";
-import { requireSession } from "~/lib/auth-server";
-import { getBoss } from "~/lib/boss";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
-import { addCompetitor, type CompetitorView, removeCompetitor } from "~/lib/server/competitor-fns";
-import { onboardingProfileFormSchema } from "~/lib/validation/profile";
+import { requireSession } from "~/shared/server/auth-server";
+import { getBoss } from "~/shared/server/boss";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
+import {
+  addCompetitor,
+  type CompetitorView,
+  removeCompetitor,
+} from "~/shared/server/competitor-fns";
+import { onboardingProfileFormSchema } from "~/shared/iso/validation/profile";
 
 // /app/onboarding (#29). First stop after the magic-link click.
 //

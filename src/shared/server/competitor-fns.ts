@@ -2,22 +2,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { competitors as competitorsTable, userCompetitors } from "~/db/schema";
-import { requireSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { addCompetitorFormSchema } from "~/lib/validation/competitor";
+import { requireSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { addCompetitorFormSchema } from "~/shared/iso/validation/competitor";
+import type { CompetitorView } from "~/shared/iso/competitor";
 import { autodetectRSSForHomepage } from "~/sources/rss";
+
+export type { CompetitorView };
 
 // Shared add/remove for /app/onboarding and /app/profile. The body of these
 // fns was identical across the two routes — extracted here so that the
 // per-route routes only carry their differing handlers (e.g. editProfile,
 // which has divergent schemas + cache-invalidation semantics).
-
-export type CompetitorView = {
-  id: string;
-  name: string;
-  homepageUrl: string;
-  rssUrl: string | null;
-};
 
 export const addCompetitor = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => addCompetitorFormSchema.parse(data))

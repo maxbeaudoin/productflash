@@ -18,12 +18,12 @@ import {
 } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
 import { enqueueFastPath } from "~/jobs/fast-path";
-import { requireAdminSession } from "~/lib/auth-server";
-import { getBoss } from "~/lib/boss";
-import { getDb } from "~/lib/db";
-import { deriveDigestPeriod } from "~/lib/digest-period";
-import { formatUsd } from "~/lib/llm-cost-format";
-import { logger } from "~/lib/logger";
+import { requireAdminSession } from "~/shared/server/auth-server";
+import { getBoss } from "~/shared/server/boss";
+import { getDb } from "~/shared/server/db";
+import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { formatUsd } from "~/shared/iso/llm-cost-format";
+import { logger } from "~/shared/server/logger";
 
 // /admin/users/:id (#16). Operator console for one user. Three jobs:
 //   1. Surface the AI-generated profile + competitor map so we can spot

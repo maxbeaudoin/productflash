@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { waitlist } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { verifyAndCanonicalize } from "~/lib/url-server";
-import { waitlistApiSchema } from "~/lib/validation/waitlist";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { verifyAndCanonicalize } from "~/shared/server/url-server";
+import { waitlistApiSchema } from "~/shared/iso/validation/waitlist";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

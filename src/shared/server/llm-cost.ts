@@ -4,12 +4,6 @@ import { HAIKU_MODEL, SONNET_MODEL } from "./anthropic";
 import { getDb } from "./db";
 import { logger } from "./logger";
 
-// Re-export so existing callers that imported formatUsd from this module keep
-// working. The actual implementation lives in llm-cost-format.ts so the admin
-// UI can pull it in without dragging pino / pg / Anthropic SDK into the
-// browser bundle.
-export { formatUsd } from "./llm-cost-format";
-
 // Per-call accounting for every Anthropic API hit. Records token counts +
 // frozen USD cost into llm_usage so the admin UI can roll up:
 //   - per FTE run (kind='fte', filter by runId)

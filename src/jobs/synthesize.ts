@@ -8,17 +8,17 @@ import {
   users as usersTable,
 } from "~/db/schema";
 import type { NewDigestItem } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { recordLlmUsage } from "~/lib/llm-cost";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
+import { getDb } from "~/shared/server/db";
+import { recordLlmUsage } from "~/shared/server/llm-cost";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
 import {
   type ReaderProfile,
   type SynthesisInputItem,
   synthesizeDigest,
   type SynthesisUsage,
   type SynthesizedItem,
-} from "~/lib/synthesize";
+} from "~/shared/server/synthesize";
 
 // Daily synthesis job.
 //

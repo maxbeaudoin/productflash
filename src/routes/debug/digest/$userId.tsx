@@ -7,10 +7,10 @@ import { digestItems, digests, feedback, rawItems, users } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
 import { runScoringForUser } from "~/jobs/score";
 import { runSynthesisForUser } from "~/jobs/synthesize";
-import { requireAdminSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { deriveDigestPeriod } from "~/lib/digest-period";
-import { signFeedbackToken } from "~/lib/feedback-token";
+import { requireAdminSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { signFeedbackToken } from "~/shared/server/feedback-token";
 
 // Admin-only digest preview (#25). Renders the most recent digest for any
 // user_id via the same components as /app/digests/:id, so prompt-tuning

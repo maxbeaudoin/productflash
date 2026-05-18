@@ -1,7 +1,7 @@
 import { runScoring } from "~/jobs/score";
-import { getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // Manual trigger for the scoring job. Mirrors what the pg-boss scheduled
 // worker does at 05:00 UTC — useful for iterating on the classify prompt or

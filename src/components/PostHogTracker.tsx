@@ -1,6 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { capturePageview, initPostHog } from "~/lib/posthog-client";
+import { capturePageview, initPostHog } from "~/shared/client/posthog-client";
 
 // Renders nothing — initializes posthog-js on mount and fires a $pageview each
 // time TanStack Router commits a new pathname. Mounted in __root.tsx so every

@@ -10,7 +10,7 @@ import {
   users,
 } from "~/db/schema";
 import { startTestDb, truncateAll, type TestDb } from "./setup";
-import type { SynthesisInput, SynthesisResult } from "~/lib/synthesize";
+import type { SynthesisInput, SynthesisResult } from "~/shared/server/synthesize";
 
 // Stub Sonnet — echo back one synthesized item per input rawItemId so
 // the job's plumbing (write digest + write digest_items + record llm_usage)
@@ -19,24 +19,24 @@ import type { SynthesisInput, SynthesisResult } from "~/lib/synthesize";
 const synthMock = vi.hoisted(() => ({
   synthesize: vi.fn<(input: SynthesisInput) => Promise<SynthesisResult>>(),
 }));
-vi.mock("~/lib/synthesize", async (importOriginal) => {
-  const orig = await importOriginal<typeof import("~/lib/synthesize")>();
+vi.mock("~/shared/server/synthesize", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("~/shared/server/synthesize")>();
   return {
     ...orig,
     synthesizeDigest: (input: SynthesisInput) => synthMock.synthesize(input),
   };
 });
 
-vi.mock("~/lib/logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("~/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
+vi.mock("~/shared/server/posthog", () => ({ captureServerEvent: vi.fn() }));
 
 const dbHolder = vi.hoisted(() => ({
   db: null as unknown as TestDb["db"],
   pool: null as unknown as TestDb["pool"],
 }));
-vi.mock("~/lib/db", () => ({
+vi.mock("~/shared/server/db", () => ({
   getDb: () => dbHolder.db,
   getPool: () => dbHolder.pool,
 }));

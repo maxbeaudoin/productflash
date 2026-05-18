@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createPatch } from "diff";
-import { requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
+import { requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
 import type { CompetitorRef, NormalizedItem } from "./types";
 
 // Firecrawl pricing-page scraper.

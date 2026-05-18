@@ -1,7 +1,7 @@
 import { runIngestion } from "~/jobs/ingest";
-import { getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // Manual trigger for the ingestion orchestrator. Mirrors what the pg-boss
 // scheduled worker does at 04:00 UTC — useful for one-shot validation and

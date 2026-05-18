@@ -1,9 +1,9 @@
 import type PgBoss from "pg-boss";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { digests, users as usersTable } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
 import { SEND_QUEUE, type SendJobData } from "./send";
 
 // Per-TZ send dispatcher (#17).

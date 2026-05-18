@@ -2,8 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { users as usersTable } from "~/db/schema";
-import { requireSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
+import { requireSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
 
 // /app is the magic-link callbackURL. Admins go straight to the admin app;
 // unconfirmed users get onboarding; everyone else lands on /app/digests.

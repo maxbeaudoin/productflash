@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { users as usersTable } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { runSynthesisForUser } from "~/jobs/synthesize";
-import { shutdownPosthog } from "~/lib/posthog";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // One-off: run the catch-up synthesis path for a single user, in-process,
 // with the same params fast-path uses. Useful for previewing what a fresh

@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { fteEvents } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 
 // FTE event log writer.
 //

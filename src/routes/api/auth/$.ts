@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "~/lib/auth";
+import { auth } from "~/shared/server/auth";
 
 // Better Auth's single handler — owns every /api/auth/* sub-route
 // (sign-in, sign-out, magic-link verify, admin endpoints). The splat

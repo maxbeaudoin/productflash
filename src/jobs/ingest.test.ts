@@ -3,11 +3,11 @@ import type { NormalizedItem } from "~/sources/types";
 
 // ingest.ts pulls in source adapters + db at module load. Short-circuit
 // the side-effectful imports; this suite only tests the pure aggregators.
-vi.mock("~/lib/logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("~/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
-vi.mock("~/lib/db", () => ({ getDb: vi.fn() }));
+vi.mock("~/shared/server/posthog", () => ({ captureServerEvent: vi.fn() }));
+vi.mock("~/shared/server/db", () => ({ getDb: vi.fn() }));
 vi.mock("~/sources/firecrawl", () => ({ scrapePricingPagesForCompetitors: vi.fn() }));
 vi.mock("~/sources/firecrawl-store", () => ({
   loadLatestPricingSnapshots: vi.fn(),

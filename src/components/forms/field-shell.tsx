@@ -1,5 +1,5 @@
 import type { AnyFieldApi } from "@tanstack/react-form";
-import { cn } from "~/lib/utils";
+import { cn } from "~/shared/iso/utils";
 
 // Shared shell around a TanStack Form field. Renders label, the consumer's
 // input, and either an inline error (after the field has been touched) or a
