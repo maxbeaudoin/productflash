@@ -1,4 +1,4 @@
-import type { CompetitorView } from "~/shared/iso/competitor";
+import type { CompetitorView } from "~/features/competitors/shared/types";
 import { AddCompetitorForm } from "./add-competitor-form";
 import { CompetitorRow } from "./competitor-row";
 

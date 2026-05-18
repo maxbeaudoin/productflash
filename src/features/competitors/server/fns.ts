@@ -4,8 +4,8 @@ import { z } from "zod";
 import { competitors as competitorsTable, userCompetitors } from "~/db/schema";
 import { requireSession } from "~/shared/server/auth-server";
 import { getDb } from "~/shared/server/db";
-import { addCompetitorFormSchema } from "~/shared/iso/validation/competitor";
-import type { CompetitorView } from "~/shared/iso/competitor";
+import { addCompetitorFormSchema } from "~/features/competitors/schema";
+import type { CompetitorView } from "~/features/competitors/shared/types";
 import { autodetectRSSForHomepage } from "~/sources/rss";
 
 export type { CompetitorView };
