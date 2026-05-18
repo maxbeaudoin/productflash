@@ -39,10 +39,10 @@ export type ProofItem = {
 
 export const HERO = {
   eyebrow: "Now onboarding the private beta",
-  headlineLead: "The competitive intel briefing that hits your inbox",
+  headlineLead: "The competitive intel briefing that lands",
   headlineAccent: "before standup.",
   sub: "Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning digest of what actually matters.",
-  cta: { label: "Join the waitlist", href: "#waitlist" },
+  cta: { label: "Request early access", href: "#waitlist" },
   meta: [
     { label: "For", value: "Product leaders in SaaS" },
     { label: "Cadence", value: "Daily, before 8am local" },
@@ -52,7 +52,7 @@ export const HERO = {
 
 export const PROBLEM = {
   label: "The problem",
-  title: "Your competitor shipped on Tuesday. You found out on Friday.",
+  title: "Your competitor shipped last quarter. You found out from a customer.",
   lede: "Product leaders are drowning in tabs — changelogs, G2, Reddit, LinkedIn, Product Hunt, niche Slack groups. The signal is out there. The time to find it isn't.",
   stats: [
     {
@@ -77,7 +77,7 @@ export const PROBLEM = {
 };
 
 export const SOLUTION = {
-  label: "The solution",
+  label: "Not a newsletter",
   title: "One briefing. Every morning. Nothing missed.",
   lede: "Product Flash watches the surfaces that matter, distills the noise with LLMs trained on product intelligence, and ships a tight digest you can read with your first coffee.",
   features: [
@@ -105,9 +105,9 @@ export const SOLUTION = {
 };
 
 export const DIGEST_PREVIEW = {
-  label: "What lands in your inbox",
-  title: "5 minutes. 3 sections. Zero fluff.",
-  lede: "A sample of Tuesday morning's brief for a head of product at a mid-market analytics SaaS.",
+  label: "Not a distraction",
+  title: "Five minutes. Three sections. Zero fluff.",
+  lede: "No ads. No spam. No clickbait. A sample of Tuesday morning's brief for a head of product at a mid-market analytics SaaS.",
   fromName: "Product Flash",
   fromAddress: "digest@productflash.io",
   date: "TUE · 07:42",
@@ -164,25 +164,25 @@ export const PROOF = {
   label: "Under the hood",
   title: "An agent, not a dashboard.",
   paragraphs: [
-    "Product Flash combines structured firehoses (changelogs, review platforms, funding databases) with LLM-driven synthesis to turn raw signal into a briefing a human actually wants to read.",
-    "No new tab. No dashboard fatigue. It meets you where you already are: email, Slack, or both.",
+    "Most tools hand you a config screen. Product Flash hands you an agent already at work.",
+    "Watch it learn your space, find your competitors, and draft your watchlist live. You edit. Then it takes over.",
   ],
   items: [
-    { text: "Firehose data integration (live)", status: "live" },
-    { text: "LLM-powered synthesis (live)", status: "live" },
-    { text: "Email + Slack delivery (live)", status: "live" },
-    { text: "Per-user competitor tuning (live)", status: "live" },
-    { text: "G2 & Capterra ingestion (Q3)", status: "pending" },
-    { text: "Customer call transcript ingestion (Q4)", status: "pending" },
-    { text: "Weekly trend roll-up (Q4)", status: "pending" },
+    { text: "Analyzing your website", status: "live" },
+    { text: "Researching your competitors", status: "live" },
+    { text: "Scanning market signals", status: "live" },
+    { text: "Reading what users say", status: "live" },
+    { text: "Personalizing your profile", status: "live" },
+    { text: "Calibrating your first brief", status: "pending" },
+    { text: "Setting up your schedule", status: "pending" },
   ] satisfies ProofItem[],
 };
 
 export const CTA = {
   label: "⚡ Private Beta · 20 Seats",
-  title: "Stop reading your competitors from your CEO's Slack.",
+  title: "Ready to be the sharpest in the room?",
   body: "We're onboarding 20 product teams this quarter. Beta is free for the first 90 days, with founder access and direct input on the roadmap.",
-  primary: { label: "Join the waitlist", href: "#waitlist" },
+  primary: { label: "Request early access", href: "#waitlist" },
   fineprint: "// 7 seats remaining as of this week",
 };
 
@@ -196,7 +196,7 @@ export const TOPBAR = {
 };
 
 export const WAITLIST = {
-  label: "Join the waitlist",
+  label: "Request early access",
   title: "Get the brief while seats are still open.",
   body: "We're letting new teams in on a rolling basis. Drop your email and we'll be in touch when a seat opens up.",
   success: "Got it — we'll be in touch.",
