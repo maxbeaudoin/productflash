@@ -47,7 +47,10 @@ test("magic-link submit: SentCard renders the ambiguous copy + waitlist CTA", as
   // onSubmit handler is bound and the browser does a native form POST
   // that navigates away. Deterministic and much faster than networkidle.
   await page.goto("/login");
-  await page.locator('html[data-hydrated="true"]').waitFor();
+  // locator.waitFor() uses page.setDefaultTimeout (30s default), NOT
+  // expect.timeout — pass an explicit budget so a missing hydration
+  // marker surfaces in 5s, matching expect/action timeouts.
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 5_000 });
 
   // Any email works — the form submits, deliverMagicLink's suppression
   // branch fires server-side (no users row), the client UX is identical

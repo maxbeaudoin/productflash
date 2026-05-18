@@ -134,11 +134,29 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     devServer.stdout?.on("data", onData);
   });
 
+  // Race the /healthz poll against the dev server's exit event. Without
+  // this, a crashed `pnpm dev` (port conflict, missing env var, syntax
+  // error in a route) would silently poll /healthz for the full 90s
+  // before failing with a misleading timeout — the actual exit code +
+  // stderr is what diagnoses the bug. Suppress the post-race rejection
+  // on the original promise so a clean SIGTERM at teardown doesn't
+  // surface as an unhandledRejection.
+  const earlyExit = new Promise<never>((_, reject) => {
+    devServer.once("exit", (code, signal) => {
+      reject(
+        new Error(
+          `e2e: dev server exited before /healthz responded (code=${code} signal=${signal})`,
+        ),
+      );
+    });
+  });
+  earlyExit.catch(() => {});
+
   try {
     // 90s is generous for a cold boot (typical: 6-10s on this machine).
     // The old 180s was a paranoid upper bound from before stdout sniffing —
     // if we're past 90s the dev server isn't coming up, fail fast.
-    await waitForHealthz(90_000, readySignal);
+    await Promise.race([waitForHealthz(90_000, readySignal), earlyExit]);
   } catch (err) {
     devServer.kill("SIGKILL");
     await container.stop();

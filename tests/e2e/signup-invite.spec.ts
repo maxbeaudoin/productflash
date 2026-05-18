@@ -54,7 +54,10 @@ test("invite-gated signup: valid token → form submits → /app with session", 
   //    handler is bound, triggering a native form POST that strips the
   //    search params. Deterministic; much faster than networkidle.
   await page.goto(`/signup?invite=${encodeURIComponent(token)}`);
-  await page.locator('html[data-hydrated="true"]').waitFor();
+  // locator.waitFor() uses page.setDefaultTimeout (30s default), NOT
+  // expect.timeout — pass an explicit budget so a missing hydration
+  // marker surfaces in 5s, matching expect/action timeouts.
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 5_000 });
 
   // 2. Email field is rendered, pre-filled, and read-only.
   const emailField = page.locator('input[type="email"]');

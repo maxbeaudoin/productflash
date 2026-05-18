@@ -15,9 +15,11 @@ export default defineConfig({
   // round-trip. A healthy run finishes in <3s. If we approach the wall
   // something is wrong — fail fast rather than waiting out a 60s budget.
   timeout: 20_000,
-  // 5s per expect/locator wait. Combined with the hydration-marker
-  // pattern (see __root.tsx), this is enough headroom for real waits
-  // but tight enough that a busted selector surfaces immediately.
+  // 5s per `expect()` assertion (web-first assertions, polling). Note:
+  // this does NOT govern `locator.waitFor()` — that one uses Playwright's
+  // own default (30s) unless callers pass an explicit `{ timeout }`. Our
+  // specs pass `{ timeout: 5_000 }` at the call site; if you add a new
+  // `waitFor()`, do the same.
   expect: { timeout: 5_000 },
   use: {
     baseURL: BASE_URL,

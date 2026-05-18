@@ -38,7 +38,10 @@ test("landing form: visitor submits → row written with lowercased email + sour
   // the happy path and avoids hanging on PostHog/devtools chatter when
   // a request fails.
   await page.goto("/");
-  await page.locator('html[data-hydrated="true"]').waitFor();
+  // locator.waitFor() uses page.setDefaultTimeout (30s default), NOT
+  // expect.timeout — pass an explicit budget so a missing hydration
+  // marker surfaces in 5s, matching expect/action timeouts.
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 5_000 });
 
   const form = page.locator("form").filter({ has: page.getByLabel("Email") });
   await form.scrollIntoViewIfNeeded();
