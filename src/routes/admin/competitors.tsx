@@ -60,9 +60,10 @@ function AdminCompetitorsPage() {
   const filtered = applyFilters(rows, filters);
   const sourceCounts = {
     all: rows.length,
-    "has-rss": rows.filter((r) => r.rssUrl !== null).length,
-    "has-ph": rows.filter((r) => r.phSlug !== null).length,
-    sourceless: rows.filter((r) => r.rssUrl === null && r.phSlug === null).length,
+    "has-rss": rows.filter((r: CompetitorAdminRow) => r.rssUrl !== null).length,
+    "has-ph": rows.filter((r: CompetitorAdminRow) => r.phSlug !== null).length,
+    sourceless: rows.filter((r: CompetitorAdminRow) => r.rssUrl === null && r.phSlug === null)
+      .length,
   } satisfies Record<Filters["source"], number>;
 
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
