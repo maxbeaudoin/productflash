@@ -41,11 +41,11 @@ export const HERO = {
   eyebrow: "Now onboarding the private beta",
   headlineLead: "The competitive intel briefing that lands",
   headlineAccent: "before standup.",
-  sub: "Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning digest of what actually matters.",
+  sub: "Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning brief, only when something matters.",
   cta: { label: "Request early access", href: "#waitlist" },
   meta: [
     { label: "For", value: "Product leaders in SaaS" },
-    { label: "Cadence", value: "Daily, before 8am local" },
+    { label: "When", value: "Before 8am local, when it matters" },
     { label: "Status", value: "Private beta · 20 seats" },
   ] satisfies HeroMeta[],
 };
@@ -78,7 +78,7 @@ export const PROBLEM = {
 
 export const SOLUTION = {
   label: "Not a newsletter",
-  title: "One briefing. Every morning. Nothing missed.",
+  title: "One briefing. Only when it matters. Nothing missed.",
   lede: "Product Flash watches the surfaces that matter, distills the noise with LLMs trained on product intelligence, and ships a tight digest you can read with your first coffee.",
   features: [
     {
