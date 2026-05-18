@@ -5,7 +5,9 @@ Daily AI-curated competitive intelligence digest for SaaS product leaders. Curre
 ## Reference docs
 
 - **`docs/`** — vendor API knowledge base (PH, Firehose, Firecrawl, RSS). Read the relevant file BEFORE writing or modifying that source adapter — captures verified schema, rate limits, working/broken query patterns. Not auto-loaded; consult on demand.
-- **`SCOPE.md`** / **`TASKS.md`** — historical planning artifacts. Useful for context on _why_ a decision was made, but not load-bearing for day-to-day work. Don't treat them as a queue or a contract.
+- **`SCOPE.md`** — historical planning artifact. Useful for context on _why_ a decision was made, but not load-bearing for day-to-day work. Not a contract.
+- **Linear** (team `ProductFlash`) — single source of truth for active tasks. Backlog, blockers, status all live there; this repo no longer keeps a `TASKS.md` queue.
+- **`CHANGELOG.md`** — user-facing log of what's shipped (product framing, not git log).
 - **`MEMORY.md`** index in `~/.claude/...` — locked decisions (scope, stack, ingestion principle).
 
 ## Before you start a new task

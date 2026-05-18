@@ -18,7 +18,7 @@ Endpoint: `POST https://api.firecrawl.dev/v2/scrape` with `Authorization: Bearer
 
 **Pricing-page change detection only.** Pricing pages almost never have RSS, so Firecrawl fills that one source-matrix gap. RSS handles changelogs/blogs, PH handles launches, Firehose handles broader news; Firecrawl is the synthetic feed for the one high-value static surface.
 
-Scope is deliberately narrow for the PoC — see [`SCOPE.md`](../SCOPE.md) §3 and [`TASKS.md`](../TASKS.md) #4. Marketing-page diff and homepage-as-RSS-fallback are explicitly out.
+Scope is deliberately narrow for the PoC — see [`SCOPE.md`](../SCOPE.md) §3. Marketing-page diff and homepage-as-RSS-fallback are explicitly out.
 
 ## Request shape
 
