@@ -34,9 +34,7 @@ type FeedbackRow = {
   userEmail: string;
 };
 
-type UserOption = { id: string; email: string };
-
-type LoaderData = { rows: FeedbackRow[]; users: UserOption[] };
+type LoaderData = { rows: FeedbackRow[] };
 
 const RANGE_DAYS: Record<"7d" | "30d", number> = { "7d": 7, "30d": 30 };
 
@@ -59,7 +57,7 @@ const filterSchema = z.object({
   range: z.enum(["all", "7d", "30d"]).catch("all"),
   source: z.enum(["all", ...SOURCE_VALUES]).catch("all"),
   category: z.enum(["all", ...CATEGORY_VALUES]).catch("all"),
-  userId: z.string().uuid().optional().catch(undefined),
+  q: z.string().trim().max(120).optional().catch(undefined),
 });
 
 type Filters = z.infer<typeof filterSchema>;
@@ -92,15 +90,6 @@ const listFeedback = createServerFn({ method: "GET" }).handler(async (): Promise
     .orderBy(desc(feedback.createdAt))
     .limit(ROW_LIMIT);
 
-  const seen = new Set<string>();
-  const userOptions: UserOption[] = [];
-  for (const r of rows) {
-    if (seen.has(r.userId)) continue;
-    seen.add(r.userId);
-    userOptions.push({ id: r.userId, email: r.userEmail });
-  }
-  userOptions.sort((a, b) => a.email.localeCompare(b.email));
-
   return {
     rows: rows.map<FeedbackRow>((r) => ({
       id: r.id,
@@ -117,7 +106,6 @@ const listFeedback = createServerFn({ method: "GET" }).handler(async (): Promise
       userId: r.userId,
       userEmail: r.userEmail,
     })),
-    users: userOptions,
   };
 });
 
@@ -167,7 +155,7 @@ const CATEGORY_TONE: Record<DigestTag, string> = {
 };
 
 function AdminFeedbackPage() {
-  const { rows, users: userOptions } = Route.useLoaderData();
+  const { rows } = Route.useLoaderData();
   const filters = Route.useSearch();
   const router = useRouter();
 
@@ -265,17 +253,19 @@ function AdminFeedbackPage() {
                 ...CATEGORY_VALUES.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
               ]}
             />
-            <FilterSelect
-              label="User"
-              value={filters.userId ?? "all"}
-              onChange={(v) =>
-                updateFilter("userId", v === "all" ? undefined : (v as Filters["userId"]))
-              }
-              options={[
-                { value: "all", label: "All users" },
-                ...userOptions.map((u: UserOption) => ({ value: u.id, label: u.email })),
-              ]}
-            />
+            <label className="inline-flex items-center gap-2 text-text-muted">
+              <span className="uppercase tracking-[0.1em] text-[10px]">User</span>
+              <input
+                type="search"
+                value={filters.q ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  updateFilter("q", v.length ? v : undefined);
+                }}
+                placeholder="email"
+                className="rounded-pill border border-ink-line bg-paper px-3 py-1 text-xs text-text placeholder:text-text-muted hover:border-ink focus:border-ink focus:outline-none"
+              />
+            </label>
           </div>
         </div>
 
@@ -389,12 +379,13 @@ function RatingChip({ rating }: { rating: FeedbackRating }) {
 function applyFilters(rows: FeedbackRow[], filters: Filters): FeedbackRow[] {
   const cutoffMs =
     filters.range === "all" ? null : Date.now() - RANGE_DAYS[filters.range] * 24 * 60 * 60 * 1000;
-  return rows.filter((r) => {
+  const needle = filters.q?.toLowerCase() ?? "";
+  return rows.filter((r: FeedbackRow) => {
     if (filters.rating !== "all" && r.rating !== filters.rating) return false;
     if (cutoffMs !== null && new Date(r.ratedAt).getTime() < cutoffMs) return false;
     if (filters.source !== "all" && r.source !== filters.source) return false;
     if (filters.category !== "all" && r.category !== filters.category) return false;
-    if (filters.userId && r.userId !== filters.userId) return false;
+    if (needle && !r.userEmail.toLowerCase().includes(needle)) return false;
     return true;
   });
 }
