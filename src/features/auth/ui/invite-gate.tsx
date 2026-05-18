@@ -25,7 +25,7 @@ export function InviteGate() {
         hash="waitlist"
         className="group inline-flex h-12 items-center justify-center gap-[10px] rounded-pill bg-accent px-8 text-base font-semibold text-ink transition-transform duration-150 hover:-translate-y-px"
       >
-        Join the waitlist
+        Request early access
         <span
           aria-hidden
           className="transition-transform duration-150 group-hover:translate-x-[3px]"

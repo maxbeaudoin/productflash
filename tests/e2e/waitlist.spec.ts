@@ -53,7 +53,7 @@ test("landing form: visitor submits → row written with lowercased email + sour
   // silent fallback) or a www. canonical (HEAD verify followed a redirect).
   await form.getByLabel("Company URL").fill("acme.com");
 
-  await form.getByRole("button", { name: /join the waitlist/i }).click();
+  await form.getByRole("button", { name: /request early access/i }).click();
 
   // Success view replaces the form.
   await expect(page.getByText(/Got it — we'll be in touch\./i)).toBeVisible();

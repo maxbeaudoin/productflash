@@ -39,7 +39,7 @@ export type ProofItem = {
 
 export const HERO = {
   eyebrow: "Now onboarding the private beta",
-  headlineLead: "The competitive intel briefing that lands",
+  headlineLead: "The competitive intel brief that lands",
   headlineAccent: "before standup.",
   sub: "Product Flash watches your competitors' every move — and delivers a 5-minute morning brief, only when something matters.",
   cta: { label: "Request early access", href: "#waitlist" },
@@ -79,7 +79,7 @@ export const PROBLEM = {
 export const SOLUTION = {
   label: "Not a newsletter",
   title: "One morning brief. Only when it matters. Nothing missed.",
-  lede: "Product Flash watches the surfaces that matter, distills the noise with LLMs trained on product intelligence, and ships a tight digest you can read with your first coffee.",
+  lede: "Product Flash watches your competitors continuously, filters out the noise, and ships a tight morning brief — only when something matters.",
   features: [
     {
       index: "01",
@@ -89,17 +89,17 @@ export const SOLUTION = {
     {
       index: "02",
       title: "Market signal",
-      body: "Funding rounds, M&A, analyst coverage, and category-defining narratives in your space.",
+      body: "Funding rounds, M&A, analyst coverage, and category-defining narratives in your market.",
     },
     {
       index: "03",
       title: "Voice of customer",
-      body: "Review sentiment and social chatter on you, your rivals, and the problems you all claim to solve.",
+      body: "Review sentiment and social chatter on you, your competitors, and the problems you all claim to solve.",
     },
     {
       index: "04",
       title: "Tuned to you",
-      body: "Pick your competitors, themes, and signal threshold. Skip what's noise. Get what's load-bearing.",
+      body: "Edit your competitors, themes, and signal threshold. Skip what's noise. Get what's load-bearing.",
     },
   ] satisfies Feature[],
 };

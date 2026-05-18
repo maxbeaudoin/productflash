@@ -23,11 +23,11 @@ test("/login?error=signup_disabled: invite-only banner + waitlist CTA", async ({
   await page.goto("/login?error=signup_disabled");
 
   await expect(page.getByText(/that email isn't on the private beta yet/i)).toBeVisible();
-  // The banner link's accessible name is the exact string "Join the waitlist"
+  // The banner link's accessible name is the exact string "Request early access"
   // (no arrow). The footnote/SentCard links append "→", so `exact: true`
   // distinguishes them — without it, three locators would match across the
   // page (banner + footnote + would-be SentCard) and strict mode would error.
-  await expect(page.getByRole("link", { name: "Join the waitlist", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Request early access", exact: true })).toBeVisible();
 });
 
 test("/login?error=<unknown code>: generic OAuth banner (safety net for new error codes)", async ({
@@ -61,8 +61,8 @@ test("magic-link submit: SentCard renders the ambiguous copy + waitlist CTA", as
   await expect(page.getByText(/check your inbox/i)).toBeVisible();
   // The whole point of this copy: condition the promise on beta membership.
   await expect(page.getByText(/if anyone@example\.com is on the private beta/i)).toBeVisible();
-  // Two "Join the waitlist →" links exist once SentCard renders (the card
+  // Two "Request early access →" links exist once SentCard renders (the card
   // itself + the always-present AuthShell footnote). Asserting count >= 1
   // proves the card's CTA is present without coupling to which one.
-  await expect(page.getByRole("link", { name: /join the waitlist/i }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /request early access/i }).first()).toBeVisible();
 });
