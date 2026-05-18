@@ -67,7 +67,7 @@ export function FteSignupForm({
         <span>
           Not you?{" "}
           <Link to="/" hash="waitlist" className="text-white underline-offset-4 hover:underline">
-            Join the waitlist instead →
+            Request early access instead →
           </Link>
         </span>
       }

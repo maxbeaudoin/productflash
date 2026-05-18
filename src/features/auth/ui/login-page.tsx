@@ -59,7 +59,7 @@ export function LoginPage({ reason, oauthError }: LoginPageProps) {
         <span>
           New here?{" "}
           <Link to="/" hash="waitlist" className="text-white underline-offset-4 hover:underline">
-            Join the waitlist →
+            Request early access →
           </Link>
         </span>
       }
@@ -80,7 +80,7 @@ export function LoginPage({ reason, oauthError }: LoginPageProps) {
               <p className="mt-1 text-coral/80">
                 Product Flash is invite-only.{" "}
                 <Link to="/" hash="waitlist" className="underline-offset-4 hover:underline">
-                  Join the waitlist
+                  Request early access
                 </Link>{" "}
                 and we'll be in touch when a seat opens.
               </p>
@@ -217,7 +217,7 @@ function SentCard({ email, onReset }: { email: string; onReset: () => void }) {
         <p className="mt-3 text-sm text-[#8a8a98]">
           Not on the list yet?{" "}
           <Link to="/" hash="waitlist" className="text-white underline-offset-4 hover:underline">
-            Join the waitlist →
+            Request early access →
           </Link>
         </p>
         <button
