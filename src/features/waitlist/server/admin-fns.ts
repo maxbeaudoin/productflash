@@ -3,10 +3,10 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { users, waitlist } from "~/db/schema";
 import type { WaitlistRow, WaitlistState } from "~/features/waitlist/shared/types";
-import { requireAdminSession } from "~/shared/server/auth-server";
+import { requireAdminSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 import { env } from "~/shared/server/env";
-import { signInviteToken } from "~/shared/server/invite-token";
+import { signInviteToken } from "~/features/auth/server/invite-token";
 import { logger } from "~/shared/server/logger";
 
 export const listWaitlist = createServerFn({ method: "GET" }).handler(async () => {

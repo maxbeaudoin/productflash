@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DigestItemCard, type DigestItemView } from "~/features/digest/ui/DigestItemCard";
 import { digestItems, digests, feedback, rawItems } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
-import { requireSession } from "~/shared/server/auth-server";
+import { requireSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";
 import { signFeedbackToken } from "~/shared/server/feedback-token";

@@ -2,8 +2,8 @@ import { redirect } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { verifications } from "~/db/schema";
-import { auth } from "./auth";
-import { getDb } from "./db";
+import { auth } from "~/features/auth/server/instance";
+import { getDb } from "~/shared/server/db";
 
 export type AppSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 

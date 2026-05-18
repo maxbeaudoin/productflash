@@ -18,7 +18,7 @@ import {
   userCompetitors,
   users as usersTable,
 } from "~/db/schema";
-import { requireSession } from "~/shared/server/auth-server";
+import { requireSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 
 // /app/profile (#32). Standalone view + edit of the AI-generated profile.
