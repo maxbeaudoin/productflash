@@ -7,17 +7,17 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 const anthropicMock = vi.hoisted(() => ({
   messages: { create: vi.fn() },
 }));
-vi.mock("./anthropic", () => ({
+vi.mock("~/shared/server/anthropic", () => ({
   getAnthropic: () => anthropicMock,
   HAIKU_MODEL: "claude-haiku-4-5-20251001",
   SONNET_MODEL: "claude-sonnet-4-6",
 }));
 
 const recordLlmUsage = vi.hoisted(() => vi.fn());
-vi.mock("./llm-cost", () => ({ recordLlmUsage }));
+vi.mock("~/shared/server/llm-cost", () => ({ recordLlmUsage }));
 
 // logger.ts constructs pino at module load — short-circuit it entirely.
-vi.mock("./logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 

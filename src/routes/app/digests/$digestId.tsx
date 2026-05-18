@@ -2,12 +2,12 @@ import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { DigestItemCard, type DigestItemView } from "~/components/app/DigestItemCard";
+import { DigestItemCard, type DigestItemView } from "~/features/digest/ui/DigestItemCard";
 import { digestItems, digests, feedback, rawItems } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
 import { requireSession } from "~/shared/server/auth-server";
 import { getDb } from "~/shared/server/db";
-import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";
 import { signFeedbackToken } from "~/shared/server/feedback-token";
 import { captureServerEvent } from "~/shared/server/posthog";
 

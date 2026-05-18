@@ -57,7 +57,7 @@ vi.mock("~/shared/server/db", () => ({
   getPool: () => dbHolder.pool,
 }));
 
-const { runIngestionForUser } = await import("~/jobs/ingest");
+const { runIngestionForUser } = await import("~/features/digest/server/jobs/ingest");
 
 let h: TestDb;
 

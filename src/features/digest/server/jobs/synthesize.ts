@@ -18,7 +18,7 @@ import {
   synthesizeDigest,
   type SynthesisUsage,
   type SynthesizedItem,
-} from "~/shared/server/synthesize";
+} from "~/features/digest/server/synthesize";
 
 // Daily synthesis job.
 //

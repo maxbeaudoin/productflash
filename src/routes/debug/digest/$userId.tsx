@@ -2,14 +2,14 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { DigestItemCard, type DigestItemView } from "~/components/app/DigestItemCard";
+import { DigestItemCard, type DigestItemView } from "~/features/digest/ui/DigestItemCard";
 import { digestItems, digests, feedback, rawItems, users } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
-import { runScoringForUser } from "~/jobs/score";
-import { runSynthesisForUser } from "~/jobs/synthesize";
+import { runScoringForUser } from "~/features/digest/server/jobs/score";
+import { runSynthesisForUser } from "~/features/digest/server/jobs/synthesize";
 import { requireAdminSession } from "~/shared/server/auth-server";
 import { getDb } from "~/shared/server/db";
-import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";
 import { signFeedbackToken } from "~/shared/server/feedback-token";
 
 // Admin-only digest preview (#25). Renders the most recent digest for any

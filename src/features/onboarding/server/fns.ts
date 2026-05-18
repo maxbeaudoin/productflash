@@ -8,7 +8,7 @@ import {
 } from "~/db/schema";
 import type { CompetitorView } from "~/features/competitors/server/fns";
 import { onboardingProfileFormSchema } from "~/features/profile/schema";
-import { enqueueFastPath } from "~/jobs/fast-path";
+import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
 import { requireSession } from "~/shared/server/auth-server";
 import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";

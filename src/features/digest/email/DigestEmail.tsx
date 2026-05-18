@@ -172,7 +172,7 @@ export function DigestEmail({
   );
 }
 
-// Brand mark rendered as a CID-referenced PNG (`src/emails/assets/brand-mark.png`).
+// Brand mark rendered as a CID-referenced PNG (`src/features/digest/email/assets/brand-mark.png`).
 // Gmail strips inline `<svg>` so the web BrandMark's CSS clip-path can't be
 // reused here. The PNG is attached to every outgoing digest send with
 // `content_id: 'brand-mark'`; clients fetch it from the email's MIME tree

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { synthesizeDigest, type SynthesisInputItem } from "~/shared/server/synthesize";
-import { classifyItem } from "~/shared/server/classify";
+import { synthesizeDigest, type SynthesisInputItem } from "~/features/digest/server/synthesize";
+import { classifyItem } from "~/features/digest/server/classify";
 import { logger } from "~/shared/server/logger";
 import { shutdownPosthog } from "~/shared/server/posthog";
 

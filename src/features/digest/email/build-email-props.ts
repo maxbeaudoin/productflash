@@ -2,7 +2,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { digestItems, digests, rawItems, users as usersTable } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
 import { getDb } from "~/shared/server/db";
-import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";
 import { requireEnv } from "~/shared/server/env";
 import { signFeedbackToken } from "~/shared/server/feedback-token";
 import type { DigestEmailItem, DigestEmailProps } from "./DigestEmail";

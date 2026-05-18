@@ -1,6 +1,6 @@
 import PgBoss from "pg-boss";
 import { FTE_QUEUE } from "~/agents/fte/job";
-import { FAST_PATH_QUEUE } from "~/jobs/fast-path";
+import { FAST_PATH_QUEUE } from "~/features/digest/server/jobs/fast-path";
 import { requireEnv } from "./env";
 import { logger } from "./logger";
 

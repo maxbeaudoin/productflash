@@ -1,4 +1,4 @@
-import { runSynthesis } from "~/jobs/synthesize";
+import { runSynthesis } from "~/features/digest/server/jobs/synthesize";
 import { getPool } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { shutdownPosthog } from "~/shared/server/posthog";

@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { digestItems, digests, users } from "~/db/schema";
 import { requireSession } from "~/shared/server/auth-server";
 import { getDb } from "~/shared/server/db";
-import { deriveDigestPeriod } from "~/shared/iso/digest-period";
-import { computeNextDigestFor, formatRelativeUntil } from "~/shared/iso/next-digest";
+import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";
+import { computeNextDigestFor, formatRelativeUntil } from "~/features/digest/shared/next-digest";
 
 type DigestRow = {
   id: string;

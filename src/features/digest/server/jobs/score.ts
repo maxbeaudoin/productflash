@@ -1,7 +1,11 @@
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { itemScores, rawItems, userCompetitors, users as usersTable } from "~/db/schema";
 import type { NewItemScore } from "~/db/schema";
-import { classifyItem, type Classification, type ReaderProfile } from "~/shared/server/classify";
+import {
+  classifyItem,
+  type Classification,
+  type ReaderProfile,
+} from "~/features/digest/server/classify";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { captureServerEvent } from "~/shared/server/posthog";

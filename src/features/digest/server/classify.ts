@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic, HAIKU_MODEL } from "./anthropic";
-import { recordLlmUsage } from "./llm-cost";
-import { logger } from "./logger";
+import { getAnthropic, HAIKU_MODEL } from "~/shared/server/anthropic";
+import { recordLlmUsage } from "~/shared/server/llm-cost";
+import { logger } from "~/shared/server/logger";
 
 // Haiku-driven per-item classifier. Given a single raw_item (title + body),
 // return a structured { category, score, why } triple.

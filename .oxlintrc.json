@@ -21,7 +21,6 @@
                 "group": ["~/shared/server/**"],
                 "message": "Server-only shared module — use ~/shared/iso or ~/shared/client from UI code."
               },
-              { "group": ["~/jobs/**"], "message": "Server-only pg-boss handlers." },
               { "group": ["~/worker/**"], "message": "Server-only worker boot." },
               { "group": ["~/agents/**"], "message": "Server-only agent code." },
               { "group": ["~/sources/**"], "message": "Server-only source adapters." }
