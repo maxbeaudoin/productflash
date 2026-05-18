@@ -41,7 +41,7 @@ export const HERO = {
   eyebrow: "Now onboarding the private beta",
   headlineLead: "The competitive intel briefing that lands",
   headlineAccent: "before standup.",
-  sub: "Product Flash scans every changelog, review site, subreddit, and launch announcement your competitors touch — and delivers a 5-minute morning brief, only when something matters.",
+  sub: "Product Flash watches your competitors' every move — and delivers a 5-minute morning brief, only when something matters.",
   cta: { label: "Request early access", href: "#waitlist" },
   meta: [
     { label: "For", value: "Product leaders in SaaS" },
