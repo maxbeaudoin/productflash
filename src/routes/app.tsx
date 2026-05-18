@@ -2,7 +2,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import { AppHeader } from "~/components/app/AppHeader";
-import { requireSession } from "~/shared/server/auth-server";
+import { requireSession } from "~/features/auth/server/session";
 import { identifyPostHog } from "~/shared/client/posthog-client";
 
 // Server fn wrapper so `beforeLoad` can call a server-only helper

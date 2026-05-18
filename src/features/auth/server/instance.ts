@@ -4,10 +4,10 @@ import { admin, magicLink } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
-import { env, requireEnv } from "./env";
-import { getDb } from "./db";
-import { logger } from "./logger";
 import * as schema from "~/db/schema";
+import { getDb } from "~/shared/server/db";
+import { env, requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
 
 let _resend: Resend | undefined;
 

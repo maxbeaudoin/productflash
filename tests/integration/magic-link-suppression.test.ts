@@ -33,7 +33,7 @@ vi.mock("~/shared/server/logger", () => ({
 }));
 
 // `getDb()` runs at auth.ts module-load time inside drizzleAdapter, so the
-// dbHolder must be populated BEFORE the `await import("~/shared/server/auth")` below.
+// dbHolder must be populated BEFORE the `await import("~/features/auth/server/instance")` below.
 // Top-level await on startTestDb() handles that ordering — the container
 // boots once per test file, then auth.ts evaluates with the live handle.
 const dbHolder = vi.hoisted(() => ({
@@ -49,7 +49,7 @@ const _h: TestDb = await startTestDb();
 dbHolder.db = _h.db;
 dbHolder.pool = _h.pool;
 
-const { auth } = await import("~/shared/server/auth");
+const { auth } = await import("~/features/auth/server/instance");
 
 let h: TestDb;
 

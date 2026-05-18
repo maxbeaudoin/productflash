@@ -9,7 +9,7 @@ import {
 import type { CompetitorView } from "~/features/competitors/server/fns";
 import { onboardingProfileFormSchema } from "~/features/profile/schema";
 import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
-import { requireSession } from "~/shared/server/auth-server";
+import { requireSession } from "~/features/auth/server/session";
 import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";

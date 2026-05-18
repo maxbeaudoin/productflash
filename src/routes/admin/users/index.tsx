@@ -2,7 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq, sql } from "drizzle-orm";
 import { digests, llmUsage, userCompetitors, users } from "~/db/schema";
-import { requireAdminSession } from "~/shared/server/auth-server";
+import { requireAdminSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 import { formatUsd } from "~/shared/iso/llm-cost-format";
 

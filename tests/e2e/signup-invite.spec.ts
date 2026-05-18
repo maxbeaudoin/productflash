@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { users, waitlist } from "~/db/schema";
-import { signInviteToken } from "~/shared/server/invite-token";
+import { signInviteToken } from "~/features/auth/server/invite-token";
 
 // F-004 — the single point of failure for beta growth. Sign-up runs with
 // `disableSignUp: true` (private beta), so the invite token is the only

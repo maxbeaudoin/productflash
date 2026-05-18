@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { deltaChannelFor, eventsChannelFor } from "~/agents/fte/events";
-import { requireSession } from "~/shared/server/auth-server";
+import { requireSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { connectListener } from "~/shared/server/notify";

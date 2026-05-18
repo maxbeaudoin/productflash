@@ -18,7 +18,7 @@ import {
 } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
 import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
-import { requireAdminSession } from "~/shared/server/auth-server";
+import { requireAdminSession } from "~/features/auth/server/session";
 import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
 import { deriveDigestPeriod } from "~/features/digest/shared/digest-period";

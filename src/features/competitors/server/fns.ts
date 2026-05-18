@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { competitors as competitorsTable, userCompetitors } from "~/db/schema";
-import { requireSession } from "~/shared/server/auth-server";
+import { requireSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 import { addCompetitorFormSchema } from "~/features/competitors/schema";
 import type { CompetitorView } from "~/features/competitors/shared/types";

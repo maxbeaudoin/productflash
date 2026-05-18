@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { requireEnv } from "./env";
+import { requireEnv } from "~/shared/server/env";
 
 // Signed invite token attached to `/signup?invite=<token>` links the admin
 // hands out from /admin/waitlist. The token carries the waitlist row id +
