@@ -1,4 +1,4 @@
-import type { Stat } from "~/data/landing";
+import type { Stat } from "~/features/landing/content";
 
 export function StatCard({ stat }: { stat: Stat }) {
   return (

@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AudienceSection } from "~/components/landing/AudienceSection";
-import { CTASection } from "~/components/landing/CTASection";
-import { DigestPreview } from "~/components/landing/DigestPreview";
-import { Footer } from "~/components/landing/Footer";
-import { Hero } from "~/components/landing/Hero";
-import { ProblemSection } from "~/components/landing/ProblemSection";
-import { ProofSection } from "~/components/landing/ProofSection";
-import { SolutionSection } from "~/components/landing/SolutionSection";
-import { TopBar } from "~/components/landing/TopBar";
+import { AudienceSection } from "~/features/landing/ui/AudienceSection";
+import { CTASection } from "~/features/landing/ui/CTASection";
+import { DigestPreview } from "~/features/landing/ui/DigestPreview";
+import { Footer } from "~/features/landing/ui/Footer";
+import { Hero } from "~/features/landing/ui/Hero";
+import { ProblemSection } from "~/features/landing/ui/ProblemSection";
+import { ProofSection } from "~/features/landing/ui/ProofSection";
+import { SolutionSection } from "~/features/landing/ui/SolutionSection";
+import { TopBar } from "~/features/landing/ui/TopBar";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,

@@ -1,4 +1,4 @@
-import type { Persona } from "~/data/landing";
+import type { Persona } from "~/features/landing/content";
 
 export function PersonaCard({ persona }: { persona: Persona }) {
   return (

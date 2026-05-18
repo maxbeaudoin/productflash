@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { BrandMark } from "~/components/landing/BrandMark";
+import { BrandMark } from "~/features/landing/ui/BrandMark";
 
 // Shared chrome for /login + /signup. Mirrors the dark hero treatment from
 // the landing page (radial-gradient halo, glowing-dot eyebrow pill,

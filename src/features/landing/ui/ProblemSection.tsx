@@ -1,4 +1,4 @@
-import { PROBLEM } from "~/data/landing";
+import { PROBLEM } from "~/features/landing/content";
 import { StatCard } from "./StatCard";
 
 export function ProblemSection() {

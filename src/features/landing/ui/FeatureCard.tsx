@@ -1,4 +1,4 @@
-import type { Feature } from "~/data/landing";
+import type { Feature } from "~/features/landing/content";
 
 export function FeatureCard({ feature }: { feature: Feature }) {
   return (

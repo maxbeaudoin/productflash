@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { TOPBAR } from "~/data/landing";
+import { TOPBAR } from "~/features/landing/content";
 import { BrandMark } from "./BrandMark";
 
 export function TopBar() {

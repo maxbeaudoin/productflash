@@ -1,7 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
-import { WAITLIST } from "~/data/landing";
+import { WAITLIST } from "~/features/landing/content";
 import { waitlistFormSchema } from "~/features/waitlist/schema";
 
 const inputClass =

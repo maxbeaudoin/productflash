@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { BrandMark } from "~/components/landing/BrandMark";
+import { BrandMark } from "~/features/landing/ui/BrandMark";
 
 type Props = {
   email: string;
