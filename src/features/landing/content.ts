@@ -164,8 +164,8 @@ export const PROOF = {
   label: "Under the hood",
   title: "An agent, not a dashboard.",
   paragraphs: [
-    "Most tools hand you a config screen. Product Flash hands you an agent already at work.",
-    "Watch it learn your space, find your competitors, and draft your watchlist live. You edit. Then it takes over.",
+    "The agent runs setup. You stay in the loop.",
+    "Watch it analyze your website, research your competitors, and personalize your profile. Edit anything. Then it ships your first brief.",
   ],
   items: [
     { text: "Analyzing your website", status: "live" },
