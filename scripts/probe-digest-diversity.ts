@@ -8,7 +8,7 @@ import {
   userCompetitors,
   users as usersTable,
 } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
+import { getDb, getPool } from "~/shared/server/db";
 
 // One-off probe: why is Maxime's digest all-Lattice?
 //

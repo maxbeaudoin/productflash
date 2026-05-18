@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normalizeUrl } from "~/lib/url";
+import { normalizeUrl } from "~/shared/iso/url";
 
 // Reusable primitives so every form validates the same way on both
 // client and server. Keep this file isomorphic — no Node-only imports.

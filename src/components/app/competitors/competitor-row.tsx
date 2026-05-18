@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CompetitorView } from "~/lib/server/competitor-fns";
+import type { CompetitorView } from "~/shared/iso/competitor";
 
 // Single competitor row. Homepage URL and RSS feed are clickable so the
 // user can sanity-check what the agent (or they) added — opens in a new

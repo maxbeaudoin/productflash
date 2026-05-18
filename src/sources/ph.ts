@@ -1,5 +1,5 @@
-import { requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
+import { requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
 import type { CompetitorRef, NormalizedItem } from "./types";
 
 // Product Hunt API v2 (GraphQL) source adapter.

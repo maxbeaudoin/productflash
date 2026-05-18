@@ -1,6 +1,6 @@
 import { competitors } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { scrapePricingPagesForCompetitors } from "~/sources/firecrawl";
 import { loadLatestPricingSnapshots, saveLatestPricingSnapshot } from "~/sources/firecrawl-store";
 import type { CompetitorRef } from "~/sources/types";

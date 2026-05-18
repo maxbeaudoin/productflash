@@ -5,11 +5,11 @@ import { useState } from "react";
 import { z } from "zod";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { users, waitlist } from "~/db/schema";
-import { requireAdminSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { env } from "~/lib/env";
-import { signInviteToken } from "~/lib/invite-token";
-import { logger } from "~/lib/logger";
+import { requireAdminSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { env } from "~/shared/server/env";
+import { signInviteToken } from "~/shared/server/invite-token";
+import { logger } from "~/shared/server/logger";
 
 // Minimal admin surface for issuing invites off the public waitlist (#34).
 // Lives at /admin/waitlist behind requireAdminSession. Shares no nav with

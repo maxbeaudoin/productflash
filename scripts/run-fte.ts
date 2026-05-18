@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { runFteAgent, type FteSignupHints } from "~/agents/fte/agent";
 import { users as usersTable } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // Manual trigger for the FTE agent. Bypasses pg-boss so we can iterate on the
 // agent loop and prompt without the queue in the way.

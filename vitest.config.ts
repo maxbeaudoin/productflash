@@ -20,7 +20,7 @@ export default defineConfig({
       TZ: "UTC",
       NODE_ENV: "test",
       // Test-only secrets so `requireEnv` in token modules doesn't throw on
-      // import. Length must satisfy the zod `min(32)` in `src/lib/env.ts`.
+      // import. Length must satisfy the zod `min(32)` in `src/shared/server/env.ts`.
       FEEDBACK_SIGNING_SECRET: "test-feedback-secret-xxxxxxxxxxxxxxxx",
       INVITE_TOKEN_SECRET: "test-invite-secret-xxxxxxxxxxxxxxxxxxxx",
     },

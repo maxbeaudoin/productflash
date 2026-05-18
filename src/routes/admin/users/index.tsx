@@ -2,9 +2,9 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq, sql } from "drizzle-orm";
 import { digests, llmUsage, userCompetitors, users } from "~/db/schema";
-import { requireAdminSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { formatUsd } from "~/lib/llm-cost-format";
+import { requireAdminSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { formatUsd } from "~/shared/iso/llm-cost-format";
 
 // /admin/users (#16). All users newest first. Each row carries the four
 // summary signals we lean on during babysitting: email (identity), status

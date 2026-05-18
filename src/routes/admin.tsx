@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { AdminHeader } from "~/components/admin/AdminHeader";
-import { requireAdminSession } from "~/lib/auth-server";
+import { requireAdminSession } from "~/shared/server/auth-server";
 
 // Same shape as the /app layout, but layered: requireAdminSession first
 // confirms a session, then checks the admin role from Better Auth's

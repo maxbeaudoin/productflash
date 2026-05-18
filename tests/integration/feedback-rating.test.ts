@@ -1,24 +1,24 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { competitors, digestItems, digests, feedback, rawItems, users } from "~/db/schema";
-import { signFeedbackToken } from "~/lib/feedback-token";
+import { signFeedbackToken } from "~/shared/server/feedback-token";
 import { startTestDb, truncateAll, type TestDb } from "./setup";
 
-vi.mock("~/lib/logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("~/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
+vi.mock("~/shared/server/posthog", () => ({ captureServerEvent: vi.fn() }));
 
 const dbHolder = vi.hoisted(() => ({
   db: null as unknown as TestDb["db"],
   pool: null as unknown as TestDb["pool"],
 }));
-vi.mock("~/lib/db", () => ({
+vi.mock("~/shared/server/db", () => ({
   getDb: () => dbHolder.db,
   getPool: () => dbHolder.pool,
 }));
 
-const { handleFeedbackRating } = await import("~/lib/feedback-rating");
+const { handleFeedbackRating } = await import("~/shared/server/feedback-rating");
 
 let h: TestDb;
 

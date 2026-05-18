@@ -3,10 +3,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { desc, eq, sql } from "drizzle-orm";
 import { useEffect, useMemo, useState } from "react";
 import { digestItems, digests, users } from "~/db/schema";
-import { requireSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { deriveDigestPeriod } from "~/lib/digest-period";
-import { computeNextDigestFor, formatRelativeUntil } from "~/lib/next-digest";
+import { requireSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { computeNextDigestFor, formatRelativeUntil } from "~/shared/iso/next-digest";
 
 type DigestRow = {
   id: string;

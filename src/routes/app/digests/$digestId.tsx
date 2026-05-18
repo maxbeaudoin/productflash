@@ -5,11 +5,11 @@ import { z } from "zod";
 import { DigestItemCard, type DigestItemView } from "~/components/app/DigestItemCard";
 import { digestItems, digests, feedback, rawItems } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
-import { requireSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { deriveDigestPeriod } from "~/lib/digest-period";
-import { signFeedbackToken } from "~/lib/feedback-token";
-import { captureServerEvent } from "~/lib/posthog";
+import { requireSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { signFeedbackToken } from "~/shared/server/feedback-token";
+import { captureServerEvent } from "~/shared/server/posthog";
 
 type DigestView = {
   id: string;

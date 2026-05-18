@@ -1,4 +1,4 @@
-import { requireEnv } from "~/lib/env";
+import { requireEnv } from "~/shared/server/env";
 
 // One-off bootstrap for the Firehose tap.
 //

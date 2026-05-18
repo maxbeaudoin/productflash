@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { AuthShell } from "~/components/auth/AuthShell";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
-import { signIn } from "~/lib/auth-client";
-import { magicLinkFormSchema } from "~/lib/validation/auth";
+import { signIn } from "~/shared/client/auth-client";
+import { magicLinkFormSchema } from "~/shared/iso/validation/auth";
 
 // Better Auth appends `?error=<code>` to the social errorCallbackURL.
 // Known codes worth differentiating: `signup_disabled` (uninvited email →

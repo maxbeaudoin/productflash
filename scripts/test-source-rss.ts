@@ -1,6 +1,6 @@
 import { competitors } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { autodetectRSSForHomepage, fetchRSSForCompetitors } from "~/sources/rss";
 import type { CompetitorRef } from "~/sources/types";
 

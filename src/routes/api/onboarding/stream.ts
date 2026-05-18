@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { deltaChannelFor, eventsChannelFor } from "~/agents/fte/events";
-import { requireSession } from "~/lib/auth-server";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { connectListener } from "~/lib/notify";
+import { requireSession } from "~/shared/server/auth-server";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { connectListener } from "~/shared/server/notify";
 import { fteEvents } from "~/db/schema";
 import { and, eq } from "drizzle-orm";
 

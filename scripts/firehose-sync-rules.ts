@@ -1,7 +1,7 @@
 import { competitors, type Competitor } from "~/db/schema";
-import { getDb, getPool } from "~/lib/db";
-import { requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
 
 // Reconcile Firehose rules with the competitors table.
 //

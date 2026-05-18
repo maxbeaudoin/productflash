@@ -1,8 +1,8 @@
 // Server-only — imports safeFetch which uses node:dns. Do not import from
 // client components; the env transitive dep pulls node:fs into the browser
 // bundle and Vite chokes.
-import { safeFetch, SafeFetchError } from "~/lib/safe-fetch";
-import { logger } from "~/lib/logger";
+import { safeFetch, SafeFetchError } from "~/shared/server/safe-fetch";
+import { logger } from "~/shared/server/logger";
 
 const HEAD_TIMEOUT_MS = 1500;
 

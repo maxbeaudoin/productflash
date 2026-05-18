@@ -1,10 +1,10 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { digestItems, digests, rawItems, users as usersTable } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
-import { getDb } from "~/lib/db";
-import { deriveDigestPeriod } from "~/lib/digest-period";
-import { requireEnv } from "~/lib/env";
-import { signFeedbackToken } from "~/lib/feedback-token";
+import { getDb } from "~/shared/server/db";
+import { deriveDigestPeriod } from "~/shared/iso/digest-period";
+import { requireEnv } from "~/shared/server/env";
+import { signFeedbackToken } from "~/shared/server/feedback-token";
 import type { DigestEmailItem, DigestEmailProps } from "./DigestEmail";
 
 // Loads one digest + its items from the database and shapes them into the

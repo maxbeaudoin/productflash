@@ -1,10 +1,10 @@
 import PgBoss from "pg-boss";
 import { SEND_QUEUE } from "~/jobs/send";
 import { runSendDispatch, SEND_DISPATCH_QUEUE } from "~/jobs/send-dispatch";
-import { getPool } from "~/lib/db";
-import { requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { getPool } from "~/shared/server/db";
+import { requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // Manual trigger for the per-TZ send dispatcher (#17).
 //

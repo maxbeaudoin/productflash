@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 //
 // env-lint — cross-checks .env / .env.example / .env.production against the
-// schema in src/lib/env-keys.ts. Run via `pnpm env:lint`. Exit 0 = clean,
+// schema in src/shared/server/env-keys.ts. Run via `pnpm env:lint`. Exit 0 = clean,
 // exit 1 = at least one error.
 //
 // Rules enforced:
@@ -29,7 +29,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { parse as parseDotenv } from "dotenv";
-import { ENV_KEYS, ENV_REQUIRED_IN_PROD } from "../src/lib/env-keys";
+import { ENV_KEYS, ENV_REQUIRED_IN_PROD } from "../src/shared/server/env-keys";
 
 const ROOT = process.cwd();
 const ENV_FILE = resolve(ROOT, ".env");
@@ -161,8 +161,8 @@ function checkProd(example: ExampleEntry[], prod: Record<string, string>): Repor
 // Files that *declare* env vars rather than consume them — they trivially
 // match every key name and would always make the unused-check pass.
 const USAGE_SCAN_IGNORES = new Set([
-  resolve(ROOT, "src/lib/env.ts"),
-  resolve(ROOT, "src/lib/env-keys.ts"),
+  resolve(ROOT, "src/shared/server/env.ts"),
+  resolve(ROOT, "src/shared/server/env-keys.ts"),
   resolve(ROOT, "scripts/env-lint.ts"),
 ]);
 

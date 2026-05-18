@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 import { digests, users } from "~/db/schema";
 import { DigestEmail } from "~/emails/DigestEmail";
 import { loadDigestForEmail } from "~/emails/build-email-props";
-import { getDb, getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { getDb, getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 
 // Renders one digest to HTML for visual inspection without sending. Writes
 // the HTML to /tmp so the file can be opened in any browser.

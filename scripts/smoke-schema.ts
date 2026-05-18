@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb, getPool } from "~/lib/db";
+import { getDb, getPool } from "~/shared/server/db";
 import {
   competitors,
   digestItems,

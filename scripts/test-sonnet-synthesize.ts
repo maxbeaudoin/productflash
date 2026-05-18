@@ -1,5 +1,5 @@
-import { logger } from "~/lib/logger";
-import { synthesizeDigest, type SynthesisInputItem } from "~/lib/synthesize";
+import { logger } from "~/shared/server/logger";
+import { synthesizeDigest, type SynthesisInputItem } from "~/shared/server/synthesize";
 
 // End-to-end probe for the Sonnet synthesizer. Calls the live Anthropic API
 // with a hand-curated set of "already scored" items and eyeballs the

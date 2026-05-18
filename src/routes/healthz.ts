@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { pingDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
+import { pingDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 
 export const Route = createFileRoute("/healthz")({
   server: {

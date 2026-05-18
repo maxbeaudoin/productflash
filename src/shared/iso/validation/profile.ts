@@ -5,7 +5,7 @@ import {
   positionSchema,
   requiredUrlSchema,
   ultimateGoalSchema,
-} from "~/lib/validation/primitives";
+} from "~/shared/iso/validation/primitives";
 
 // Profile-edit form on /app/onboarding (no companyUrl — captured at signup
 // and not re-edited mid-onboarding).

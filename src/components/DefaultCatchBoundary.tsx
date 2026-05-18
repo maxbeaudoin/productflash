@@ -1,6 +1,6 @@
 import { ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { captureClientException } from "~/lib/posthog-client";
+import { captureClientException } from "~/shared/client/posthog-client";
 
 export function DefaultCatchBoundary({ error, info }: ErrorComponentProps) {
   useEffect(() => {

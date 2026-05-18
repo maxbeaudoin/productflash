@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { positionSchema, requiredUrlSchema, ultimateGoalSchema } from "~/lib/validation/primitives";
+import {
+  positionSchema,
+  requiredUrlSchema,
+  ultimateGoalSchema,
+} from "~/shared/iso/validation/primitives";
 
 // FTE invited-signup form. Shared by the form and the submitSignup server fn.
 // The email is locked to the invite token and never travels with form data.

@@ -12,57 +12,6 @@
         "no-restricted-imports": [
           "error",
           {
-            "paths": [
-              {
-                "name": "~/lib/db",
-                "message": "Server-only — UI/client code must not import the database."
-              },
-              {
-                "name": "~/lib/env",
-                "message": "Server-only — use import.meta.env in browser code."
-              },
-              { "name": "~/lib/env-keys", "message": "Server-only env metadata." },
-              { "name": "~/lib/auth", "message": "Server-only Better Auth handler." },
-              {
-                "name": "~/lib/auth-server",
-                "message": "Server-only — use ~/lib/auth-client in UI."
-              },
-              { "name": "~/lib/boss", "message": "Server-only pg-boss client." },
-              { "name": "~/lib/logger", "message": "Server-only Pino logger." },
-              { "name": "~/lib/anthropic", "message": "Server-only Anthropic SDK." },
-              { "name": "~/lib/classify", "message": "Server-only classifier (Anthropic)." },
-              {
-                "name": "~/lib/synthesize",
-                "message": "Server-only synthesizer (Anthropic + DB)."
-              },
-              {
-                "name": "~/lib/safe-fetch",
-                "message": "Server-only fetch wrapper (node:dns/net)."
-              },
-              { "name": "~/lib/notify", "message": "Server-only notification dispatcher." },
-              {
-                "name": "~/lib/feedback-token",
-                "message": "Server-only — token signing requires the HMAC secret."
-              },
-              { "name": "~/lib/feedback-rating", "message": "Server-only rating persistence." },
-              {
-                "name": "~/lib/invite-token",
-                "message": "Server-only — token signing requires the HMAC secret."
-              },
-              {
-                "name": "~/lib/url-server",
-                "message": "Server-only URL helpers (uses node:net for HEAD probes); use ~/lib/url."
-              },
-              {
-                "name": "~/lib/posthog",
-                "message": "Server-only posthog-node; use ~/lib/posthog-client in UI."
-              },
-              { "name": "~/lib/next-digest", "message": "Server-only digest scheduler." },
-              {
-                "name": "~/lib/llm-cost",
-                "message": "Server-only LLM cost persistence; use ~/lib/llm-cost-format for display."
-              }
-            ],
             "patterns": [
               {
                 "group": ["~/features/*/server/**"],

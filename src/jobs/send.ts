@@ -7,10 +7,10 @@ import { Resend } from "resend";
 import { digests, users as usersTable } from "~/db/schema";
 import { DigestEmail } from "~/emails/DigestEmail";
 import { loadDigestForEmail } from "~/emails/build-email-props";
-import { getDb } from "~/lib/db";
-import { env, requireEnv } from "~/lib/env";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
+import { getDb } from "~/shared/server/db";
+import { env, requireEnv } from "~/shared/server/env";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
 
 // Read the brand-mark PNG once at module load. Attached to every digest send
 // as a CID inline image — Gmail/Apple Mail/Outlook all fetch from the email's

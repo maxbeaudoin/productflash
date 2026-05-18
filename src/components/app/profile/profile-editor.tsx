@@ -2,7 +2,10 @@ import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
-import { onboardingProfileFormSchema, settingsProfileFormSchema } from "~/lib/validation/profile";
+import {
+  onboardingProfileFormSchema,
+  settingsProfileFormSchema,
+} from "~/shared/iso/validation/profile";
 import { FocusAreasLabel } from "./focus-areas";
 
 // Output shape covers both variants. companyUrl is optional — only present

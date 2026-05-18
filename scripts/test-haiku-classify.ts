@@ -1,5 +1,5 @@
-import { classifyItem } from "~/lib/classify";
-import { logger } from "~/lib/logger";
+import { classifyItem } from "~/shared/server/classify";
+import { logger } from "~/shared/server/logger";
 
 // End-to-end probe for the Haiku classifier. Calls the live Anthropic API
 // with a handful of fixture items spanning the category space — useful for

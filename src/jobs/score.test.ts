@@ -2,10 +2,10 @@ import { describe, expect, test, vi } from "vitest";
 
 // score.ts pulls logger + posthog at module load. Short-circuit the
 // side-effectful ones; this suite only tests the concurrency helper.
-vi.mock("~/lib/logger", () => ({
+vi.mock("~/shared/server/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("~/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
+vi.mock("~/shared/server/posthog", () => ({ captureServerEvent: vi.fn() }));
 
 const { runWithConcurrency } = await import("./score");
 

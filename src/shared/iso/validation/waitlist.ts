@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emailSchema, positionSchema, requiredUrlSchema } from "~/lib/validation/primitives";
+import { emailSchema, positionSchema, requiredUrlSchema } from "~/shared/iso/validation/primitives";
 
 // Form schema — used by TanStack Form on the client. Input type must be all
 // `string` so default values can be empty strings. Role + Company URL are

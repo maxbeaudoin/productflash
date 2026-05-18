@@ -9,13 +9,13 @@ import { enqueueFteRun } from "~/agents/fte/job";
 import { AuthShell } from "~/components/auth/AuthShell";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
 import { users as usersTable, waitlist as waitlistTable } from "~/db/schema";
-import { issueAutoSignInUrl } from "~/lib/auth-server";
-import { getBoss } from "~/lib/boss";
-import { getDb } from "~/lib/db";
-import { verifyInviteToken } from "~/lib/invite-token";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
-import { signupFormSchema, signupServerSchema } from "~/lib/validation/signup";
+import { issueAutoSignInUrl } from "~/shared/server/auth-server";
+import { getBoss } from "~/shared/server/boss";
+import { getDb } from "~/shared/server/db";
+import { verifyInviteToken } from "~/shared/server/invite-token";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
+import { signupFormSchema, signupServerSchema } from "~/shared/iso/validation/signup";
 
 // The public funnel is invite-only (see #33/#34). Admins issue signed
 // `?invite=<token>` URLs from /admin/waitlist; a bare /signup or a tampered

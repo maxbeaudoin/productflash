@@ -1,6 +1,6 @@
 import RSSParser from "rss-parser";
-import { logger } from "~/lib/logger";
-import { safeFetchText, SafeFetchError } from "~/lib/safe-fetch";
+import { logger } from "~/shared/server/logger";
+import { safeFetchText, SafeFetchError } from "~/shared/server/safe-fetch";
 import type { CompetitorRef, NormalizedItem } from "./types";
 
 // RSS / Atom source adapter.

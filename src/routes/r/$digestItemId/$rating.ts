@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { handleFeedbackRating } from "~/lib/feedback-rating";
+import { handleFeedbackRating } from "~/shared/server/feedback-rating";
 
 // Thin plumbing around `handleFeedbackRating` — keeps the route file
 // dedicated to URL parsing + framework wiring, so the core feedback

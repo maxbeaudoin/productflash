@@ -1,7 +1,7 @@
 import { runSynthesis } from "~/jobs/synthesize";
-import { getPool } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { getPool } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // Manual trigger for the synthesis job. Mirrors what the pg-boss scheduled
 // worker does at 05:30 UTC — useful for iterating on the Sonnet prompt or

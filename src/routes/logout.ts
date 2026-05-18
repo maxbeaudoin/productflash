@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "~/lib/auth";
+import { auth } from "~/shared/server/auth";
 
 // POST-only sign-out. A GET handler would let any cross-site `<img>` /
 // `<iframe>` silently log the user out — top-level GETs ship cookies even

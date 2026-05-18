@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { digests } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
 
 // Open-tracking pixel. The digest email embeds a hidden 1×1 image whose src
 // is `${baseUrl}/api/email/open/<digestId>.gif`. When the recipient's mail

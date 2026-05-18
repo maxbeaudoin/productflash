@@ -1,9 +1,9 @@
 import { and, desc, eq, gte } from "drizzle-orm";
 import type PgBoss from "pg-boss";
 import { digests as digestsTable } from "~/db/schema";
-import { getDb } from "~/lib/db";
-import { logger } from "~/lib/logger";
-import { captureServerEvent } from "~/lib/posthog";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent } from "~/shared/server/posthog";
 import { runIngestionForUser } from "./ingest";
 import { runScoringForUser } from "./score";
 import { runSynthesisForUser } from "./synthesize";

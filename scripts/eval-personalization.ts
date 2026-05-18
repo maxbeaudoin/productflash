@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { synthesizeDigest, type SynthesisInputItem } from "~/lib/synthesize";
-import { classifyItem } from "~/lib/classify";
-import { logger } from "~/lib/logger";
-import { shutdownPosthog } from "~/lib/posthog";
+import { synthesizeDigest, type SynthesisInputItem } from "~/shared/server/synthesize";
+import { classifyItem } from "~/shared/server/classify";
+import { logger } from "~/shared/server/logger";
+import { shutdownPosthog } from "~/shared/server/posthog";
 
 // Eval evidence for #35.
 //

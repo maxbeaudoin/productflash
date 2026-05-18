@@ -27,7 +27,7 @@ export default defineConfig({
       NODE_ENV: "test",
       // Test-only secrets so any imported lib that does `requireEnv` at
       // module-load time doesn't throw before the suite gets a chance to
-      // run. Length must satisfy the zod `min(32)` in `src/lib/env.ts`.
+      // run. Length must satisfy the zod `min(32)` in `src/shared/server/env.ts`.
       FEEDBACK_SIGNING_SECRET: "test-feedback-secret-xxxxxxxxxxxxxxxx",
       INVITE_TOKEN_SECRET: "test-invite-secret-xxxxxxxxxxxxxxxxxxxx",
       BETTER_AUTH_SECRET: "test-better-auth-secret-xxxxxxxxxxxxxxx",

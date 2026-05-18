@@ -1,11 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { eq } from "drizzle-orm";
 import { users as usersTable } from "~/db/schema";
-import { getAnthropic, SONNET_MODEL } from "~/lib/anthropic";
-import { getDb } from "~/lib/db";
-import { recordLlmUsage } from "~/lib/llm-cost";
-import { logger } from "~/lib/logger";
-import { captureServerEvent, captureServerException } from "~/lib/posthog";
+import { getAnthropic, SONNET_MODEL } from "~/shared/server/anthropic";
+import { getDb } from "~/shared/server/db";
+import { recordLlmUsage } from "~/shared/server/llm-cost";
+import { logger } from "~/shared/server/logger";
+import { captureServerEvent, captureServerException } from "~/shared/server/posthog";
 import { emitFteDelta, writeFteEvent } from "./events";
 import { countUserCompetitors, executeTool, FTE_TOOLS, isProfileSaved } from "./tools";
 

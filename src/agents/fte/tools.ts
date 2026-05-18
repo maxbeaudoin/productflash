@@ -6,7 +6,7 @@ import {
   userCompetitors,
   users as usersTable,
 } from "~/db/schema";
-import { getDb } from "~/lib/db";
+import { getDb } from "~/shared/server/db";
 import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // Tool definitions + executors for the FTE agent (#28).
