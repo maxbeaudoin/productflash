@@ -1,10 +1,11 @@
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   adminAudit,
   competitorPricingSnapshots,
+  competitorSources,
   competitors,
   digestItems,
   feedback,
@@ -19,6 +20,11 @@ import type {
 } from "~/features/admin-audit/shared/types";
 import { requireAdminSession } from "~/features/auth/server/session";
 import { competitorEditFormSchema } from "~/features/competitors/schema";
+import {
+  applySourceRemove,
+  applySourceStatus,
+  applySourceUrlUpdate,
+} from "~/features/competitors/server/source-actions";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 
@@ -112,11 +118,28 @@ export type CompetitorUserRow = {
   addedAt: string;
 };
 
-export type CompetitorIngestionRow = {
-  source: "rss" | "ph" | "firehose" | "firecrawl";
-  count24h: number;
-  count7d: number;
-  count30d: number;
+// Per-competitor source row (PF-93 phase 3). Replaces the legacy
+// `CompetitorIngestionRow` (grouped by `raw_items.source`) with the
+// `competitor_sources`-driven shape: one row per discovered source, even if
+// it has never ingested an item yet.
+export type CompetitorSourceRow = {
+  id: string;
+  sourceType: "rss" | "webpage" | "x" | "linkedin" | "youtube";
+  extractionMode: "feed_poll" | "snapshot_diff" | "list_extract" | "post_stream" | null;
+  urlOrHandle: string;
+  status: "active" | "failing" | "disabled";
+  lastFetchedAt: string | null;
+  agentRationale: string | null;
+  createdAt: string;
+  itemCount30d: number;
+};
+
+// One-line ingestion roll-up rendered above the per-source list — answers
+// "is this competitor producing signal at all?" without the operator
+// scanning every row.
+export type CompetitorSourcesRollup = {
+  activeCount: number;
+  totalItems30d: number;
   lastIngestedAt: string | null;
 };
 
@@ -144,7 +167,8 @@ export type CompetitorDetailData = {
   competitor: CompetitorDetailRow;
   trackedBy: number;
   usersTracking: CompetitorUserRow[];
-  ingestion: CompetitorIngestionRow[];
+  sources: CompetitorSourceRow[];
+  sourcesRollup: CompetitorSourcesRollup;
   // Signal-to-noise window: how many of this competitor's raw_items (last
   // 30d) the synthesizer actually picked up into a digest. Aggregated
   // across all users so it answers "is this competitor worth keeping in
@@ -158,7 +182,6 @@ export type CompetitorDetailData = {
 
 const RAW_ITEM_LIMIT = 50;
 const PER_TARGET_AUDIT_LIMIT = 50;
-const SOURCES_ORDER: CompetitorIngestionRow["source"][] = ["rss", "ph", "firecrawl", "firehose"];
 
 export const loadCompetitorDetail = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => z.object({ competitorId: z.string().uuid() }).parse(data))
@@ -184,38 +207,65 @@ export const loadCompetitorDetail = createServerFn({ method: "GET" })
       .where(eq(userCompetitors.competitorId, competitor.id))
       .orderBy(desc(userCompetitors.createdAt));
 
-    const ingestionRows = await db
+    // Per-source rows (PF-93 phase 3). One row per `competitor_sources`
+    // entry — surfaces sources with zero ingest history (newly-discovered
+    // or inert socials) which the old per-`raw_items.source` aggregation
+    // could never show. items-in-30d is a correlated subquery so we keep
+    // the query to a single round trip and still get a row per source
+    // regardless of whether raw_items references it yet.
+    const sourceRows = await db
       .select({
-        source: rawItems.source,
-        count24h:
-          sql<number>`COUNT(*) FILTER (WHERE ${rawItems.ingestedAt} >= NOW() - INTERVAL '24 hours')::int`.as(
-            "count_24h",
-          ),
-        count7d:
-          sql<number>`COUNT(*) FILTER (WHERE ${rawItems.ingestedAt} >= NOW() - INTERVAL '7 days')::int`.as(
-            "count_7d",
-          ),
-        count30d:
+        id: competitorSources.id,
+        sourceType: competitorSources.sourceType,
+        extractionMode: competitorSources.extractionMode,
+        urlOrHandle: competitorSources.urlOrHandle,
+        status: competitorSources.status,
+        lastFetchedAt: competitorSources.lastFetchedAt,
+        agentRationale: competitorSources.agentRationale,
+        createdAt: competitorSources.createdAt,
+        itemCount30d: sql<number>`(
+          SELECT COUNT(*)::int FROM ${rawItems}
+          WHERE ${rawItems.competitorSourceId} = ${competitorSources.id}
+            AND ${rawItems.ingestedAt} >= NOW() - INTERVAL '30 days'
+        )`.as("item_count_30d"),
+      })
+      .from(competitorSources)
+      .where(eq(competitorSources.competitorId, competitor.id))
+      .orderBy(asc(competitorSources.createdAt));
+
+    const sources: CompetitorSourceRow[] = sourceRows.map((r) => ({
+      id: r.id,
+      sourceType: r.sourceType,
+      extractionMode: r.extractionMode,
+      urlOrHandle: r.urlOrHandle,
+      status: r.status,
+      lastFetchedAt: r.lastFetchedAt ? new Date(r.lastFetchedAt).toISOString() : null,
+      agentRationale: r.agentRationale,
+      createdAt: r.createdAt.toISOString(),
+      itemCount30d: r.itemCount30d ?? 0,
+    }));
+
+    // Overall ingestion roll-up — across ALL raw_items rows for this
+    // competitor, not just those pointing at a competitor_source. Keeps
+    // the legacy ingestion (rss adapter still groups by `source='rss'`)
+    // visible at the top until phase-4 watchers migrate emitters.
+    const [overallStats] = await db
+      .select({
+        totalItems30d:
           sql<number>`COUNT(*) FILTER (WHERE ${rawItems.ingestedAt} >= NOW() - INTERVAL '30 days')::int`.as(
-            "count_30d",
+            "total_items_30d",
           ),
         lastIngestedAt: sql<Date | null>`MAX(${rawItems.ingestedAt})`.as("last_ingested_at"),
       })
       .from(rawItems)
-      .where(eq(rawItems.competitorId, competitor.id))
-      .groupBy(rawItems.source);
-    const ingestionBySource = new Map<string, (typeof ingestionRows)[number]>();
-    for (const r of ingestionRows) ingestionBySource.set(r.source, r);
-    const ingestion: CompetitorIngestionRow[] = SOURCES_ORDER.map((src) => {
-      const row = ingestionBySource.get(src);
-      return {
-        source: src,
-        count24h: row?.count24h ?? 0,
-        count7d: row?.count7d ?? 0,
-        count30d: row?.count30d ?? 0,
-        lastIngestedAt: row?.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : null,
-      };
-    });
+      .where(eq(rawItems.competitorId, competitor.id));
+    const sourcesRollup: CompetitorSourcesRollup = {
+      activeCount: sources.filter((s) => s.status === "active").length,
+      totalItems30d: overallStats?.totalItems30d ?? 0,
+      lastIngestedAt: overallStats?.lastIngestedAt
+        ? new Date(overallStats.lastIngestedAt).toISOString()
+        : null,
+    };
 
     const recentItemRows = await db
       .select({
@@ -328,7 +378,8 @@ export const loadCompetitorDetail = createServerFn({ method: "GET" })
         email: u.email,
         addedAt: u.addedAt.toISOString(),
       })),
-      ingestion,
+      sources,
+      sourcesRollup,
       digestHitRate: {
         rawCount30d: rawCountAgg?.c ?? 0,
         digestCount30d: digestCountAgg?.c ?? 0,
@@ -412,4 +463,60 @@ export const updateCompetitorFields = createServerFn({ method: "POST" })
     );
 
     return { changed: true };
+  });
+
+// --- competitor_sources mutations (PF-93 phase 3) --------------------------
+// Three thin wrappers — auth + input validation here, all SQL + audit lives
+// in `./source-actions.ts` so the contract can be integration-tested without
+// booting TanStack Start. Same split as `~/shared/server/feedback-rating.ts`.
+
+const sourceStatusInput = z.object({
+  sourceId: z.string().uuid(),
+  status: z.enum(["active", "disabled"]),
+});
+
+export const setCompetitorSourceStatus = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => sourceStatusInput.parse(raw))
+  .handler(async ({ data }): Promise<{ changed: boolean }> => {
+    const session = await requireAdminSession();
+    return applySourceStatus({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      sourceId: data.sourceId,
+      status: data.status,
+    });
+  });
+
+const sourceRemoveInput = z.object({ sourceId: z.string().uuid() });
+
+export const removeCompetitorSource = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => sourceRemoveInput.parse(raw))
+  .handler(async ({ data }): Promise<{ removed: boolean }> => {
+    const session = await requireAdminSession();
+    return applySourceRemove({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      sourceId: data.sourceId,
+    });
+  });
+
+const sourceUrlInput = z.object({
+  sourceId: z.string().uuid(),
+  urlOrHandle: z
+    .string()
+    .trim()
+    .min(1, { message: "URL or @handle is required." })
+    .max(500, { message: "URL is too long." }),
+});
+
+export const updateCompetitorSourceUrl = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => sourceUrlInput.parse(raw))
+  .handler(async ({ data }): Promise<{ changed: boolean }> => {
+    const session = await requireAdminSession();
+    return applySourceUrlUpdate({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      sourceId: data.sourceId,
+      urlOrHandle: data.urlOrHandle,
+    });
   });

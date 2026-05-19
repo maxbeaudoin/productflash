@@ -1,6 +1,7 @@
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { AtSign, Globe, Rss, Video } from "lucide-react";
+import { useState, type ComponentType, type SVGProps } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FieldShell, fieldHasError } from "~/components/forms/field-shell";
@@ -8,9 +9,13 @@ import { Button } from "~/components/ui/button";
 import { AdminAuditList } from "~/features/admin-audit/ui/AdminAuditList";
 import {
   type CompetitorDetailData,
-  type CompetitorIngestionRow,
+  type CompetitorSourceRow,
+  type CompetitorSourcesRollup,
   loadCompetitorDetail,
+  removeCompetitorSource,
+  setCompetitorSourceStatus,
   updateCompetitorFields,
+  updateCompetitorSourceUrl,
 } from "~/features/competitors/server/admin-fns";
 import {
   type CompetitorEditFormValues,
@@ -103,12 +108,8 @@ function HeaderCard({ data }: { data: CompetitorDetailData }) {
 }
 
 function SummaryStats({ data }: { data: CompetitorDetailData }) {
-  const totalIngest30d = data.ingestion.reduce((sum, i) => sum + i.count30d, 0);
-  const lastIngestedAt = data.ingestion
-    .map((i) => i.lastIngestedAt)
-    .filter((s): s is string => s !== null)
-    .sort()
-    .at(-1);
+  const totalIngest30d = data.sourcesRollup.totalItems30d;
+  const lastIngestedAt = data.sourcesRollup.lastIngestedAt;
   const hit = data.digestHitRate;
   const hitPct =
     hit.rawCount30d > 0 ? Math.round((hit.digestCount30d / hit.rawCount30d) * 100) : null;
@@ -456,7 +457,13 @@ function TabContent({ tab, data }: { tab: TabValue; data: CompetitorDetailData }
       return <AuditTab rows={data.auditRows} />;
     case "activity":
     default:
-      return <ActivityTab ingestion={data.ingestion} recentItems={data.recentItems} />;
+      return (
+        <ActivityTab
+          sources={data.sources}
+          sourcesRollup={data.sourcesRollup}
+          recentItems={data.recentItems}
+        />
+      );
   }
 }
 
@@ -492,53 +499,58 @@ function UsersTab({ rows }: { rows: CompetitorDetailData["usersTracking"] }) {
   );
 }
 
-const SOURCE_LABEL: Record<CompetitorIngestionRow["source"], string> = {
-  rss: "RSS",
-  ph: "Product Hunt",
-  firecrawl: "Firecrawl",
-  firehose: "Firehose",
+type LucideIconType = ComponentType<SVGProps<SVGSVGElement>>;
+
+// `x`/`linkedin`/`youtube` are discovery-only this round (no watcher) —
+// they get an "inert" pill instead of the items-in-30d count. Keep
+// `INERT_SOURCE_TYPES` in sync with the watcher flip-on order documented
+// in PF-93.
+const INERT_SOURCE_TYPES: ReadonlySet<CompetitorSourceRow["sourceType"]> = new Set([
+  "x",
+  "linkedin",
+  "youtube",
+]);
+
+const SOURCE_TYPE_META: Record<
+  CompetitorSourceRow["sourceType"],
+  { label: string; Icon: LucideIconType }
+> = {
+  rss: { label: "RSS", Icon: Rss },
+  webpage: { label: "Webpage", Icon: Globe },
+  x: { label: "X", Icon: AtSign },
+  linkedin: { label: "LinkedIn", Icon: AtSign },
+  youtube: { label: "YouTube", Icon: Video },
 };
 
+const SOURCE_STATUS_META: Record<
+  CompetitorSourceRow["status"],
+  { label: string; className: string }
+> = {
+  active: { label: "Active", className: "border-accent/40 bg-accent/15 text-text" },
+  failing: { label: "Failing", className: "border-coral/50 bg-coral/15 text-text" },
+  disabled: { label: "Disabled", className: "border-ink-line bg-paper text-text-muted" },
+};
+
+const RAW_ITEM_SOURCE_LABEL: Record<CompetitorDetailData["recentItems"][number]["source"], string> =
+  {
+    rss: "RSS",
+    ph: "Product Hunt",
+    firecrawl: "Firecrawl",
+    firehose: "Firehose",
+  };
+
 function ActivityTab({
-  ingestion,
+  sources,
+  sourcesRollup,
   recentItems,
 }: {
-  ingestion: CompetitorIngestionRow[];
+  sources: CompetitorSourceRow[];
+  sourcesRollup: CompetitorSourcesRollup;
   recentItems: CompetitorDetailData["recentItems"];
 }) {
   return (
     <div className="space-y-6">
-      <section>
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-          Ingestion health
-        </h3>
-        <div className="overflow-hidden rounded-2xl border border-ink-line bg-paper-warm">
-          <table className="w-full text-sm">
-            <thead className="text-left text-[10px] uppercase tracking-[0.1em] text-text-muted">
-              <tr className="border-b border-ink-line">
-                <th className="px-4 py-2 font-medium">Source</th>
-                <th className="px-4 py-2 text-right font-medium">24h</th>
-                <th className="px-4 py-2 text-right font-medium">7d</th>
-                <th className="px-4 py-2 text-right font-medium">30d</th>
-                <th className="px-4 py-2 text-right font-medium">Last</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-line">
-              {ingestion.map((row) => (
-                <tr key={row.source}>
-                  <td className="px-4 py-2 text-text">{SOURCE_LABEL[row.source]}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums">{row.count24h}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums">{row.count7d}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums">{row.count30d}</td>
-                  <td className="px-4 py-2 text-right font-mono text-xs text-text-muted">
-                    {row.lastIngestedAt ? relativeLabel(new Date(row.lastIngestedAt)) : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <SourcesSection sources={sources} rollup={sourcesRollup} />
       <section>
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
           Recent items <span className="text-text-muted">· latest {recentItems.length}</span>
@@ -559,11 +571,267 @@ function ActivityTab({
   );
 }
 
+function SourcesSection({
+  sources,
+  rollup,
+}: {
+  sources: CompetitorSourceRow[];
+  rollup: CompetitorSourcesRollup;
+}) {
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+          Sources <span className="text-text-muted">· {sources.length}</span>
+        </h3>
+        <p className="text-[11px] text-text-muted">
+          <span className="font-mono tabular-nums text-text">{rollup.activeCount}</span> active ·{" "}
+          <span className="font-mono tabular-nums text-text">{rollup.totalItems30d}</span> items
+          (30d) · last ingest{" "}
+          <span className="font-mono text-text">
+            {rollup.lastIngestedAt ? relativeLabel(new Date(rollup.lastIngestedAt)) : "—"}
+          </span>
+        </p>
+      </div>
+      {sources.length === 0 ? (
+        <p className="rounded-2xl border border-ink-line bg-paper-warm p-6 text-sm text-text-muted">
+          No sources recorded yet. The discovery agent runs on competitor creation — if this row
+          predates PF-95 and has no synthetic rss source, re-trigger the agent (phase 5 / PF-93).
+        </p>
+      ) : (
+        <ul className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-paper-warm">
+          {sources.map((source) => (
+            <SourceRow key={source.id} source={source} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+type SourceRowMode = "view" | "edit-url";
+
+function SourceRow({ source }: { source: CompetitorSourceRow }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<SourceRowMode>("view");
+  const [rationaleOpen, setRationaleOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const meta = SOURCE_TYPE_META[source.sourceType];
+  const isInert = INERT_SOURCE_TYPES.has(source.sourceType);
+  const Icon = meta.Icon;
+
+  async function handleToggleStatus() {
+    const next: CompetitorSourceRow["status"] =
+      source.status === "disabled" ? "active" : "disabled";
+    setBusy(true);
+    try {
+      const res = await setCompetitorSourceStatus({
+        data: { sourceId: source.id, status: next },
+      });
+      if (res.changed) toast.success(next === "disabled" ? "Source disabled." : "Source enabled.");
+      else toast.info("Status unchanged.");
+      router.invalidate();
+    } catch {
+      toast.error("Could not update source. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!confirm(`Remove this ${meta.label} source? Past items stay in history.`)) return;
+    setBusy(true);
+    try {
+      await removeCompetitorSource({ data: { sourceId: source.id } });
+      toast.success("Source removed.");
+      router.invalidate();
+    } catch {
+      toast.error("Could not remove source. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="flex flex-col gap-3 px-5 py-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span
+          aria-label={meta.label}
+          title={meta.label}
+          className="inline-flex size-7 items-center justify-center rounded-md border border-ink-line bg-paper text-text"
+        >
+          <Icon className="size-3.5" />
+        </span>
+        <a
+          href={source.urlOrHandle.startsWith("@") ? "#" : source.urlOrHandle}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="min-w-0 flex-1 truncate font-mono text-sm text-text hover:underline"
+          onClick={(e) => {
+            if (source.urlOrHandle.startsWith("@")) e.preventDefault();
+          }}
+        >
+          {source.urlOrHandle}
+        </a>
+        <StatusPill status={source.status} />
+        {isInert ? (
+          <span
+            className="inline-flex items-center rounded-pill border border-ink-line/60 bg-paper-warm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted"
+            title="Discovery-only — no watcher yet"
+          >
+            not yet ingested
+          </span>
+        ) : (
+          <span className="inline-flex items-baseline gap-1 text-[11px] text-text-muted">
+            <span className="font-mono tabular-nums text-text">{source.itemCount30d}</span>
+            <span>items (30d)</span>
+          </span>
+        )}
+        <span className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
+          {source.lastFetchedAt
+            ? `fetched ${relativeLabel(new Date(source.lastFetchedAt))}`
+            : "never fetched"}
+        </span>
+      </div>
+
+      {source.agentRationale ? (
+        <button
+          type="button"
+          onClick={() => setRationaleOpen((v) => !v)}
+          className="inline-flex items-baseline gap-1 self-start text-[11px] text-text-muted hover:text-text"
+          aria-expanded={rationaleOpen}
+        >
+          <span aria-hidden>{rationaleOpen ? "▾" : "▸"}</span>
+          {rationaleOpen ? (
+            <span className="italic">{source.agentRationale}</span>
+          ) : (
+            <span>agent rationale</span>
+          )}
+        </button>
+      ) : null}
+
+      {mode === "edit-url" ? (
+        <SourceUrlEditor
+          source={source}
+          onCancel={() => setMode("view")}
+          onSaved={() => {
+            setMode("view");
+            router.invalidate();
+          }}
+        />
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => setMode("edit-url")}
+          >
+            Edit URL
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            disabled={busy}
+            onClick={handleToggleStatus}
+          >
+            {source.status === "disabled" ? "Enable" : "Disable"}
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="destructive"
+            disabled={busy}
+            onClick={handleRemove}
+          >
+            Remove
+          </Button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function SourceUrlEditor({
+  source,
+  onCancel,
+  onSaved,
+}: {
+  source: CompetitorSourceRow;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState(source.urlOrHandle);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const next = value.trim();
+    if (!next) {
+      toast.error("URL or @handle is required.");
+      return;
+    }
+    if (next === source.urlOrHandle) {
+      onCancel();
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await updateCompetitorSourceUrl({
+        data: { sourceId: source.id, urlOrHandle: next },
+      });
+      if (res.changed) toast.success("Source URL updated. Last-fetched reset.");
+      else toast.info("URL unchanged.");
+      onSaved();
+    } catch {
+      toast.error("Could not update URL. Check the format and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        autoFocus
+        className="h-8 flex-1 min-w-[16rem] rounded-md border border-ink-line bg-paper px-3 font-mono text-sm text-text outline-none focus:border-text"
+        aria-label="Source URL or @handle"
+        disabled={busy}
+      />
+      <Button type="submit" size="xs" disabled={busy}>
+        {busy ? "Saving…" : "Save"}
+      </Button>
+      <Button type="button" size="xs" variant="ghost" disabled={busy} onClick={onCancel}>
+        Cancel
+      </Button>
+    </form>
+  );
+}
+
+function StatusPill({ status }: { status: CompetitorSourceRow["status"] }) {
+  const meta = SOURCE_STATUS_META[status];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-pill border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em]",
+        meta.className,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 function RawItemRow({ item }: { item: CompetitorDetailData["recentItems"][number] }) {
   return (
     <li className="flex flex-col gap-1 px-5 py-3">
       <div className="flex items-center gap-2">
-        <SourcePill source={item.source} />
+        <RawItemSourcePill source={item.source} />
         <a
           href={item.url}
           target="_blank"
@@ -583,10 +851,14 @@ function RawItemRow({ item }: { item: CompetitorDetailData["recentItems"][number
   );
 }
 
-function SourcePill({ source }: { source: CompetitorIngestionRow["source"] }) {
+function RawItemSourcePill({
+  source,
+}: {
+  source: CompetitorDetailData["recentItems"][number]["source"];
+}) {
   return (
     <span className="inline-flex items-center rounded-pill border border-ink-line bg-paper px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-text">
-      {SOURCE_LABEL[source]}
+      {RAW_ITEM_SOURCE_LABEL[source]}
     </span>
   );
 }
