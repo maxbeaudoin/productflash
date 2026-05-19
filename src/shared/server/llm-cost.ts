@@ -17,7 +17,7 @@ import { logger } from "./logger";
 // Errors writing the row are logged but never thrown — accounting must not
 // break a successful classify/synthesize/agent call.
 
-export type LlmUsageKind = "fte" | "classify" | "synthesize";
+export type LlmUsageKind = "fte" | "classify" | "synthesize" | "discovery";
 
 // Per-million-token rates in USD, sourced from Anthropic's public pricing.
 // Cache rates: writes at 1.25x base input, reads at 0.1x base input.
