@@ -1,5 +1,6 @@
 import PgBoss from "pg-boss";
 import { FTE_QUEUE } from "~/agents/fte/job";
+import { DAILY_REGEN_QUEUE } from "~/features/digest/server/jobs/daily-regen";
 import { FAST_PATH_QUEUE } from "~/features/digest/server/jobs/fast-path";
 import { requireEnv } from "./env";
 import { logger } from "./logger";
@@ -30,6 +31,11 @@ export async function getBoss(): Promise<PgBoss> {
     });
     await boss.createQueue(FAST_PATH_QUEUE, {
       name: FAST_PATH_QUEUE,
+      retryLimit: 1,
+      retryDelay: 60,
+    });
+    await boss.createQueue(DAILY_REGEN_QUEUE, {
+      name: DAILY_REGEN_QUEUE,
       retryLimit: 1,
       retryDelay: 60,
     });

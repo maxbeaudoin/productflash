@@ -8,7 +8,7 @@ import { runIngestionForUser } from "./ingest";
 import { runScoringForUser } from "./score";
 import { runSynthesisForUser } from "./synthesize";
 
-// Time-to-first-digest fast path (#30).
+// Time-to-first-digest fast path (#30) / Re-gen catch-up (PF-91).
 //
 // When a user confirms their FTE-generated profile, we want their first
 // digest to land within ~3–5 minutes instead of waiting for the next 05:30
@@ -17,10 +17,15 @@ import { runSynthesisForUser } from "./synthesize";
 // path can still overwrite later that day) so a fast-path run before the
 // cron is safe.
 //
-// First-digest lookback is intentionally wider than the daily cron's 24h:
-// a brand-new user signing up on a quiet day shouldn't be greeted with
-// "your competitors went quiet — back tomorrow". 7 days is enough that
-// almost every realistic competitor portfolio yields ≥1 signal item.
+// First-digest lookback is 90 days on `ingestedAt`, aligned with the
+// `published_at` cap below (PF-92). A 7d ingest window seemed reasonable
+// for greenfield users (FTE just stamped `ingestedAt = now` on every
+// item), but it silently breaks the catch-up WOW moment for any user
+// whose competitors were already being ingested when they signed up —
+// shared competitors carry older `ingestedAt` from prior cron/FTE runs
+// for other users, so a 7d window erases them. 90d on ingest + 90d on
+// publish gives "everything we know about your competitors published in
+// the last 3 months," which is what catch-up was always meant to be.
 // Daily cadence reverts to 24h once the user has at least one digest
 // behind them.
 //
@@ -28,7 +33,7 @@ import { runSynthesisForUser } from "./synthesize";
 // admin app is a no-op while the previous one is still in flight.
 
 export const FAST_PATH_QUEUE = "fast-path-run";
-const FAST_PATH_LOOKBACK_HOURS = 24 * 7;
+const FAST_PATH_LOOKBACK_HOURS = 24 * 90;
 // Hard recency cap on the first digest by `published_at`. The 7-day
 // `ingested_at` window above is necessary but not sufficient: the FTE
 // first ingest stamps `ingested_at = now` on every item the adapter
@@ -39,9 +44,12 @@ const FAST_PATH_LOOKBACK_HOURS = 24 * 7;
 // (PF-90). 90 days matches the issue's directive — anything older
 // is almost certainly off-topic for the first impression.
 const FAST_PATH_MAX_PUBLISHED_AGE_DAYS = 90;
-// Score cap matches the wider window — with ~5 competitors over 7 days you
-// can easily clear the daily-cron default of 50. 200 keeps headroom for
-// chatty changelogs without doubling Haiku spend for a typical user.
+// Score cap matches the wider window. With ~5 competitors over 90 days a
+// catch-up pull can easily clear 500 items; we order by `ingestedAt desc`
+// and cap at 200 so a chatty competitor's archive doesn't blow Haiku
+// spend. 200 also fits the typical "most recent N most likely to be
+// load-bearing" framing — older items in the same window are still
+// readable in /app/digests once they roll into a daily.
 const FAST_PATH_SCORE_CAP = 200;
 // Catch-up digest is intentionally wider than the daily 5-item digest:
 //   - 10 items so the user gets a meatier first impression of what we'll
