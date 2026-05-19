@@ -7,6 +7,11 @@ import {
   type CompetitorAdminRow,
   listCompetitorsForAdmin,
 } from "~/features/competitors/server/admin-fns";
+import {
+  type HealthFlagBucket,
+  type HealthFlagKind,
+  classifyHealthFlags,
+} from "~/features/competitors/shared/health-flags";
 
 // /admin/competitors (PF-59). Cohort-wide view of every competitor row so we
 // can spot sourceless feeds (no rss_url AND no ph_slug — ingestion is a no-op
@@ -60,6 +65,7 @@ function AdminCompetitorsPage() {
   const filters = Route.useSearch();
   const router = useRouter();
 
+  const flags = classifyHealthFlags(rows);
   const filtered = applyFilters(rows, filters);
   const sourceCounts: Record<Filters["source"], number> = {
     all: rows.length,
@@ -88,6 +94,8 @@ function AdminCompetitorsPage() {
             </p>
           </div>
         </header>
+
+        <HealthFlagsPanel flags={flags} />
 
         <div className="mb-6 space-y-3">
           <FilterChipRow
@@ -138,6 +146,89 @@ function AdminCompetitorsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+const HEALTH_FLAG_META: Record<
+  HealthFlagKind,
+  { label: string; hint: string; emptyContext: (row: CompetitorAdminRow) => string }
+> = {
+  orphans: {
+    label: "Orphans",
+    hint: "No users tracking. Usually FTE-added rows a user later removed.",
+    emptyContext: (row) => `added ${formatDate(row.createdAt)}`,
+  },
+  sourceless: {
+    label: "Sourceless",
+    hint: "No RSS and no PH slug. Ingestion produces nothing for these.",
+    emptyContext: (row) => `tracked by ${row.trackedBy}`,
+  },
+  stale: {
+    label: "Stale",
+    hint: "Has a source but no ingest in 30d. Feed is probably broken upstream.",
+    emptyContext: (row) =>
+      row.lastIngestedAt
+        ? `last ingest ${relativeLabel(new Date(row.lastIngestedAt))}`
+        : "never ingested",
+  },
+};
+
+const HEALTH_FLAG_ORDER: HealthFlagKind[] = ["stale", "sourceless", "orphans"];
+
+const HEALTH_FLAG_PREVIEW = 8;
+
+function HealthFlagsPanel({ flags }: { flags: Record<HealthFlagKind, HealthFlagBucket> }) {
+  const buckets = HEALTH_FLAG_ORDER.map((k) => flags[k]).filter((b) => b.rows.length > 0);
+  if (buckets.length === 0) return null;
+  return (
+    <section className="mb-6 rounded-2xl border border-ink-line bg-paper-warm p-5">
+      <header className="mb-4 flex items-baseline justify-between gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-text">Health flags</h2>
+        <p className="text-[10px] uppercase tracking-[0.1em] text-text-muted">triage candidates</p>
+      </header>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {buckets.map((bucket) => (
+          <HealthFlagCard key={bucket.kind} bucket={bucket} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HealthFlagCard({ bucket }: { bucket: HealthFlagBucket }) {
+  const meta = HEALTH_FLAG_META[bucket.kind];
+  const shown = bucket.rows.slice(0, HEALTH_FLAG_PREVIEW);
+  const overflow = bucket.rows.length - shown.length;
+  return (
+    <article className="flex min-h-0 flex-col rounded-xl border border-ink-line bg-paper p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-text">{meta.label}</h3>
+        <span className="font-mono text-sm tabular-nums text-text">{bucket.rows.length}</span>
+      </div>
+      <p className="mb-3 text-xs text-text-muted">{meta.hint}</p>
+      <ul className="space-y-1.5">
+        {shown.map((row) => (
+          <li key={row.id} className="flex items-baseline justify-between gap-3 text-xs">
+            <a
+              href={row.homepageUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="truncate font-medium text-text hover:underline"
+            >
+              {row.name}
+            </a>
+            <span className="shrink-0 text-[10px] uppercase tracking-[0.05em] text-text-muted">
+              {meta.emptyContext(row)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {overflow > 0 ? (
+        <p className="mt-3 text-[10px] uppercase tracking-[0.1em] text-text-muted">
+          +{overflow} more
+        </p>
+      ) : null}
+    </article>
   );
 }
 
