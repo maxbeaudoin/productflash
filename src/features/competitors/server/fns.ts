@@ -1,11 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { enqueueDiscovery } from "~/agents/discovery/job";
 import { competitors as competitorsTable, userCompetitors } from "~/db/schema";
 import { requireSession } from "~/features/auth/server/session";
-import { getDb } from "~/shared/server/db";
 import { addCompetitorFormSchema } from "~/features/competitors/schema";
 import type { CompetitorView } from "~/features/competitors/shared/types";
+import { getBoss } from "~/shared/server/boss";
+import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { autodetectRSSForHomepage } from "~/sources/rss";
 
 export type { CompetitorView };
@@ -37,14 +40,20 @@ export const addCompetitor = createServerFn({ method: "POST" })
     // mutate every other user's view of "Notion" or repoint the shared
     // RSS feed at an attacker-controlled URL. The link from this user to
     // the (existing or newly-inserted) row goes through user_competitors.
-    await db
+    //
+    // `.returning()` on onConflictDoNothing emits a row ONLY for the
+    // INSERT path — that's the signal we use to fire source-discovery
+    // exactly once per shared competitor row (PF-93 phase 5).
+    const inserted = await db
       .insert(competitorsTable)
       .values({
         name: data.name,
         homepageUrl: data.homepageUrl,
         rssUrl,
       })
-      .onConflictDoNothing({ target: competitorsTable.homepageUrl });
+      .onConflictDoNothing({ target: competitorsTable.homepageUrl })
+      .returning({ id: competitorsTable.id });
+    const wasNewlyInserted = inserted.length > 0;
 
     const [c] = await db
       .select({
@@ -62,6 +71,25 @@ export const addCompetitor = createServerFn({ method: "POST" })
       .insert(userCompetitors)
       .values({ userId: session.user.id, competitorId: c.id })
       .onConflictDoNothing();
+
+    if (wasNewlyInserted) {
+      try {
+        const boss = await getBoss();
+        const { runId, enqueued } = await enqueueDiscovery(boss, c.id);
+        logger.info(
+          { competitorId: c.id, name: c.name, runId, enqueued },
+          "addCompetitor: discovery enqueued",
+        );
+      } catch (err) {
+        // Discovery failure must not break the user-facing add — the
+        // competitor row is already persisted and the user_competitors
+        // link is in place. Admin can re-trigger later.
+        logger.error(
+          { err, competitorId: c.id, name: c.name },
+          "addCompetitor: discovery enqueue failed",
+        );
+      }
+    }
 
     return { competitor: c };
   });

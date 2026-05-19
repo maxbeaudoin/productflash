@@ -1,4 +1,5 @@
 import PgBoss from "pg-boss";
+import { type DiscoveryJobData, DISCOVERY_QUEUE, handleDiscoveryJob } from "~/agents/discovery/job";
 import { type FteJobData, FTE_QUEUE, handleFteJob } from "~/agents/fte/job";
 import {
   type DailyRegenJobData,
@@ -92,6 +93,20 @@ async function main() {
   // score + synthesize with daily params instead of catch-up params.
   await boss.createQueue(DAILY_REGEN_QUEUE, {
     name: DAILY_REGEN_QUEUE,
+    retryLimit: 1,
+    retryDelay: 60,
+  });
+  // Source-discovery agent (PF-93 phase 5). Fired on competitor creation.
+  // `policy: "stately"` + `singletonKey: "competitor:<id>"` at send-time is
+  // what actually dedups — pg-boss's singletonKey is silently ignored under
+  // the default 'standard' policy. Stately enforces one job per state per
+  // key, so concurrent adders of the same competitor get coalesced into at
+  // most one pending + one active run. retryLimit:1 matches FTE — agent
+  // runs are expensive, don't double-charge on transient flake;
+  // record_source is idempotent so a partial retry is safe.
+  await boss.createQueue(DISCOVERY_QUEUE, {
+    name: DISCOVERY_QUEUE,
+    policy: "stately",
     retryLimit: 1,
     retryDelay: 60,
   });
@@ -206,6 +221,22 @@ async function main() {
       jobs.map(async (job) => {
         logger.info({ jobId: job.id, userId: job.data.userId }, "daily-regen: job started");
         await handleDailyRegenJob(job);
+      }),
+    );
+  });
+
+  // batchSize=3 keeps Firecrawl + Sonnet fan-out modest: each discovery run
+  // can issue up to ~25 tool calls (mostly Firecrawl fetches), so 3 in
+  // parallel is the sweet spot between TTV on bulk onboarding and burning
+  // Firecrawl rate-limit headroom.
+  await boss.work<DiscoveryJobData>(DISCOVERY_QUEUE, { batchSize: 3 }, async (jobs) => {
+    await Promise.all(
+      jobs.map(async (job) => {
+        logger.info(
+          { jobId: job.id, competitorId: job.data.competitorId, runId: job.data.runId },
+          "discovery: job started",
+        );
+        await handleDiscoveryJob(job);
       }),
     );
   });

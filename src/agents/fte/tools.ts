@@ -1,12 +1,15 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { eq, sql } from "drizzle-orm";
+import { enqueueDiscovery } from "~/agents/discovery/job";
 import {
   competitors as competitorsTable,
   itemScores,
   userCompetitors,
   users as usersTable,
 } from "~/db/schema";
+import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
+import { logger } from "~/shared/server/logger";
 import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // Tool definitions + executors for the FTE agent (#28).
@@ -277,6 +280,11 @@ async function runAddCompetitor(ctx: ToolContext, input: unknown): Promise<ToolE
     // when the new caller provided a non-null value — letting earlier writes
     // win for missing fields would mean a later good name overrides an
     // earlier "Co." style placeholder.
+    //
+    // `xmax = 0` on the returned row is the Postgres signal for "this row
+    // was inserted, not updated" — we use it to fire source-discovery
+    // (PF-93 phase 5) exactly once per shared competitor row across all
+    // users + agents that touch it.
     const competitor = await db
       .insert(competitorsTable)
       .values({
@@ -296,6 +304,7 @@ async function runAddCompetitor(ctx: ToolContext, input: unknown): Promise<ToolE
         name: competitorsTable.name,
         homepageUrl: competitorsTable.homepageUrl,
         rssUrl: competitorsTable.rssUrl,
+        wasInserted: sql<boolean>`(xmax = 0)`.as("was_inserted"),
       });
 
     const c = competitor[0];
@@ -307,6 +316,24 @@ async function runAddCompetitor(ctx: ToolContext, input: unknown): Promise<ToolE
       .insert(userCompetitors)
       .values({ userId: ctx.userId, competitorId: c.id })
       .onConflictDoNothing();
+
+    if (c.wasInserted) {
+      try {
+        const boss = await getBoss();
+        const { runId, enqueued } = await enqueueDiscovery(boss, c.id);
+        logger.info(
+          { competitorId: c.id, name: c.name, runId, enqueued, userId: ctx.userId },
+          "fte add_competitor: discovery enqueued",
+        );
+      } catch (err) {
+        // Don't fail the tool call if enqueue fails — the competitor row
+        // is already persisted, FTE can continue, admin can re-trigger.
+        logger.error(
+          { err, competitorId: c.id, name: c.name },
+          "fte add_competitor: discovery enqueue failed",
+        );
+      }
+    }
 
     return {
       content: `Added ${c.name} (${c.homepageUrl})${c.rssUrl ? ` rss=${c.rssUrl}` : ""}.`,
