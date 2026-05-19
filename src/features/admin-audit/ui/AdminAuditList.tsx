@@ -67,6 +67,7 @@ const ACTION_LABEL: Record<string, string> = {
   invite_issued: "Invite issued",
   fte_rerun_enqueued: "FTE re-run enqueued",
   fast_path_enqueued: "Fast-path enqueued",
+  competitor_edit: "Competitor edited",
 };
 
 function ActionChip({ action }: { action: string }) {
@@ -85,6 +86,18 @@ function TargetCell({ row }: { row: AdminAuditRow }) {
       <Link
         to="/admin/users/$userId"
         params={{ userId: row.targetId }}
+        className="font-mono text-text hover:underline"
+      >
+        {label}
+      </Link>
+    );
+  }
+  if (row.targetKind === "competitor") {
+    return (
+      <Link
+        to="/admin/competitors/$competitorId"
+        params={{ competitorId: row.targetId }}
+        search={{ tab: "audit" }}
         className="font-mono text-text hover:underline"
       >
         {label}

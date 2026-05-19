@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 import { FilterChipRow } from "~/components/admin/FilterChipRow";
 import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
@@ -52,7 +52,7 @@ const SOURCE_LABELS: Record<Filters["source"], string> = {
   sourceless: "Sourceless",
 };
 
-export const Route = createFileRoute("/admin/competitors")({
+export const Route = createFileRoute("/admin/competitors/")({
   validateSearch: filterSchema,
   loader: () => listCompetitorsForAdmin(),
   component: AdminCompetitorsPage,
@@ -238,15 +238,22 @@ function CompetitorRowItem({ row }: { row: CompetitorAdminRow }) {
     <li className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          <Link
+            to="/admin/competitors/$competitorId"
+            params={{ competitorId: row.id }}
+            search={{ tab: "activity" }}
+            className="truncate font-medium text-text hover:underline"
+          >
+            {row.name}
+          </Link>
           <a
             href={row.homepageUrl}
             target="_blank"
             rel="noreferrer noopener"
-            className="truncate font-medium text-text hover:underline"
+            className="truncate font-mono text-xs text-text-muted hover:text-text"
           >
-            {row.name}
+            {domain}
           </a>
-          <span className="truncate font-mono text-xs text-text-muted">{domain}</span>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PresenceChip label="RSS" present={row.rssUrl !== null} />
