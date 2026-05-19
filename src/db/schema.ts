@@ -14,6 +14,32 @@ import {
 
 export const userStatus = pgEnum("user_status", ["pending", "onboarding", "active", "paused"]);
 export const sourceType = pgEnum("source_type", ["rss", "ph", "firehose", "firecrawl"]);
+// User-facing identity for a competitor source (PF-93). Distinct from
+// `sourceType` above, which is the internal adapter/transport that produced a
+// raw_item. Discovery records all five from day 1; ingestion ships for
+// `rss` + `webpage` only — `x`/`linkedin`/`youtube` are discovery-only.
+export const competitorSourceKind = pgEnum("competitor_source_kind", [
+  "rss",
+  "webpage",
+  "x",
+  "linkedin",
+  "youtube",
+]);
+// Internal extraction strategy (PF-93) — never user-set. Deterministic for
+// `rss` (`feed_poll`); inferred by Haiku at first fetch for `webpage`
+// (`static → snapshot_diff`, `listing → list_extract`). Reserved
+// (`post_stream`) for social watchers when they ship.
+export const competitorSourceExtractionMode = pgEnum("competitor_source_extraction_mode", [
+  "feed_poll",
+  "snapshot_diff",
+  "list_extract",
+  "post_stream",
+]);
+export const competitorSourceStatus = pgEnum("competitor_source_status", [
+  "active",
+  "failing",
+  "disabled",
+]);
 export const itemCategory = pgEnum("item_category", [
   "launch",
   "pricing",
@@ -124,6 +150,41 @@ export const competitors = pgTable(
   (t) => [unique("competitors_homepage_url_unique").on(t.homepageUrl)],
 );
 
+// Per-competitor source inventory (PF-93). Replaces the single-feed model
+// (`competitors.rss_url`) with 0..N typed sources discovered by an agent on
+// competitor creation. `extraction_mode` is nullable: deterministic
+// (`feed_poll`) for `rss` rows the agent records, but for `webpage` rows the
+// mode is decided by Haiku at first fetch and back-filled then. `config` is
+// reserved for per-mode tuning (e.g. CSS selector for `list_extract`).
+// `agent_rationale` captures the discovery agent's one-liner ("found in
+// homepage footer"), surfaced collapsed in the admin per-source list.
+export const competitorSources = pgTable(
+  "competitor_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    competitorId: uuid("competitor_id")
+      .notNull()
+      .references(() => competitors.id, { onDelete: "cascade" }),
+    sourceType: competitorSourceKind("source_type").notNull(),
+    extractionMode: competitorSourceExtractionMode("extraction_mode"),
+    urlOrHandle: text("url_or_handle").notNull(),
+    status: competitorSourceStatus("status").notNull().default("active"),
+    lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
+    lastContentHash: text("last_content_hash"),
+    config: jsonb("config").notNull().default({}),
+    agentRationale: text("agent_rationale"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("competitor_sources_competitor_type_url_unique").on(
+      t.competitorId,
+      t.sourceType,
+      t.urlOrHandle,
+    ),
+    index("competitor_sources_competitor_status_idx").on(t.competitorId, t.status),
+  ],
+);
+
 export const userCompetitors = pgTable(
   "user_competitors",
   {
@@ -147,6 +208,14 @@ export const rawItems = pgTable(
       .references(() => competitors.id, { onDelete: "cascade" }),
     source: sourceType("source").notNull(),
     sourceId: text("source_id").notNull(),
+    // Forward-compatible FK for the multi-source model (PF-93). Nullable until
+    // the watcher refactor migrates emitters off `competitor_id` + `source`.
+    // Backfilled in 0013 for existing `source='rss'` rows. SET NULL on delete
+    // so source removal doesn't cascade through items the user has already
+    // seen.
+    competitorSourceId: uuid("competitor_source_id").references(() => competitorSources.id, {
+      onDelete: "set null",
+    }),
     url: text("url").notNull(),
     title: text("title").notNull(),
     body: text("body"),
@@ -384,6 +453,8 @@ export type Verification = typeof verifications.$inferSelect;
 export type NewVerification = typeof verifications.$inferInsert;
 export type CompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferSelect;
 export type NewCompetitorPricingSnapshot = typeof competitorPricingSnapshots.$inferInsert;
+export type CompetitorSource = typeof competitorSources.$inferSelect;
+export type NewCompetitorSource = typeof competitorSources.$inferInsert;
 export type ItemScore = typeof itemScores.$inferSelect;
 export type NewItemScore = typeof itemScores.$inferInsert;
 export type Waitlist = typeof waitlist.$inferSelect;
