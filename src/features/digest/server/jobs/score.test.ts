@@ -7,7 +7,7 @@ vi.mock("~/shared/server/logger", () => ({
 }));
 vi.mock("~/shared/server/posthog", () => ({ captureServerEvent: vi.fn() }));
 
-const { runWithConcurrency } = await import("./score");
+const { runWithConcurrency, publishedAtCutoffFor } = await import("./score");
 
 describe("runWithConcurrency", () => {
   test("preserves input order in the result array even when workers finish out of order", async () => {
@@ -75,5 +75,23 @@ describe("runWithConcurrency", () => {
       return i;
     });
     expect(seen.size).toBe(50);
+  });
+});
+
+describe("publishedAtCutoffFor — PF-90 helper", () => {
+  const now = new Date("2026-05-17T10:00:00Z");
+
+  test("undefined → null (no cap, daily-cron behavior)", () => {
+    expect(publishedAtCutoffFor(undefined, now)).toBeNull();
+  });
+
+  test("0 or negative → null (treated as 'no cap')", () => {
+    expect(publishedAtCutoffFor(0, now)).toBeNull();
+    expect(publishedAtCutoffFor(-5, now)).toBeNull();
+  });
+
+  test("90 → cutoff exactly 90 days before `now`", () => {
+    const cutoff = publishedAtCutoffFor(90, now);
+    expect(cutoff?.toISOString()).toBe("2026-02-16T10:00:00.000Z");
   });
 });

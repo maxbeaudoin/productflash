@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { itemScores, rawItems, userCompetitors, users as usersTable } from "~/db/schema";
 import type { NewItemScore } from "~/db/schema";
 import {
@@ -56,6 +56,18 @@ export interface ScoreOptions {
   maxItemsPerUser?: number;
   concurrency?: number;
   now?: Date;
+  // Optional hard cap on item recency by `published_at`. When set, drops
+  // any candidate whose `published_at` is older than
+  // `now - maxPublishedAgeDays`. Null `published_at` is kept — adapters
+  // SHOULD populate it but we don't punish missing dates by dropping the
+  // item; `ingested_at` recency is the freshness proxy for those. Daily
+  // cron leaves this unset (score everything that lands in the window —
+  // the published_at cap belongs on synthesize, the selection step;
+  // capping here would permanently strand items whose publish date is
+  // older than the cap from ever being classified). Fast-path
+  // (catch-up) passes 90 so Haiku doesn't classify archive items on the
+  // FTE first ingest (PF-90).
+  maxPublishedAgeDays?: number;
 }
 
 // On-demand variant used by the debug preview (#25) and the time-to-first
@@ -71,7 +83,15 @@ export async function runScoringForUser(
   const concurrency = options.concurrency ?? CLASSIFY_CONCURRENCY;
   const now = options.now ?? new Date();
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
-  const metrics = await runForUser(db, userId, cutoff, maxItemsPerUser, concurrency);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
+  const metrics = await runForUser(
+    db,
+    userId,
+    cutoff,
+    publishedAtCutoff,
+    maxItemsPerUser,
+    concurrency,
+  );
   logger.info(metrics, "score: on-demand user run complete");
   return metrics;
 }
@@ -84,6 +104,7 @@ export async function runScoring(options: ScoreOptions = {}): Promise<ScoreMetri
   const concurrency = options.concurrency ?? CLASSIFY_CONCURRENCY;
   const now = options.now ?? new Date();
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
 
   const activeUsers = await db
     .select({ id: usersTable.id, email: usersTable.email })
@@ -98,7 +119,14 @@ export async function runScoring(options: ScoreOptions = {}): Promise<ScoreMetri
   const perUser: UserScoreMetrics[] = [];
 
   for (const user of activeUsers) {
-    const metrics = await runForUser(db, user.id, cutoff, maxItemsPerUser, concurrency);
+    const metrics = await runForUser(
+      db,
+      user.id,
+      cutoff,
+      publishedAtCutoff,
+      maxItemsPerUser,
+      concurrency,
+    );
     perUser.push(metrics);
     logger.info({ ...metrics, email: user.email }, "score: user complete");
   }
@@ -122,6 +150,7 @@ async function runForUser(
   db: ReturnType<typeof getDb>,
   userId: string,
   cutoff: Date,
+  publishedAtCutoff: Date | null,
   maxItems: number,
   concurrency: number,
 ): Promise<UserScoreMetrics> {
@@ -137,8 +166,14 @@ async function runForUser(
     return { userId, candidates: 0, classified: 0, skipped: 0, errored: 0 };
   }
 
-  // Pull last-24h items for this user's competitors, skip any already scored
-  // for this user (idempotent re-runs in the same window).
+  // Pull recent items for this user's competitors, skip any already scored
+  // for this user (idempotent re-runs in the same window). When
+  // `publishedAtCutoff` is set, drop items whose `published_at` is older
+  // than the cutoff so an archive-heavy ingest doesn't pay Haiku to
+  // classify items from years ago (PF-90). Null `published_at` is
+  // tolerated — adapters SHOULD populate it, but a missing date is not
+  // grounds to silently disappear an item from the digest. Today only
+  // RSS could realistically return null (and 0% do in practice).
   const candidates = await db
     .select({
       rawItemId: rawItems.id,
@@ -156,7 +191,15 @@ async function runForUser(
       )`,
     })
     .from(rawItems)
-    .where(and(inArray(rawItems.competitorId, ids), gte(rawItems.ingestedAt, cutoff)))
+    .where(
+      and(
+        inArray(rawItems.competitorId, ids),
+        gte(rawItems.ingestedAt, cutoff),
+        ...(publishedAtCutoff
+          ? [or(isNull(rawItems.publishedAt), gte(rawItems.publishedAt, publishedAtCutoff))]
+          : []),
+      ),
+    )
     .orderBy(desc(rawItems.ingestedAt))
     .limit(maxItems);
 
@@ -269,6 +312,14 @@ export async function runWithConcurrency<T, R>(
 
 function sum<T>(arr: T[], pick: (t: T) => number): number {
   return arr.reduce((acc, x) => acc + pick(x), 0);
+}
+
+export function publishedAtCutoffFor(
+  maxPublishedAgeDays: number | undefined,
+  now: Date,
+): Date | null {
+  if (!maxPublishedAgeDays || maxPublishedAgeDays <= 0) return null;
+  return new Date(now.getTime() - maxPublishedAgeDays * 24 * 60 * 60 * 1000);
 }
 
 function emitPosthog(m: ScoreMetrics): void {

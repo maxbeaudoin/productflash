@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne, or, sql } from "drizzle-orm";
 import {
   competitors as competitorsTable,
   digestItems,
@@ -22,6 +22,7 @@ import {
   type SynthesisUsage,
   type SynthesizedItem,
 } from "~/features/digest/server/synthesize";
+import { publishedAtCutoffFor } from "~/features/digest/server/jobs/score";
 
 // Daily synthesis job.
 //
@@ -52,6 +53,17 @@ const LOOKBACK_HOURS = 24;
 // daily cron path enables this automatically (see weekendAwareDefaults
 // below); manual + fast-path callers can override via SynthesisOptions.
 const MONDAY_LOOKBACK_HOURS = 72;
+// Daily-cron published_at cap. Tracks the ingested_at window in days
+// (Mon = 3d, all other weekdays = 1d) so the rule is "selected for
+// today's digest only if also published within today's window — or
+// undated (adapter contract is loose, see below)." Without this, any
+// future source that returns historical items on a single ingest pull
+// would dump items with old `published_at` into the daily digest,
+// since their `ingested_at` would be `now` (PF-90 mechanism applied to
+// daily, not just first-ingest). Today's adapters don't backfill so
+// the cap is a no-op now and a guardrail for tomorrow.
+const DAILY_MAX_PUBLISHED_AGE_DAYS = 1;
+const MONDAY_MAX_PUBLISHED_AGE_DAYS = 3;
 const MAX_ITEMS_PER_DIGEST = 5;
 // Cap per competitor in the first selection pass. With MAX_ITEMS_PER_DIGEST=5
 // this guarantees at least 3 distinct competitors in any digest where ≥3
@@ -119,6 +131,17 @@ export interface SynthesisOptions {
   // to MONDAY_LOOKBACK_HOURS on UTC Monday so the Monday digest covers
   // Fri+Sat+Sun. Off by default for manual/fast-path callers.
   useWeekendAwareDefaults?: boolean;
+  // Optional hard cap on item recency by `published_at`. When set,
+  // drops any pool item whose `published_at` is older than
+  // `now - maxPublishedAgeDays`. Null `published_at` is tolerated —
+  // adapters SHOULD populate it, but a missing date is not grounds to
+  // silently disappear an item; the outer `ingested_at` window
+  // provides freshness for null-dated items. Fast-path (catch-up)
+  // passes 90 so an archive-heavy first ingest doesn't drown the first
+  // digest in items published years ago (PF-90). Daily cron defaults
+  // via `useWeekendAwareDefaults` to 1d (Mon = 3d) so a future
+  // backfilling source can't slip old items into a daily digest.
+  maxPublishedAgeDays?: number;
 }
 
 // On-demand variant used by the debug preview (#25) and the time-to-first
@@ -154,6 +177,7 @@ export async function runSynthesisForUser(
   const userName = user.name ?? user.email.split("@")[0];
   const reader = toReaderProfile(user);
   const dislikedExamples = await loadDislikedExamples(db, user.id, now);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
   const metrics = await runForUser(
     db,
     user.id,
@@ -161,6 +185,7 @@ export async function runSynthesisForUser(
     reader,
     dislikedExamples,
     cutoff,
+    publishedAtCutoff,
     now,
     dayStart,
     maxItems,
@@ -201,14 +226,25 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
   // Monday's lookback widens to 72h to fold in Fri/Sat/Sun ingestion. Only
   // applied when the caller did not override `lookbackHours` and opted into
   // weekend-aware defaults (cron path). Tue–Fri stay on the 24h daily window.
+  const isMonday = now.getUTCDay() === 1;
   const defaultLookback =
-    options.useWeekendAwareDefaults && now.getUTCDay() === 1
-      ? MONDAY_LOOKBACK_HOURS
-      : LOOKBACK_HOURS;
+    options.useWeekendAwareDefaults && isMonday ? MONDAY_LOOKBACK_HOURS : LOOKBACK_HOURS;
   const lookbackHours = options.lookbackHours ?? defaultLookback;
   const maxItems = options.maxItemsPerDigest ?? MAX_ITEMS_PER_DIGEST;
   const maxPerCompetitor = options.maxItemsPerCompetitor ?? MAX_ITEMS_PER_COMPETITOR;
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
+  // Cron path sets a default published_at cap that tracks the lookback
+  // window. Manual `pnpm synthesize:run` leaves it unset so dev
+  // iteration on backfilled data still works.
+  const defaultMaxPublishedAgeDays = options.useWeekendAwareDefaults
+    ? isMonday
+      ? MONDAY_MAX_PUBLISHED_AGE_DAYS
+      : DAILY_MAX_PUBLISHED_AGE_DAYS
+    : undefined;
+  const publishedAtCutoff = publishedAtCutoffFor(
+    options.maxPublishedAgeDays ?? defaultMaxPublishedAgeDays,
+    now,
+  );
 
   const activeUsers = await db
     .select({
@@ -250,6 +286,7 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
         reader,
         dislikedExamples,
         cutoff,
+        publishedAtCutoff,
         now,
         dayStart,
         maxItems,
@@ -294,6 +331,7 @@ async function runForUser(
   reader: ReaderProfile | null,
   dislikedExamples: DislikedExample[] | null,
   cutoff: Date,
+  publishedAtCutoff: Date | null,
   now: Date,
   dayStart: Date,
   maxItems: number,
@@ -320,6 +358,9 @@ async function runForUser(
         eq(itemScores.userId, userId),
         ne(itemScores.category, "noise"),
         gte(rawItems.ingestedAt, cutoff),
+        ...(publishedAtCutoff
+          ? [or(isNull(rawItems.publishedAt), gte(rawItems.publishedAt, publishedAtCutoff))]
+          : []),
       ),
     )
     .orderBy(desc(itemScores.score));
