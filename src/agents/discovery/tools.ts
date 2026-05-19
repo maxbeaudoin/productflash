@@ -18,6 +18,7 @@ import { safeFetch, safeFetchText, SafeFetchError } from "~/shared/server/safe-f
 const FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v2/scrape";
 const FETCH_PAGE_TIMEOUT_MS = 60_000;
 const FETCH_PAGE_MAX_CHARS = 8_000;
+const FETCH_PAGE_MAX_LINKS = 60;
 const FETCH_SITEMAP_TIMEOUT_MS = 15_000;
 const FETCH_SITEMAP_MAX_URLS = 200;
 const PROBE_RSS_TIMEOUT_MS = 15_000;
@@ -30,7 +31,7 @@ export const DISCOVERY_TOOLS: Anthropic.Tool[] = [
   {
     name: "fetch_page",
     description:
-      "Fetch a single URL and return its main text content as plain markdown (nav/footer stripped). Use this to read a competitor's homepage, blog index, changelog page, or any web page you want to inspect. Output is truncated to ~8,000 characters.",
+      "Fetch a single URL and return its text content as markdown. For inner pages the response is main content only (nav/footer stripped). For homepage URLs (path '/'), the response also includes an 'Outgoing links' section listing every <a href> on the page (including nav and footer) — use it to find product pages and social profiles. Markdown is truncated to ~8,000 characters; the links section is appended after.",
     input_schema: {
       type: "object",
       properties: {
@@ -179,6 +180,11 @@ async function runFetchPage(input: unknown): Promise<DiscoveryToolExecutionResul
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) return errorResult("FIRECRAWL_API_KEY not configured", { url });
 
+  // Homepage URLs need nav + footer in scope so the agent can see product
+  // pages and social profiles. Firecrawl's `links` format respects
+  // `onlyMainContent`, so we flip both for the homepage call only.
+  const isHomepage = isHomepageUrl(url);
+
   try {
     // The outbound target is the fixed Firecrawl SaaS endpoint — model-supplied
     // `url` rides in the body, and Firecrawl applies its own SSRF protections.
@@ -191,8 +197,8 @@ async function runFetchPage(input: unknown): Promise<DiscoveryToolExecutionResul
       },
       body: JSON.stringify({
         url,
-        formats: [{ type: "markdown" }],
-        onlyMainContent: true,
+        formats: isHomepage ? [{ type: "markdown" }, { type: "links" }] : [{ type: "markdown" }],
+        onlyMainContent: !isHomepage,
         timeout: FETCH_PAGE_TIMEOUT_MS,
       }),
     });
@@ -206,7 +212,7 @@ async function runFetchPage(input: unknown): Promise<DiscoveryToolExecutionResul
     }
     const json = (await res.json()) as {
       success?: boolean;
-      data?: { markdown?: string | null };
+      data?: { markdown?: string | null; links?: string[] | null };
       error?: string;
     };
     if (!json.success || !json.data) {
@@ -214,16 +220,48 @@ async function runFetchPage(input: unknown): Promise<DiscoveryToolExecutionResul
     }
     const md = (json.data.markdown ?? "").trim();
     if (md.length === 0) return errorResult("fetch_page returned empty content", { url });
+
     const truncated = md.length > FETCH_PAGE_MAX_CHARS;
-    const content = truncated ? `${md.slice(0, FETCH_PAGE_MAX_CHARS)}…` : md;
+    const mdSlice = truncated ? `${md.slice(0, FETCH_PAGE_MAX_CHARS)}…` : md;
+
+    const links = isHomepage ? dedupeLinks(json.data.links).slice(0, FETCH_PAGE_MAX_LINKS) : [];
+    const content =
+      links.length > 0
+        ? `${mdSlice}\n\n--- Outgoing links (${links.length}) ---\n${links.join("\n")}`
+        : mdSlice;
+
     return {
       content,
       isError: false,
-      payload: { url, bytes: md.length, truncated },
+      payload: { url, bytes: md.length, truncated, links },
     };
   } catch (err) {
     return errorResult(`fetch_page threw: ${describeError(err)}`, { url });
   }
+}
+
+function isHomepageUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.pathname === "" || u.pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
+function dedupeLinks(links: unknown): string[] {
+  if (!Array.isArray(links)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const link of links) {
+    if (typeof link !== "string") continue;
+    const trimmed = link.trim();
+    if (trimmed.length === 0) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
 }
 
 // --- fetch_sitemap -----------------------------------------------------
