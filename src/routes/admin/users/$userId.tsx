@@ -89,11 +89,27 @@ type FteEventRow = {
 // have no rating. Powers PF-57's inline 👍/👎 pill on the admin preview.
 type RatingByItemId = Record<string, "up" | "down">;
 
+// PF-58. A user who stops rating is the earliest churn signal we have, so
+// expose the aggregate here. Computed cohort-wide (not just the visible
+// digests) so the "days since last rating" number is honest even when older
+// digests scrolled out of the RECENT_DIGEST_LIMIT window.
+type FeedbackHealth = {
+  total: number;
+  up: number;
+  down: number;
+  lastRatedAt: string | null;
+};
+
+// PoC churn cutoff. Past this, a beta user has effectively stopped reacting
+// to digests and the row should glow coral on the admin user-detail surface.
+const FEEDBACK_STALE_DAYS = 7;
+
 type DetailLoaderData = {
   profile: ProfileView;
   competitors: CompetitorView[];
   digests: DigestView[];
   ratingByItemId: RatingByItemId;
+  feedbackHealth: FeedbackHealth;
   fteRunId: string | null;
   fteEvents: FteEventRow[];
   // Cost of the latest FTE run (sum of llm_usage rows where kind='fte' and
@@ -192,6 +208,25 @@ const loadUserDetail = createServerFn({ method: "GET" })
     for (const r of feedbackRows) {
       ratingByItemId[r.digestItemId] = r.rating;
     }
+
+    // PF-58. Single aggregate over every rating this user has left — counts
+    // and last-rated timestamp. count() filter avoids a second query for the
+    // up/down split.
+    const [healthAgg] = await db
+      .select({
+        total: sql<number>`COUNT(*)::int`,
+        up: sql<number>`COUNT(*) FILTER (WHERE ${feedback.rating} = 'up')::int`,
+        down: sql<number>`COUNT(*) FILTER (WHERE ${feedback.rating} = 'down')::int`,
+        lastRatedAt: sql<Date | null>`MAX(${feedback.createdAt})`,
+      })
+      .from(feedback)
+      .where(eq(feedback.userId, user.id));
+    const feedbackHealth: FeedbackHealth = {
+      total: healthAgg?.total ?? 0,
+      up: healthAgg?.up ?? 0,
+      down: healthAgg?.down ?? 0,
+      lastRatedAt: healthAgg?.lastRatedAt ? new Date(healthAgg.lastRatedAt).toISOString() : null,
+    };
 
     const [latestRun] = await db
       .select({ runId: fteEvents.runId, ts: fteEvents.ts })
@@ -338,6 +373,7 @@ const loadUserDetail = createServerFn({ method: "GET" })
         costMicroUsd: digestCostById.get(d.id) ?? 0,
       })),
       ratingByItemId,
+      feedbackHealth,
       fteRunId: runId,
       fteEvents: eventRows,
       fteRunCostMicroUsd,
@@ -486,6 +522,8 @@ function AdminUserDetailPage() {
           onReRunFte={onReRunFte}
           onReRunFastPath={onReRunFastPath}
         />
+
+        <FeedbackHealthBlock health={data.feedbackHealth} />
 
         <CompetitorsBlock competitors={data.competitors} />
 
@@ -650,6 +688,78 @@ function ActionsRow({
         </p>
       ) : null}
     </section>
+  );
+}
+
+function FeedbackHealthBlock({ health }: { health: FeedbackHealth }) {
+  const ratio = health.total > 0 ? `${Math.round((health.up / health.total) * 100)}%` : "—";
+  const lastRatedDate = health.lastRatedAt
+    ? new Date(health.lastRatedAt).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  const daysSince =
+    health.lastRatedAt !== null
+      ? Math.floor((Date.now() - new Date(health.lastRatedAt).getTime()) / 86_400_000)
+      : null;
+  const isStale = daysSince === null || daysSince >= FEEDBACK_STALE_DAYS;
+  const daysLabel =
+    daysSince === null
+      ? "never"
+      : daysSince === 0
+        ? "today"
+        : daysSince === 1
+          ? "1 day"
+          : `${daysSince} days`;
+  return (
+    <section className="mt-6 rounded-2xl border border-ink-line bg-paper-warm p-5">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-text-muted">
+          Feedback health
+        </h2>
+        <span
+          className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted"
+          title="A user who stops rating is the earliest churn signal we have. Coral = ≥7d since last rating."
+        >
+          churn signal
+        </span>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Stat label="Total ratings" value={String(health.total)} />
+        <Stat
+          label="👍 / 👎"
+          value={health.total > 0 ? `${health.up} / ${health.down}` : "—"}
+          sub={health.total > 0 ? `${ratio} 👍` : null}
+        />
+        <Stat label="Last rated" value={lastRatedDate ?? "—"} />
+        <Stat label="Days since" value={daysLabel} tone={isStale ? "stale" : "ok"} />
+      </div>
+    </section>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string | null;
+  tone?: "ok" | "stale";
+}) {
+  const valueTone = tone === "stale" ? "text-coral" : "text-text";
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+        {label}
+      </div>
+      <div className={`mt-1 font-mono text-lg tabular-nums ${valueTone}`}>{value}</div>
+      {sub ? <div className="mt-0.5 text-[11px] text-text-muted">{sub}</div> : null}
+    </div>
   );
 }
 
