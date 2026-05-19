@@ -325,6 +325,11 @@ export const feedback = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     rating: feedbackRating("rating").notNull(),
+    // Optional free-text "what was wrong with this?" follow-up. Only meaningful
+    // when `rating = 'down'`; cleared on the conflict path when a user flips
+    // back to 👍 so admin views don't show a complaint attached to a like.
+    comment: text("comment"),
+    commentedAt: timestamp("commented_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("feedback_user_item_unique").on(t.userId, t.digestItemId)],

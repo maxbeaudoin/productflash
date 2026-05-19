@@ -26,9 +26,15 @@ The PoC. Invite-only; we're validating with 5–10 beta users before opening the
 
 **Up/down feedback on every item.** Tap 👍 or 👎 inline (in-app or in the email — same link, signed so nobody can spoof your ratings). Feedback is the channel by which the brief learns what resonates.
 
+**Optional "what was wrong with this?" follow-up on 👎.** A 👎 reveals a one-line comment field so you can say what made the item miss — wrong category, stale, off-topic. Optional and free-text. The same form lives on the in-app card and on the post-rating thanks page (for email-link clicks), and your comment surfaces in the admin feedback feed for curation review.
+
 **Profile + competitor management.** A `/app/profile` page lets you edit your role, goal, and focus areas any time, and add or remove competitors. New competitors are RSS-auto-detected the moment you add them.
 
 **The public landing.** A real `productflash.ai` website explaining what the product is, who it's for, and a live sample brief — built from the same design tokens as the in-app experience, so the marketing site and the actual product look like the same product.
+
+**Operator view for what the cohort thinks.** A cross-user feedback feed lists every 👍/👎 the cohort has tapped, filterable by rating, source, classification, and a free-text email search. The default cut is "👎 in the last 7 days" — the fastest path to spotting curation regressions while the cohort is still small.
+
+**Operator view for what the cohort tracks.** A cohort-wide competitors view shows every competitor in the system: name, domain, how many users track it, which sources we have (RSS, Product Hunt, pricing page), and recent ingest activity. Sort by tracking count; filter by source presence, recency, or free-text name/domain. Makes it trivial to spot sourceless competitors and the popular targets across the cohort.
 
 **Waitlist with invite issuance.** No self-serve signup during private beta. Visitors join a waitlist (email, role, company URL); an admin issues a cryptographically-signed invite link per person. The signup form pre-fills what you told us on the waitlist, so you're not retyping anything.
 
@@ -50,11 +56,17 @@ The PoC. Invite-only; we're validating with 5–10 beta users before opening the
 
 **Admins go to the admin app, not onboarding.** Admin users hitting `/app` are routed directly into operator tools instead of the user-facing FTE flow.
 
+**Sharper landing-page story.** The marketing page no longer leaks the channel ("your inbox") — the brief is in-app and email, and the page now reads that way. The hero promises a brief that "lands before standup"; cadence is described as "before 8am local, when it matters" instead of a fixed "daily". The proof section shows the agent's actual onboarding thinking rather than a generic feature checklist. The "Join the waitlist" call-to-action is now "Request early access" — same flow, sharper framing — and the rename carries through the invite landing, login, and signup screens so the language is consistent end-to-end.
+
+**One filter pattern across operator tools.** Users, waitlist, feedback, and competitors lists now share the same controls — status chips, dropdown selects, and a rounded-pill email/name search — instead of four different shapes. Faster to scan, easier to teach, no more re-learning the page you just left.
+
 ### Fixed
 
 **The brief no longer hallucinates dates.** Earlier prototypes filled missing publication dates with "today" or the current date. Items now show a timestamp only when the source provided one.
 
 **Streaming step counter is stable.** The number of cards in the agent's thinking stream now grows monotonically instead of jumping forward and then collapsing back when the agent saves your profile.
+
+**The operator user-filter on the feedback feed actually filters.** The original dropdown control on the cross-user feedback feed didn't wire through to the loader — picking a user changed nothing. Replaced with a substring email search that does.
 
 ### Reliability
 
@@ -67,7 +79,6 @@ The PoC. Invite-only; we're validating with 5–10 beta users before opening the
 The active backlog lives in [Linear](https://linear.app/) (team: ProductFlash). The next user-visible items in priority order:
 
 - **Onboarding 5–10 real beta users.** The empirical test of whether the agentic flow lands on someone other than us.
-- **Admin feedback feed + per-source rollups.** So we can see which sources and item categories the cohort consistently likes (and which they skip).
-- **Optional "what was wrong with this?" comment on 👎.** Free-text follow-up to upgrade a binary signal into something actionable.
-- **Feedback as a synthesis signal.** Your disliked items feed back into the synthesis prompt, so the brief learns what to avoid for you specifically.
+- **Per-source rollups in the admin feed.** The feed exists; what's missing is the aggregate view — which sources and item classifications the cohort consistently likes (and which they skip).
+- **Feedback as a synthesis signal.** Your disliked items (and now the 👎 comments) feed back into the synthesis prompt, so the brief learns what to avoid for you specifically.
 - **Launch + monitor.** First broadcast day; track open rate, click rate, feedback ratio, FTE completion rate, and time-to-first-digest for two weeks.
