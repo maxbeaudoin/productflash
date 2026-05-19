@@ -524,7 +524,7 @@ function AdminUserDetailPage() {
       const res = await triggerFastPath({ data: { userId: data.profile.id } });
       setActionNote(
         res.enqueued
-          ? "Catch-up re-gen enqueued (ingest → score → synthesize, 7d/90d windows, 10 items). Refresh in ~2–3 min."
+          ? "Catch-up re-gen enqueued (ingest → score → synthesize, 90d window, 10 items). Refresh in ~2–3 min."
           : "Catch-up re-gen already in flight for this user — no new job enqueued.",
       );
       setCatchupState("idle");
@@ -731,7 +731,7 @@ function ActionsRow({
           variant="outline"
           onClick={onReGenCatchup}
           disabled={catchupState === "running"}
-          title="Full pipeline (ingest → score → synthesize) with catch-up params: 7d ingest / 90d published, 10 items, cap-3 per competitor."
+          title="Full pipeline (ingest → score → synthesize) over the last 90 days, 10 items, cap-3 per competitor. Ingest re-pulls feeds so newly-posted items land before scoring."
         >
           {catchupState === "running" ? "Enqueuing…" : "Re-gen catch-up"}
         </Button>
