@@ -1,18 +1,21 @@
-import { and, desc, eq, gte, ne } from "drizzle-orm";
+import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
 import {
   competitors as competitorsTable,
   digestItems,
   digests,
+  feedback,
   itemScores,
   rawItems,
   users as usersTable,
 } from "~/db/schema";
 import type { NewDigestItem } from "~/db/schema";
 import { getDb } from "~/shared/server/db";
+import { env } from "~/shared/server/env";
 import { recordLlmUsage } from "~/shared/server/llm-cost";
 import { logger } from "~/shared/server/logger";
 import { captureServerEvent } from "~/shared/server/posthog";
 import {
+  type DislikedExample,
   type ReaderProfile,
   type SynthesisInputItem,
   synthesizeDigest,
@@ -67,6 +70,19 @@ const MAX_ITEMS_PER_COMPETITOR = 2;
 // userId + non-noise + 7-day window, the realistic upper bound is a few
 // hundred rows — safe to load fully and partition in memory.
 const POOL_WARN_THRESHOLD = 2000;
+
+// Feedback-as-signal injection. Pull each user's recent 👎'd items into
+// the synthesis prompt as "avoid items in the same vein" examples (PF-63).
+// Caps stay aggressive so we don't blow the prompt-cache budget:
+//   - 30-day lookback window
+//   - at most 10 dislikes, most-recent first
+//   - combined render capped to ~4000 chars (~1000 tokens)
+// Cold-start users (<3 total ratings) are skipped — there's no signal
+// worth encoding from one offhand 👎.
+const DISLIKE_LOOKBACK_DAYS = 30;
+const DISLIKE_MAX_EXAMPLES = 10;
+const DISLIKE_CHAR_BUDGET = 4000;
+const FEEDBACK_COLD_START_THRESHOLD = 3;
 
 export interface UserSynthesisMetrics {
   userId: string;
@@ -137,11 +153,13 @@ export async function runSynthesisForUser(
 
   const userName = user.name ?? user.email.split("@")[0];
   const reader = toReaderProfile(user);
+  const dislikedExamples = await loadDislikedExamples(db, user.id, now);
   const metrics = await runForUser(
     db,
     user.id,
     userName,
     reader,
+    dislikedExamples,
     cutoff,
     now,
     dayStart,
@@ -224,11 +242,13 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
       // back to the email local-part so the greeting is never empty.
       const userName = user.name ?? user.email.split("@")[0];
       const reader = toReaderProfile(user);
+      const dislikedExamples = await loadDislikedExamples(db, user.id, now);
       const metrics = await runForUser(
         db,
         user.id,
         userName,
         reader,
+        dislikedExamples,
         cutoff,
         now,
         dayStart,
@@ -272,6 +292,7 @@ async function runForUser(
   userId: string,
   userName: string,
   reader: ReaderProfile | null,
+  dislikedExamples: DislikedExample[] | null,
   cutoff: Date,
   now: Date,
   dayStart: Date,
@@ -334,6 +355,7 @@ async function runForUser(
     userName,
     reader,
     items: synthesisInput,
+    dislikedExamples,
   });
 
   if (synthesized.length === 0) {
@@ -497,6 +519,100 @@ export function selectDiverseCandidates<T extends { rawItemId: string; competito
   }
 
   return selected;
+}
+
+// Fetch up to DISLIKE_MAX_EXAMPLES recent 👎'd items for this user to inject
+// into the synthesis prompt as "avoid items in the same vein" guidance.
+// Returns null when:
+//   - the env flag is off
+//   - the user is in the cold-start window (<3 total ratings)
+//   - the user has no recent dislikes in the lookback window
+// The synthesizer treats null/empty as "skip the block entirely" — the
+// baseline prompt is unchanged when there's no signal worth encoding.
+export async function loadDislikedExamples(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+  now: Date,
+): Promise<DislikedExample[] | null> {
+  if (!env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED) return null;
+
+  // Cold-start gate: count total ratings (up + down) cheaply before
+  // pulling the dislike rows. Below the threshold, one offhand 👎 isn't
+  // enough taste signal to warp the digest around.
+  const [{ count: totalRatings } = { count: 0 }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(feedback)
+    .where(eq(feedback.userId, userId));
+  if (totalRatings < FEEDBACK_COLD_START_THRESHOLD) return null;
+
+  const cutoff = new Date(now.getTime() - DISLIKE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      headline: digestItems.headline,
+      snippet: digestItems.snippet,
+      impactNote: digestItems.impactNote,
+      competitorName: competitorsTable.name,
+      comment: feedback.comment,
+    })
+    .from(feedback)
+    .innerJoin(digestItems, eq(digestItems.id, feedback.digestItemId))
+    .innerJoin(rawItems, eq(rawItems.id, digestItems.rawItemId))
+    .innerJoin(competitorsTable, eq(competitorsTable.id, rawItems.competitorId))
+    .where(
+      and(
+        eq(feedback.userId, userId),
+        eq(feedback.rating, "down"),
+        gte(feedback.createdAt, cutoff),
+      ),
+    )
+    .orderBy(desc(feedback.createdAt))
+    .limit(DISLIKE_MAX_EXAMPLES);
+
+  if (rows.length === 0) return null;
+
+  // Char-budget truncation: keep prepending entries until adding the next
+  // one would exceed the budget. Most-recent-first ordering means we
+  // preserve the freshest signal and drop the tail. Each entry's
+  // render-time prefix ("- Disliked N: ", "  snippet: ", etc.) is
+  // approximated as ~30 chars of fixed overhead per row + comment.
+  const out: DislikedExample[] = [];
+  let used = 0;
+  for (const r of rows) {
+    // `digest_items.impact_note` is nullable in the schema, so guard before
+    // measuring/rendering. Treat null as the empty string — the renderer
+    // skips empty impact lines anyway.
+    const impactNote = r.impactNote ?? "";
+    const commentLen = r.comment ? r.comment.length + 18 : 0;
+    const cost =
+      r.headline.length +
+      r.snippet.length +
+      impactNote.length +
+      r.competitorName.length +
+      commentLen +
+      30;
+    if (out.length > 0 && used + cost > DISLIKE_CHAR_BUDGET) break;
+    out.push({
+      competitorName: r.competitorName,
+      headline: r.headline,
+      snippet: r.snippet,
+      impactNote,
+      comment: r.comment,
+    });
+    used += cost;
+  }
+
+  logger.info(
+    {
+      userId,
+      totalRatings,
+      dislikedRowsFound: rows.length,
+      dislikedExamplesInjected: out.length,
+      approxCharBudget: used,
+    },
+    "synthesize: feedback signal injected",
+  );
+
+  return out;
 }
 
 function toReaderProfile(user: {

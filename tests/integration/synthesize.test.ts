@@ -4,6 +4,7 @@ import {
   competitors,
   digestItems,
   digests,
+  feedback,
   itemScores,
   rawItems,
   userCompetitors,
@@ -11,6 +12,27 @@ import {
 } from "~/db/schema";
 import { startTestDb, truncateAll, type TestDb } from "./setup";
 import type { SynthesisInput, SynthesisResult } from "~/features/digest/server/synthesize";
+
+// Toggle the feedback-signal env flag per-test so loadDislikedExamples
+// returns the right thing without mocking the env module. Mutating
+// process.env directly works because env.ts re-reads from process.env at
+// parse time only — but env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED is captured
+// once at module load. We mock the env module here so the toggle is live.
+const envMock = vi.hoisted(() => ({
+  env: {
+    SYNTHESIS_FEEDBACK_SIGNAL_ENABLED: false,
+  } as { SYNTHESIS_FEEDBACK_SIGNAL_ENABLED: boolean },
+}));
+vi.mock("~/shared/server/env", () => ({
+  env: new Proxy(envMock.env, {
+    get(target, prop) {
+      return Reflect.get(target, prop);
+    },
+  }),
+  requireEnv: (_k: string) => {
+    throw new Error("requireEnv not stubbed in this test");
+  },
+}));
 
 // Stub Sonnet — echo back one synthesized item per input rawItemId so
 // the job's plumbing (write digest + write digest_items + record llm_usage)
@@ -41,7 +63,18 @@ vi.mock("~/shared/server/db", () => ({
   getPool: () => dbHolder.pool,
 }));
 
-const { runSynthesisForUser } = await import("~/features/digest/server/jobs/synthesize");
+const { runSynthesisForUser, loadDislikedExamples: _loadDislikedExamples } =
+  await import("~/features/digest/server/jobs/synthesize");
+// loadDislikedExamples is typed against `ReturnType<typeof getDb>` (the
+// production getter), but the test harness builds its drizzle handle
+// directly via `drizzle(pool)` in setup.ts and types it as the bare
+// NodePgDatabase. The two are structurally compatible — the `$client`
+// drift is a typedef-only quirk — so cast at the boundary and move on.
+const loadDislikedExamples = _loadDislikedExamples as unknown as (
+  db: TestDb["db"],
+  userId: string,
+  now: Date,
+) => Promise<Awaited<ReturnType<typeof _loadDislikedExamples>>>;
 
 let h: TestDb;
 
@@ -57,6 +90,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await truncateAll(h.pool);
+  envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = false;
   synthMock.synthesize.mockReset();
   // Default: echo back one synthesized item per input. Tests that need
   // empty-output or error paths override per-test.
@@ -282,5 +316,256 @@ describe("runSynthesisForUser — F-009 tenant isolation", () => {
     const bScores = await h.db.select().from(itemScores).where(eq(itemScores.userId, userB!.id));
     expect(bScores).toHaveLength(1);
     expect(bScores[0]!.score).toBe(80);
+  });
+});
+
+describe("loadDislikedExamples — PF-63 feedback signal", () => {
+  // Helper: spin up a user with one synthesized digest item the user has
+  // rated. `rating` controls 👍/👎 and `comment` simulates the optional
+  // "why?" follow-up. Returns the user's id so the caller can run more
+  // assertions.
+  async function seedRatedItem(opts: {
+    emailSuffix: string;
+    rating: "up" | "down";
+    comment?: string;
+    headline?: string;
+    competitorName?: string;
+    createdAt?: Date;
+  }): Promise<{ userId: string; digestItemId: string }> {
+    const [user] = await h.db
+      .insert(users)
+      .values({
+        email: `${opts.emailSuffix}@test.local`,
+        name: opts.emailSuffix,
+        tz: "UTC",
+      })
+      .returning();
+    const [comp] = await h.db
+      .insert(competitors)
+      .values({
+        name: opts.competitorName ?? "Lattice",
+        homepageUrl: `https://${opts.emailSuffix}-comp.test`,
+      })
+      .returning();
+    const [raw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: `${opts.emailSuffix}-raw`,
+        url: `https://${opts.emailSuffix}.test/1`,
+        title: "raw title",
+        body: "body",
+        publishedAt: new Date("2026-05-01T00:00:00Z"),
+      })
+      .returning();
+    const [digest] = await h.db
+      .insert(digests)
+      .values({
+        userId: user!.id,
+        itemCount: 1,
+        periodStart: new Date("2026-05-01T00:00:00Z"),
+        periodEnd: new Date("2026-05-02T00:00:00Z"),
+      })
+      .returning();
+    const [item] = await h.db
+      .insert(digestItems)
+      .values({
+        digestId: digest!.id,
+        userId: user!.id,
+        rawItemId: raw!.id,
+        category: "launch",
+        headline: opts.headline ?? "Lattice shipped X",
+        snippet: "Snippet for the rated item.",
+        impactNote: "Impact note for the rated item.",
+        score: 70,
+      })
+      .returning();
+    await h.db.insert(feedback).values({
+      userId: user!.id,
+      digestItemId: item!.id,
+      rating: opts.rating,
+      comment: opts.comment ?? null,
+      commentedAt: opts.comment ? new Date() : null,
+      createdAt: opts.createdAt ?? new Date(),
+    });
+    return { userId: user!.id, digestItemId: item!.id };
+  }
+
+  test("env flag off → returns null even with plenty of feedback", async () => {
+    envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = false;
+    const { userId } = await seedRatedItem({ emailSuffix: "flagoff", rating: "down" });
+    // Add 3 more ratings so cold-start would otherwise pass.
+    for (let i = 0; i < 3; i++) {
+      const { digestItemId } = await seedRatedItem({
+        emailSuffix: `flagoff-${i}`,
+        rating: "down",
+      });
+      // Re-attach to the same user via the unique constraint workaround:
+      // just insert a new feedback row pointing to the new digestItemId
+      // for the same user.
+      await h.db.insert(feedback).values({
+        userId,
+        digestItemId,
+        rating: "down",
+        createdAt: new Date(),
+      });
+    }
+    const result = await loadDislikedExamples(h.db, userId, new Date("2026-05-18T00:00:00Z"));
+    expect(result).toBeNull();
+  });
+
+  test("cold-start (<3 ratings) → returns null even with a recent 👎", async () => {
+    envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = true;
+    const { userId } = await seedRatedItem({ emailSuffix: "coldstart", rating: "down" });
+    // Only 1 rating total → below the 3-rating cold-start threshold.
+    const result = await loadDislikedExamples(h.db, userId, new Date("2026-05-18T00:00:00Z"));
+    expect(result).toBeNull();
+  });
+
+  test("≥3 ratings + recent 👎 → returns the disliked items with competitor + headline + snippet + impact", async () => {
+    envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = true;
+    // First rating creates the user. Two more pad to reach the threshold.
+    const { userId } = await seedRatedItem({
+      emailSuffix: "hot",
+      rating: "down",
+      headline: "Lattice shipped weekly check-ins",
+      competitorName: "Lattice",
+      comment: "this is just a recap, not a real launch",
+      createdAt: new Date("2026-05-17T00:00:00Z"),
+    });
+    // Pad the rating count with a 👍 and another 👎 for the same user.
+    for (const r of ["up", "down"] as const) {
+      const { digestItemId } = await seedRatedItem({
+        emailSuffix: `hot-${r}`,
+        rating: r,
+      });
+      await h.db.insert(feedback).values({
+        userId,
+        digestItemId,
+        rating: r,
+        createdAt: new Date("2026-05-16T00:00:00Z"),
+      });
+    }
+
+    const result = await loadDislikedExamples(h.db, userId, new Date("2026-05-18T00:00:00Z"));
+    expect(result).not.toBeNull();
+    // Two 👎 rows for this user — the original + the padding one.
+    expect(result!.length).toBeGreaterThanOrEqual(1);
+    // Most recent dislike first (2026-05-17).
+    expect(result![0]!.competitorName).toBe("Lattice");
+    expect(result![0]!.headline).toBe("Lattice shipped weekly check-ins");
+    expect(result![0]!.comment).toBe("this is just a recap, not a real launch");
+  });
+
+  test("👎 outside the 30-day lookback window is excluded", async () => {
+    envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = true;
+    const stale = new Date("2026-03-01T00:00:00Z"); // ~80 days before now
+    const { userId } = await seedRatedItem({
+      emailSuffix: "stale",
+      rating: "down",
+      createdAt: stale,
+    });
+    // Pad with 2 more recent 👎 to clear the cold-start gate but the stale
+    // row should still be filtered out by the date window.
+    for (let i = 0; i < 2; i++) {
+      const { digestItemId } = await seedRatedItem({
+        emailSuffix: `stale-pad-${i}`,
+        rating: "down",
+      });
+      await h.db.insert(feedback).values({
+        userId,
+        digestItemId,
+        rating: "down",
+        createdAt: stale,
+      });
+    }
+    const result = await loadDislikedExamples(h.db, userId, new Date("2026-05-18T00:00:00Z"));
+    // All 👎 rows are stale → no examples returned, even though cold-start
+    // gate counts them as ratings.
+    expect(result).toBeNull();
+  });
+
+  test("👍 ratings are NOT included in examples (block is dislikes-only)", async () => {
+    envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = true;
+    const { userId } = await seedRatedItem({
+      emailSuffix: "thumbsup",
+      rating: "up",
+      headline: "Liked headline — must not appear",
+    });
+    // Two more 👍 to clear cold-start.
+    for (let i = 0; i < 2; i++) {
+      const { digestItemId } = await seedRatedItem({
+        emailSuffix: `thumbsup-pad-${i}`,
+        rating: "up",
+      });
+      await h.db.insert(feedback).values({
+        userId,
+        digestItemId,
+        rating: "up",
+        createdAt: new Date(),
+      });
+    }
+    const result = await loadDislikedExamples(h.db, userId, new Date("2026-05-18T00:00:00Z"));
+    // 3 👍 ratings, 0 👎 → cold-start clears but no dislikes to encode.
+    expect(result).toBeNull();
+  });
+
+  test("end-to-end runSynthesisForUser passes dislikedExamples through to the synthesizer", async () => {
+    envMock.env.SYNTHESIS_FEEDBACK_SIGNAL_ENABLED = true;
+    // Seed a user with 3 dislikes that include comments.
+    const { userId } = await seedRatedItem({
+      emailSuffix: "e2e",
+      rating: "down",
+      comment: "recap, not a launch",
+      headline: "Lattice shipped X",
+    });
+    for (let i = 0; i < 2; i++) {
+      const { digestItemId } = await seedRatedItem({
+        emailSuffix: `e2e-pad-${i}`,
+        rating: "down",
+      });
+      await h.db.insert(feedback).values({
+        userId,
+        digestItemId,
+        rating: "down",
+        createdAt: new Date(),
+      });
+    }
+    // Now seed a fresh raw item + score so the synthesis pool is non-empty.
+    const [comp] = await h.db
+      .insert(competitors)
+      .values({ name: "Other", homepageUrl: "https://other.test" })
+      .returning();
+    const [raw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: "e2e-fresh",
+        url: "https://other.test/fresh",
+        title: "Fresh title",
+        body: "Fresh body",
+        publishedAt: new Date("2026-05-17T00:00:00Z"),
+      })
+      .returning();
+    await h.db.insert(itemScores).values({
+      userId,
+      rawItemId: raw!.id,
+      category: "launch",
+      score: 90,
+      why: "because",
+    });
+
+    await runSynthesisForUser(userId, { now: new Date("2026-05-17T10:00:00Z") });
+
+    expect(synthMock.synthesize).toHaveBeenCalledOnce();
+    const calledInput = synthMock.synthesize.mock.calls[0]![0];
+    expect(calledInput.dislikedExamples).not.toBeNull();
+    expect(calledInput.dislikedExamples!.length).toBeGreaterThanOrEqual(1);
+    // At least one disliked example carries the original comment.
+    expect(calledInput.dislikedExamples!.some((d) => d.comment === "recap, not a launch")).toBe(
+      true,
+    );
   });
 });

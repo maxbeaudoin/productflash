@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { SynthesisInput, SynthesisInputItem } from "./synthesize";
+import type { DislikedExample, SynthesisInput, SynthesisInputItem } from "./synthesize";
 
 const anthropicMock = vi.hoisted(() => ({
   messages: { create: vi.fn() },
@@ -245,6 +245,109 @@ describe("synthesizeDigest — output validation", () => {
     );
     const result = await synthesizeDigest(BASE_INPUT);
     expect(result.items).toHaveLength(1);
+  });
+});
+
+describe("synthesizeDigest — feedback signal (PF-63)", () => {
+  function disliked(overrides: Partial<DislikedExample> = {}): DislikedExample {
+    return {
+      competitorName: "Lattice",
+      headline: "Lattice shipped recurring goal check-ins",
+      snippet: "Lattice added a weekly cadence option to OKR check-ins.",
+      impactNote: "Light feature update — same flavor as last week's release notes.",
+      comment: null,
+      ...overrides,
+    };
+  }
+
+  function captureUserMessage(): string {
+    const call = anthropicMock.messages.create.mock.calls.at(-1);
+    expect(call).toBeDefined();
+    const msgs = (call![0] as { messages: Array<{ content: string }> }).messages;
+    return msgs[0]!.content;
+  }
+
+  test("dislikedExamples null/undefined → no 'disliked' block in the user prompt", async () => {
+    anthropicMock.messages.create.mockResolvedValueOnce(
+      sonnetResponse({
+        items: [
+          { rawItemId: "raw-1", headline: "h", snippet: "s", impactNote: "i" },
+          { rawItemId: "raw-2", headline: "h", snippet: "s", impactNote: "i" },
+        ],
+      }),
+    );
+    await synthesizeDigest(BASE_INPUT);
+    expect(captureUserMessage()).not.toMatch(/disliked/i);
+  });
+
+  test("empty dislikedExamples array → no 'disliked' block in the user prompt", async () => {
+    anthropicMock.messages.create.mockResolvedValueOnce(
+      sonnetResponse({
+        items: [
+          { rawItemId: "raw-1", headline: "h", snippet: "s", impactNote: "i" },
+          { rawItemId: "raw-2", headline: "h", snippet: "s", impactNote: "i" },
+        ],
+      }),
+    );
+    await synthesizeDigest({ ...BASE_INPUT, dislikedExamples: [] });
+    expect(captureUserMessage()).not.toMatch(/disliked/i);
+  });
+
+  test("non-empty dislikedExamples → block appears with competitor + headline + snippet + impact", async () => {
+    anthropicMock.messages.create.mockResolvedValueOnce(
+      sonnetResponse({
+        items: [
+          { rawItemId: "raw-1", headline: "h", snippet: "s", impactNote: "i" },
+          { rawItemId: "raw-2", headline: "h", snippet: "s", impactNote: "i" },
+        ],
+      }),
+    );
+    await synthesizeDigest({
+      ...BASE_INPUT,
+      dislikedExamples: [disliked()],
+    });
+    const prompt = captureUserMessage();
+    expect(prompt).toMatch(/disliked these items/i);
+    expect(prompt).toContain("Lattice");
+    expect(prompt).toContain("Lattice shipped recurring goal check-ins");
+    expect(prompt).toContain("weekly cadence option");
+    expect(prompt).toContain("Light feature update");
+  });
+
+  test("dislikedExample.comment is surfaced as the 'why_disliked' line when present", async () => {
+    anthropicMock.messages.create.mockResolvedValueOnce(
+      sonnetResponse({
+        items: [
+          { rawItemId: "raw-1", headline: "h", snippet: "s", impactNote: "i" },
+          { rawItemId: "raw-2", headline: "h", snippet: "s", impactNote: "i" },
+        ],
+      }),
+    );
+    await synthesizeDigest({
+      ...BASE_INPUT,
+      dislikedExamples: [disliked({ comment: "  recap, not a real launch  " })],
+    });
+    const prompt = captureUserMessage();
+    expect(prompt).toContain("why_disliked: recap, not a real launch");
+  });
+
+  test("missing comment → no 'why_disliked' line in the prompt", async () => {
+    anthropicMock.messages.create.mockResolvedValueOnce(
+      sonnetResponse({
+        items: [
+          { rawItemId: "raw-1", headline: "h", snippet: "s", impactNote: "i" },
+          { rawItemId: "raw-2", headline: "h", snippet: "s", impactNote: "i" },
+        ],
+      }),
+    );
+    await synthesizeDigest({
+      ...BASE_INPUT,
+      dislikedExamples: [disliked({ comment: null })],
+    });
+    // The intro guidance mentions the 'why_disliked' field name in
+    // single quotes — only the per-row `  why_disliked: <text>` line
+    // should be absent when no comment was provided.
+    expect(captureUserMessage()).not.toMatch(/why_disliked:/);
   });
 });
 

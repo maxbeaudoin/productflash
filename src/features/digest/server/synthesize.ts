@@ -62,10 +62,28 @@ export interface ReaderProfile {
   focusAreas: string[] | null;
 }
 
+// Past digest items the user 👎'd. Injected into the prompt so Sonnet can
+// steer away from same-flavor items. The shape mirrors what we render to
+// the user (headline/snippet/impactNote) — that's what they actually saw
+// and reacted to. `comment` is the optional free-text "why?" that lands on
+// 👎 (#25); when present it's the highest-signal field for the model.
+export interface DislikedExample {
+  competitorName: string;
+  headline: string;
+  snippet: string;
+  impactNote: string;
+  comment: string | null;
+}
+
 export interface SynthesisInput {
   userName: string;
   reader?: ReaderProfile | null;
   items: SynthesisInputItem[];
+  // Recent 👎'd items to discourage. Optional — empty/undefined means
+  // either feedback signal is disabled, the user is in the cold-start
+  // window (<3 ratings), or there are no recent dislikes. The job layer
+  // gates on those conditions; the synthesizer just renders what's passed.
+  dislikedExamples?: DislikedExample[] | null;
 }
 
 export interface SynthesizedItem {
@@ -269,6 +287,10 @@ function renderUserPrompt(input: SynthesisInput): string {
   if (readerBlock) {
     lines.push(readerBlock);
   }
+  const dislikedBlock = renderDislikedBlock(input.dislikedExamples);
+  if (dislikedBlock) {
+    lines.push(dislikedBlock);
+  }
   lines.push(`Items: ${input.items.length}`);
   lines.push("");
   lines.push("Synthesize each item into a digest entry. Preserve rawItemId verbatim.");
@@ -307,6 +329,27 @@ function renderUserPrompt(input: SynthesisInput): string {
     lines.push("");
   });
 
+  return lines.join("\n");
+}
+
+// Render past 👎'd items as guidance — "avoid items in the same vein."
+// Past tense, no instruction-mining: each example is metadata about the
+// reader's taste, not content for the model to summarize. Capped at
+// ~4000 chars (~1000 tokens) by the caller before it reaches this point.
+function renderDislikedBlock(examples: DislikedExample[] | null | undefined): string | null {
+  if (!examples || examples.length === 0) return null;
+  const lines: string[] = [];
+  lines.push(
+    "Reader recently disliked these items. Steer away from items in the same vein — same competitor angle, same flavor of move, same kind of impact framing. Treat the 'why_disliked' field, when present, as the strongest signal.",
+  );
+  examples.forEach((ex, i) => {
+    lines.push(`- Disliked ${i + 1}: ${ex.competitorName} — ${ex.headline}`);
+    if (ex.snippet) lines.push(`  snippet: ${ex.snippet}`);
+    if (ex.impactNote) lines.push(`  impact: ${ex.impactNote}`);
+    if (ex.comment && ex.comment.trim().length > 0) {
+      lines.push(`  why_disliked: ${ex.comment.trim()}`);
+    }
+  });
   return lines.join("\n");
 }
 

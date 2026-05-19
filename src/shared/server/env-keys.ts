@@ -34,6 +34,7 @@ export const ENV_KEYS = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "INGEST_SCHEDULE_ENABLED",
+  "SYNTHESIS_FEEDBACK_SIGNAL_ENABLED",
 ] as const;
 
 export type EnvKey = (typeof ENV_KEYS)[number];
