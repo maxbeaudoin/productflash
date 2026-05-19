@@ -21,6 +21,7 @@ import {
 import type { DigestTag } from "~/design/tokens";
 import type { AdminAuditPayload, AdminAuditRow } from "~/features/admin-audit/shared/types";
 import { AdminAuditList } from "~/features/admin-audit/ui/AdminAuditList";
+import { enqueueDailyRegen } from "~/features/digest/server/jobs/daily-regen";
 import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
 import { requireAdminSession } from "~/features/auth/server/session";
 import { getBoss } from "~/shared/server/boss";
@@ -454,6 +455,37 @@ const triggerFastPath = createServerFn({ method: "POST" })
     return { enqueued };
   });
 
+// PF-91. Sibling to triggerFastPath: re-runs score + synthesize with daily
+// params (24h / 5 items / cap-2). Skips ingest — re-pulling RSS for a 24h
+// window is a no-op since fast-path already populated raw_items. The
+// digest upsert keys on (user, today UTC), so today's digest gets
+// overwritten in place (id + createdAt survive); if no row exists for
+// today yet, one is created.
+const triggerDailyRegen = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => userIdInput.parse(data))
+  .handler(async ({ data }) => {
+    const session = await requireAdminSession();
+    const db = getDb();
+    const boss = await getBoss();
+    const { enqueued } = await enqueueDailyRegen(boss, data.userId);
+    logger.info(
+      { admin: session.user.email, target: data.userId, enqueued },
+      "admin: daily-regen enqueued",
+    );
+    try {
+      await db.insert(adminAudit).values({
+        actorId: session.user.id,
+        targetKind: "user",
+        targetId: data.userId,
+        action: "daily_regen_enqueued",
+        payload: { enqueued },
+      });
+    } catch (err) {
+      logger.error({ err, target: data.userId }, "admin_audit_write_failed");
+    }
+    return { enqueued };
+  });
+
 export const Route = createFileRoute("/admin/users/$userId")({
   loader: ({ params }) => loadUserDetail({ data: { userId: params.userId } }),
   component: AdminUserDetailPage,
@@ -463,7 +495,8 @@ function AdminUserDetailPage() {
   const data = Route.useLoaderData();
   const router = useRouter();
   const [fteState, setFteState] = useState<"idle" | "running" | "error">("idle");
-  const [fastState, setFastState] = useState<"idle" | "running" | "error">("idle");
+  const [catchupState, setCatchupState] = useState<"idle" | "running" | "error">("idle");
+  const [dailyState, setDailyState] = useState<"idle" | "running" | "error">("idle");
   const [actionNote, setActionNote] = useState<string | null>(null);
 
   async function onReRunFte() {
@@ -484,21 +517,39 @@ function AdminUserDetailPage() {
     }
   }
 
-  async function onReRunFastPath() {
-    setFastState("running");
+  async function onReGenCatchup() {
+    setCatchupState("running");
     setActionNote(null);
     try {
       const res = await triggerFastPath({ data: { userId: data.profile.id } });
       setActionNote(
         res.enqueued
-          ? "Fast-path digest enqueued. Refresh in ~2–3 min to see the new digest."
-          : "Fast-path already in flight for this user — no new job enqueued.",
+          ? "Catch-up re-gen enqueued (ingest → score → synthesize, 7d/90d windows, 10 items). Refresh in ~2–3 min."
+          : "Catch-up re-gen already in flight for this user — no new job enqueued.",
       );
-      setFastState("idle");
+      setCatchupState("idle");
       router.invalidate();
     } catch (err) {
-      setActionNote(err instanceof Error ? err.message : "Failed to enqueue fast-path");
-      setFastState("error");
+      setActionNote(err instanceof Error ? err.message : "Failed to enqueue catch-up re-gen");
+      setCatchupState("error");
+    }
+  }
+
+  async function onReGenDaily() {
+    setDailyState("running");
+    setActionNote(null);
+    try {
+      const res = await triggerDailyRegen({ data: { userId: data.profile.id } });
+      setActionNote(
+        res.enqueued
+          ? "Daily re-gen enqueued (score → synthesize, 24h window, 5 items). Refresh in ~30–60s. Overwrites today's digest in place."
+          : "Daily re-gen already in flight for this user — no new job enqueued.",
+      );
+      setDailyState("idle");
+      router.invalidate();
+    } catch (err) {
+      setActionNote(err instanceof Error ? err.message : "Failed to enqueue daily re-gen");
+      setDailyState("error");
     }
   }
 
@@ -517,10 +568,12 @@ function AdminUserDetailPage() {
 
         <ActionsRow
           fteState={fteState}
-          fastState={fastState}
+          catchupState={catchupState}
+          dailyState={dailyState}
           actionNote={actionNote}
           onReRunFte={onReRunFte}
-          onReRunFastPath={onReRunFastPath}
+          onReGenCatchup={onReGenCatchup}
+          onReGenDaily={onReGenDaily}
         />
 
         <FeedbackHealthBlock health={data.feedbackHealth} />
@@ -553,7 +606,7 @@ function AuditBlock({ rows }: { rows: AdminAuditRow[] }) {
       <AdminAuditList
         rows={rows}
         hideTarget
-        emptyMessage="No admin actions on this user yet. Re-running the FTE or re-triggering the digest above will log here."
+        emptyMessage="No admin actions on this user yet. Re-running the FTE or re-genning a digest above will log here."
       />
     </section>
   );
@@ -647,16 +700,20 @@ function ProfileCard({
 
 function ActionsRow({
   fteState,
-  fastState,
+  catchupState,
+  dailyState,
   actionNote,
   onReRunFte,
-  onReRunFastPath,
+  onReGenCatchup,
+  onReGenDaily,
 }: {
   fteState: "idle" | "running" | "error";
-  fastState: "idle" | "running" | "error";
+  catchupState: "idle" | "running" | "error";
+  dailyState: "idle" | "running" | "error";
   actionNote: string | null;
   onReRunFte: () => void;
-  onReRunFastPath: () => void;
+  onReGenCatchup: () => void;
+  onReGenDaily: () => void;
 }) {
   return (
     <section className="mt-6 rounded-2xl border border-ink-line bg-paper-warm p-5">
@@ -672,14 +729,23 @@ function ActionsRow({
         <Button
           type="button"
           variant="outline"
-          onClick={onReRunFastPath}
-          disabled={fastState === "running"}
+          onClick={onReGenCatchup}
+          disabled={catchupState === "running"}
+          title="Full pipeline (ingest → score → synthesize) with catch-up params: 7d ingest / 90d published, 10 items, cap-3 per competitor."
         >
-          {fastState === "running" ? "Enqueuing…" : "Re-trigger digest"}
+          {catchupState === "running" ? "Enqueuing…" : "Re-gen catch-up"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onReGenDaily}
+          disabled={dailyState === "running"}
+          title="Score + synthesize with daily params: 24h window, 5 items, cap-2 per competitor. Skips ingest. Overwrites today's digest in place (id survives)."
+        >
+          {dailyState === "running" ? "Enqueuing…" : "Re-gen daily"}
         </Button>
         <p className="text-xs text-text-muted">
-          Both queues are singleton-per-user — a duplicate click while a job is in flight is a
-          no-op.
+          All queues are singleton-per-user — a duplicate click while a job is in flight is a no-op.
         </p>
       </div>
       {actionNote ? (
@@ -828,7 +894,7 @@ function DigestsBlock({
       </div>
       {digests.length === 0 ? (
         <p className="rounded-2xl border border-ink-line bg-paper-warm p-6 text-sm text-text-muted">
-          No digests yet. Re-trigger the fast-path above to generate one.
+          No digests yet. Re-gen the catch-up above to generate one.
         </p>
       ) : (
         <div className="grid gap-6">
