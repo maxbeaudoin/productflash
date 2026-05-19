@@ -69,6 +69,10 @@ const ACTION_LABEL: Record<string, string> = {
   fast_path_enqueued: "Catch-up re-gen enqueued",
   daily_regen_enqueued: "Daily re-gen enqueued",
   competitor_edit: "Competitor edited",
+  competitor_source_disable: "Source disabled",
+  competitor_source_enable: "Source enabled",
+  competitor_source_remove: "Source removed",
+  competitor_source_edit_url: "Source URL edited",
 };
 
 function ActionChip({ action }: { action: string }) {
