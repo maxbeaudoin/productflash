@@ -25,6 +25,9 @@ import {
   applySourceStatus,
   applySourceUrlUpdate,
 } from "~/features/competitors/server/source-actions";
+import { enqueueDiscovery } from "~/agents/discovery/job";
+import { enqueueIngestCompetitor } from "~/features/digest/server/jobs/ingest-competitor";
+import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 
@@ -519,4 +522,75 @@ export const updateCompetitorSourceUrl = createServerFn({ method: "POST" })
       sourceId: data.sourceId,
       urlOrHandle: data.urlOrHandle,
     });
+  });
+
+// --- per-competitor re-trigger fns (PF-99) ---------------------------------
+// Sibling pattern to triggerFte/triggerFastPath/triggerDailyRegen on
+// /admin/users/:id. Both are send-side idempotent — duplicate clicks while a
+// run is in flight are no-ops via the queue's singletonKey policy.
+
+const competitorIdInput = z.object({ competitorId: z.string().uuid() });
+
+export const triggerCompetitorDiscovery = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => competitorIdInput.parse(raw))
+  .handler(async ({ data }): Promise<{ runId: string; enqueued: boolean }> => {
+    const session = await requireAdminSession();
+    const db = getDb();
+    const [c] = await db
+      .select({ id: competitors.id, name: competitors.name })
+      .from(competitors)
+      .where(eq(competitors.id, data.competitorId))
+      .limit(1);
+    if (!c) throw new Error("competitor_not_found");
+
+    const boss = await getBoss();
+    const { runId, enqueued } = await enqueueDiscovery(boss, c.id);
+    logger.info(
+      { admin: session.user.email, target: c.name, runId, enqueued },
+      "admin: discovery re-run enqueued",
+    );
+    try {
+      await db.insert(adminAudit).values({
+        actorId: session.user.id,
+        targetKind: "competitor",
+        targetId: c.id,
+        action: "discovery_rerun_enqueued",
+        payload: { runId, enqueued },
+      });
+    } catch (err) {
+      logger.error({ err, target: c.id }, "admin_audit_write_failed");
+    }
+    return { runId, enqueued };
+  });
+
+export const triggerCompetitorIngest = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => competitorIdInput.parse(raw))
+  .handler(async ({ data }): Promise<{ enqueued: boolean }> => {
+    const session = await requireAdminSession();
+    const db = getDb();
+    const [c] = await db
+      .select({ id: competitors.id, name: competitors.name })
+      .from(competitors)
+      .where(eq(competitors.id, data.competitorId))
+      .limit(1);
+    if (!c) throw new Error("competitor_not_found");
+
+    const boss = await getBoss();
+    const { enqueued } = await enqueueIngestCompetitor(boss, c.id);
+    logger.info(
+      { admin: session.user.email, target: c.name, enqueued },
+      "admin: ingest re-run enqueued",
+    );
+    try {
+      await db.insert(adminAudit).values({
+        actorId: session.user.id,
+        targetKind: "competitor",
+        targetId: c.id,
+        action: "ingest_rerun_enqueued",
+        payload: { enqueued },
+      });
+    } catch (err) {
+      logger.error({ err, target: c.id }, "admin_audit_write_failed");
+    }
+    return { enqueued };
   });
