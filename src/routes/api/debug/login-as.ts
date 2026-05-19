@@ -27,7 +27,10 @@ export const Route = createFileRoute("/api/debug/login-as")({
           .select({ id: users.id, email: users.email, role: users.role })
           .from(users)
           .orderBy(users.email);
-        return Response.json(rows);
+        const base = new URL(request.url).origin;
+        return Response.json(
+          rows.map((u) => ({ ...u, signInUrl: `${base}/api/debug/login-as?userId=${u.id}` })),
+        );
       },
     },
   },
