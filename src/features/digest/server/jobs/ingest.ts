@@ -88,6 +88,33 @@ export async function runIngestionForUser(
   );
 }
 
+// Admin re-trigger variant (PF-99). Scopes adapters to a single competitor
+// so an operator debugging one source/profile doesn't have to wait on (or
+// pay for) a full crawl. Same idempotency as the global path — raw_items
+// dedupes on (source, source_id).
+export async function runIngestionForCompetitor(
+  competitorId: string,
+  options: WebpageFetchOptions = {},
+): Promise<IngestionMetrics> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(competitorsTable)
+    .where(eq(competitorsTable.id, competitorId))
+    .limit(1);
+  if (!row) {
+    const metrics = emptyMetrics(0, 0);
+    logger.warn({ competitorId, ...metrics }, "ingest: competitor not found, skipping run");
+    return metrics;
+  }
+  return runIngestionForRefs(
+    [rowToRef(row)],
+    "ingest: starting per-competitor run",
+    { competitorId },
+    options,
+  );
+}
+
 async function runIngestionForRefs(
   refs: CompetitorRef[],
   startLog: string,

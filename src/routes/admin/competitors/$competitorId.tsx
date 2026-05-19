@@ -14,6 +14,8 @@ import {
   loadCompetitorDetail,
   removeCompetitorSource,
   setCompetitorSourceStatus,
+  triggerCompetitorDiscovery,
+  triggerCompetitorIngest,
   updateCompetitorFields,
   updateCompetitorSourceUrl,
 } from "~/features/competitors/server/admin-fns";
@@ -50,6 +52,50 @@ export const Route = createFileRoute("/admin/competitors/$competitorId")({
 function AdminCompetitorDetailPage() {
   const data = Route.useLoaderData();
   const { tab } = Route.useSearch();
+  const router = useRouter();
+  const [discoveryState, setDiscoveryState] = useState<"idle" | "running" | "error">("idle");
+  const [ingestState, setIngestState] = useState<"idle" | "running" | "error">("idle");
+  const [actionNote, setActionNote] = useState<string | null>(null);
+
+  async function onReRunDiscovery() {
+    setDiscoveryState("running");
+    setActionNote(null);
+    try {
+      const res = await triggerCompetitorDiscovery({
+        data: { competitorId: data.competitor.id },
+      });
+      setActionNote(
+        res.enqueued
+          ? `Discovery re-run enqueued (${res.runId.slice(0, 8)}…). Refresh in ~30–60s.`
+          : "Discovery already in flight for this competitor — no new job enqueued.",
+      );
+      setDiscoveryState("idle");
+      router.invalidate();
+    } catch (err) {
+      setActionNote(err instanceof Error ? err.message : "Failed to enqueue discovery");
+      setDiscoveryState("error");
+    }
+  }
+
+  async function onReIngest() {
+    setIngestState("running");
+    setActionNote(null);
+    try {
+      const res = await triggerCompetitorIngest({
+        data: { competitorId: data.competitor.id },
+      });
+      setActionNote(
+        res.enqueued
+          ? "Ingest re-run enqueued. RSS/PH/webpage/pricing pulled for this competitor only. Refresh in ~30–60s."
+          : "Ingest already in flight for this competitor — no new job enqueued.",
+      );
+      setIngestState("idle");
+      router.invalidate();
+    } catch (err) {
+      setActionNote(err instanceof Error ? err.message : "Failed to enqueue ingest");
+      setIngestState("error");
+    }
+  }
 
   return (
     <main className="px-6 py-12">
@@ -66,10 +112,66 @@ function AdminCompetitorDetailPage() {
         <SummaryStats data={data} />
         <EditSection competitor={data.competitor} trackedBy={data.trackedBy} />
 
+        <ActionsRow
+          discoveryState={discoveryState}
+          ingestState={ingestState}
+          actionNote={actionNote}
+          onReRunDiscovery={onReRunDiscovery}
+          onReIngest={onReIngest}
+        />
+
         <TabBar competitorId={data.competitor.id} active={tab} data={data} />
         <TabContent tab={tab} data={data} />
       </div>
     </main>
+  );
+}
+
+function ActionsRow({
+  discoveryState,
+  ingestState,
+  actionNote,
+  onReRunDiscovery,
+  onReIngest,
+}: {
+  discoveryState: "idle" | "running" | "error";
+  ingestState: "idle" | "running" | "error";
+  actionNote: string | null;
+  onReRunDiscovery: () => void;
+  onReIngest: () => void;
+}) {
+  return (
+    <section className="mt-6 rounded-2xl border border-ink-line bg-paper-warm p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onReRunDiscovery}
+          disabled={discoveryState === "running"}
+          title="Re-run the source-discovery agent for this competitor. Sources upsert; duplicates from prior runs are skipped."
+        >
+          {discoveryState === "running" ? "Enqueuing…" : "Re-run source discovery"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onReIngest}
+          disabled={ingestState === "running"}
+          title="Pull RSS / PH / webpage / pricing for this competitor only. raw_items dedupes on (source, external_id) so re-runs are safe."
+        >
+          {ingestState === "running" ? "Enqueuing…" : "Re-ingest this competitor"}
+        </Button>
+        <p className="text-xs text-text-muted">
+          Both queues are singleton-per-competitor — a duplicate click while a job is in flight is a
+          no-op.
+        </p>
+      </div>
+      {actionNote ? (
+        <p className="mt-3 rounded-md border border-ink-line bg-paper px-3 py-2 font-mono text-xs text-text">
+          {actionNote}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

@@ -11,6 +11,11 @@ import {
   FAST_PATH_QUEUE,
   handleFastPathJob,
 } from "~/features/digest/server/jobs/fast-path";
+import {
+  handleIngestCompetitorJob,
+  INGEST_COMPETITOR_QUEUE,
+  type IngestCompetitorJobData,
+} from "~/features/digest/server/jobs/ingest-competitor";
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from "~/features/digest/server/jobs/ingest";
 import { runScoring, SCORE_CRON, SCORE_QUEUE } from "~/features/digest/server/jobs/score";
 import { runSendForDigest, SEND_QUEUE, type SendJobData } from "~/features/digest/server/jobs/send";
@@ -93,6 +98,19 @@ async function main() {
   // score + synthesize with daily params instead of catch-up params.
   await boss.createQueue(DAILY_REGEN_QUEUE, {
     name: DAILY_REGEN_QUEUE,
+    retryLimit: 1,
+    retryDelay: 60,
+  });
+  // Per-competitor ingest re-trigger (PF-99). Admin-only path that scopes
+  // ingestion to one competitor; cron INGEST_QUEUE still handles the daily
+  // global crawl. `policy: "stately"` + `singletonKey: "competitor:<id>"` at
+  // send-time is what actually dedups — without stately, pg-boss silently
+  // ignores singletonKey. retryLimit:1 is conservative: ingestion is mostly
+  // network-bound and idempotent (raw_items UNIQUE), but a partial Firecrawl
+  // bill is real and we'd rather see the failure in logs than auto-retry.
+  await boss.createQueue(INGEST_COMPETITOR_QUEUE, {
+    name: INGEST_COMPETITOR_QUEUE,
+    policy: "stately",
     retryLimit: 1,
     retryDelay: 60,
   });
@@ -224,6 +242,26 @@ async function main() {
       }),
     );
   });
+
+  // batchSize=3 keeps Firecrawl + RSS fan-out modest. Per-competitor ingest
+  // touches at most one Firecrawl pricing scrape + a handful of RSS/PH/webpage
+  // fetches, so 3 concurrent admin re-triggers is comfortably under the
+  // adapter rate-limit budget the daily crawl already exercises in series.
+  await boss.work<IngestCompetitorJobData>(
+    INGEST_COMPETITOR_QUEUE,
+    { batchSize: 3 },
+    async (jobs) => {
+      await Promise.all(
+        jobs.map(async (job) => {
+          logger.info(
+            { jobId: job.id, competitorId: job.data.competitorId },
+            "ingest-competitor: job started",
+          );
+          await handleIngestCompetitorJob(job);
+        }),
+      );
+    },
+  );
 
   // batchSize=3 keeps Firecrawl + Sonnet fan-out modest: each discovery run
   // can issue up to ~25 tool calls (mostly Firecrawl fetches), so 3 in
