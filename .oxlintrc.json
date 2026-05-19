@@ -6,7 +6,9 @@
         "src/components/**",
         "src/features/*/ui/**",
         "src/features/*/client/**",
-        "src/shared/client/**"
+        "src/features/*/shared/**",
+        "src/shared/client/**",
+        "src/shared/iso/**"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -15,11 +17,15 @@
             "patterns": [
               {
                 "group": ["~/features/*/server/**"],
-                "message": "Server-only feature module — keep UI imports under features/*/ui or features/*/shared."
+                "message": "Server-only feature module — keep UI/shared imports under features/*/ui or features/*/shared."
               },
               {
                 "group": ["~/shared/server/**"],
-                "message": "Server-only shared module — use ~/shared/iso or ~/shared/client from UI code."
+                "message": "Server-only shared module — use ~/shared/iso or ~/shared/client from UI/shared code."
+              },
+              {
+                "group": ["~/db/**"],
+                "message": "Drizzle schema pulls pg into the client bundle. Pass concrete row shapes through ~/features/*/shared/types or createServerFn return values."
               },
               { "group": ["~/worker/**"], "message": "Server-only worker boot." },
               { "group": ["~/agents/**"], "message": "Server-only agent code." },

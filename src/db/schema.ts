@@ -314,6 +314,35 @@ export const llmUsage = pgTable(
   ],
 );
 
+// Append-only trail of every admin write that touches shared state — backs
+// `/admin/audit` and the "Recent admin activity" surface on user/competitor
+// detail pages (PF-60). Once admin can edit competitor fields (PF-66) or
+// run ops on them (PF-67/68), editing one row affects every user tracking
+// it; without this table we'd have no way to answer "who changed X, when,
+// from what to what?" outside ad-hoc Pino-log grepping.
+//
+// `target_id` is intentionally FK-less: `target_kind` discriminates across
+// tables (user, waitlist, competitor, …), and a per-kind FK would either
+// fork the schema or leak shape into the audit table. `actor_id` uses
+// `onDelete: 'set null'` so deleting an admin user does not erase the
+// trail behind them. No UI ever deletes from this table.
+export const adminAudit = pgTable(
+  "admin_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    targetKind: text("target_kind").notNull(),
+    targetId: uuid("target_id").notNull(),
+    action: text("action").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("admin_audit_created_idx").on(t.createdAt),
+    index("admin_audit_target_idx").on(t.targetKind, t.targetId),
+  ],
+);
+
 export const feedback = pgTable(
   "feedback",
   {
@@ -363,3 +392,5 @@ export type FteEvent = typeof fteEvents.$inferSelect;
 export type NewFteEvent = typeof fteEvents.$inferInsert;
 export type LlmUsage = typeof llmUsage.$inferSelect;
 export type NewLlmUsage = typeof llmUsage.$inferInsert;
+export type AdminAudit = typeof adminAudit.$inferSelect;
+export type NewAdminAudit = typeof adminAudit.$inferInsert;

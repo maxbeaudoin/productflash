@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { users, waitlist } from "~/db/schema";
+import { adminAudit, users, waitlist } from "~/db/schema";
 import type { WaitlistRow, WaitlistState } from "~/features/waitlist/shared/types";
 import { requireAdminSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
@@ -81,6 +81,16 @@ export const issueInvite = createServerFn({ method: "POST" })
       .values({ email: row.email, status: "pending" })
       .onConflictDoNothing({ target: users.email });
 
+    // Resolve the user row so the audit entry attaches to the per-user
+    // detail surface (PF-60). The insert above is idempotent — on conflict
+    // it returns nothing, so a follow-up select is the simplest path.
+    const [userRow] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, row.email))
+      .limit(1);
+
+    const reissue = row.invitedAt !== null;
     let invitedAt = row.invitedAt;
     if (!invitedAt) {
       const now = new Date();
@@ -89,9 +99,22 @@ export const issueInvite = createServerFn({ method: "POST" })
     }
 
     const url = `${env.BETTER_AUTH_URL}/signup?invite=${token}`;
-    logger.info(
-      { admin: session.user.email, target: row.email, reissue: row.invitedAt !== null },
-      "invite_issued",
-    );
+    logger.info({ admin: session.user.email, target: row.email, reissue }, "invite_issued");
+    if (userRow) {
+      // Inlined audit insert — a shared helper that imports `getDb` /
+      // schema leaks pg into the client bundle (see comment in
+      // routes/admin/users/$userId.tsx for the full reasoning).
+      try {
+        await db.insert(adminAudit).values({
+          actorId: session.user.id,
+          targetKind: "user",
+          targetId: userRow.id,
+          action: "invite_issued",
+          payload: { email: row.email, reissue, waitlistId: row.id },
+        });
+      } catch (err) {
+        logger.error({ err, target: userRow.id }, "admin_audit_write_failed");
+      }
+    }
     return { url, invitedAt: invitedAt.toISOString() };
   });

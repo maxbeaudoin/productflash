@@ -1,4 +1,4 @@
-import type { CompetitorAdminRow } from "~/features/competitors/server/admin-fns";
+import type { CompetitorAdminRow } from "./types";
 
 // PF-64. Three triage buckets surfaced on /admin/competitors so dead feeds
 // stop sitting in the table unnoticed. Computed client-side from the loader's

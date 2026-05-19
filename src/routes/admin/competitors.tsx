@@ -3,10 +3,8 @@ import { z } from "zod";
 import { FilterChipRow } from "~/components/admin/FilterChipRow";
 import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
 import { FilterSelect } from "~/components/admin/FilterSelect";
-import {
-  type CompetitorAdminRow,
-  listCompetitorsForAdmin,
-} from "~/features/competitors/server/admin-fns";
+import { listCompetitorsForAdmin } from "~/features/competitors/server/admin-fns";
+import type { CompetitorAdminRow } from "~/features/competitors/shared/types";
 import {
   type HealthFlagBucket,
   type HealthFlagKind,
