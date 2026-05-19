@@ -97,6 +97,8 @@ Unit tests are colocated next to the code (`foo.ts` + `foo.test.ts`).
 
 ## Commands
 
+To authenticate locally: `http://localhost:3000/debug/login-as`
+
 ```
 # Dev loop
 pnpm dev                 # TanStack Start dev server
