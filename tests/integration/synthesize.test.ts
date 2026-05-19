@@ -222,6 +222,138 @@ describe("runSynthesisForUser — F-003 happy path", () => {
   });
 });
 
+describe("runSynthesisForUser — PF-90 maxPublishedAgeDays cap", () => {
+  // Seed two raw items + scores for one user: one published yesterday,
+  // one published 18 months ago. Both ingested today. Mirrors the
+  // first-ingest shape of an archive-heavy RSS feed.
+  async function seedRecentAndStale(emailSuffix: string, now: Date) {
+    const [user] = await h.db
+      .insert(users)
+      .values({ email: `${emailSuffix}@test.local`, name: emailSuffix, tz: "UTC" })
+      .returning();
+    const [comp] = await h.db
+      .insert(competitors)
+      .values({ name: `Acme-${emailSuffix}`, homepageUrl: `https://${emailSuffix}.test` })
+      .returning();
+    await h.db.insert(userCompetitors).values({ userId: user!.id, competitorId: comp!.id });
+
+    const recent = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 1 day old
+    const stale = new Date(now.getTime() - 540 * 24 * 60 * 60 * 1000); // 540 days old
+
+    const [recentRaw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: `${emailSuffix}-recent`,
+        url: `https://${emailSuffix}.test/recent`,
+        title: "Recent launch",
+        body: "body",
+        publishedAt: recent,
+        // ingestedAt defaults to now() — both items look freshly-ingested.
+      })
+      .returning();
+    const [staleRaw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: `${emailSuffix}-stale`,
+        url: `https://${emailSuffix}.test/stale`,
+        title: "Ancient archive item",
+        body: "body",
+        publishedAt: stale,
+      })
+      .returning();
+    await h.db.insert(itemScores).values([
+      {
+        userId: user!.id,
+        rawItemId: recentRaw!.id,
+        category: "launch",
+        score: 80,
+        why: "fresh",
+      },
+      {
+        userId: user!.id,
+        rawItemId: staleRaw!.id,
+        category: "launch",
+        score: 95, // higher score — would dominate without the cap
+        why: "old",
+      },
+    ]);
+    return { userId: user!.id };
+  }
+
+  test("with maxPublishedAgeDays=90: items older than 90d are excluded from the pool", async () => {
+    const now = new Date("2026-05-17T10:00:00Z");
+    const { userId } = await seedRecentAndStale("capped", now);
+
+    const metrics = await runSynthesisForUser(userId, { now, maxPublishedAgeDays: 90 });
+
+    // Only the recent item survives — even though the stale one out-scores it.
+    expect(metrics).toMatchObject({ userId, candidates: 1, synthesized: 1, empty: false });
+
+    const items = await h.db.select().from(digestItems).where(eq(digestItems.userId, userId));
+    expect(items).toHaveLength(1);
+    expect(items[0]!.headline).toBe("H: Recent launch");
+
+    // The synthesizer was called with one item only — no stale title leaked
+    // into the Sonnet prompt either.
+    const calledInput = synthMock.synthesize.mock.calls[0]![0];
+    expect(calledInput.items).toHaveLength(1);
+    expect(calledInput.items[0]!.title).toBe("Recent launch");
+  });
+
+  test("without the cap: both items reach the digest (regression guard for daily cron)", async () => {
+    // The daily cron path doesn't pass maxPublishedAgeDays — preserves the
+    // pre-PF-90 behavior. Items still flow through as before.
+    const now = new Date("2026-05-17T10:00:00Z");
+    const { userId } = await seedRecentAndStale("uncapped", now);
+
+    const metrics = await runSynthesisForUser(userId, { now });
+
+    expect(metrics).toMatchObject({ candidates: 2, synthesized: 2, empty: false });
+    const items = await h.db.select().from(digestItems).where(eq(digestItems.userId, userId));
+    expect(items).toHaveLength(2);
+  });
+
+  test("publishedAt=null is dropped when the cap is set (can't verify age)", async () => {
+    const now = new Date("2026-05-17T10:00:00Z");
+    const [user] = await h.db
+      .insert(users)
+      .values({ email: "nulldate@test.local", name: "n", tz: "UTC" })
+      .returning();
+    const [comp] = await h.db
+      .insert(competitors)
+      .values({ name: "Acme-null", homepageUrl: "https://null.test" })
+      .returning();
+    await h.db.insert(userCompetitors).values({ userId: user!.id, competitorId: comp!.id });
+    const [raw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: "no-date",
+        url: "https://null.test/x",
+        title: "Undated item",
+        body: "body",
+        publishedAt: null,
+      })
+      .returning();
+    await h.db.insert(itemScores).values({
+      userId: user!.id,
+      rawItemId: raw!.id,
+      category: "launch",
+      score: 80,
+      why: "fresh",
+    });
+
+    const metrics = await runSynthesisForUser(user!.id, { now, maxPublishedAgeDays: 90 });
+
+    expect(metrics).toMatchObject({ candidates: 0, synthesized: 0, empty: true });
+  });
+});
+
 describe("runSynthesisForUser — F-009 tenant isolation", () => {
   test("running for user A leaves user B untouched", async () => {
     const a = await seedFullChain("alpha", [{ score: 90, title: "A item 1" }]);

@@ -29,6 +29,16 @@ import { runSynthesisForUser } from "./synthesize";
 
 export const FAST_PATH_QUEUE = "fast-path-run";
 const FAST_PATH_LOOKBACK_HOURS = 24 * 7;
+// Hard recency cap on the first digest by `published_at`. The 7-day
+// `ingested_at` window above is necessary but not sufficient: the FTE
+// first ingest stamps `ingested_at = now` on every item the adapter
+// returns, including archive-shaped RSS feeds whose `published_at`
+// goes back years. Without this cap a brand-new user can land on a
+// catch-up digest dominated by items published >1y ago, which is the
+// opposite of "what's happening with my competitors right now"
+// (PF-90). 90 days matches the issue's directive — anything older
+// is almost certainly off-topic for the first impression.
+const FAST_PATH_MAX_PUBLISHED_AGE_DAYS = 90;
 // Score cap matches the wider window — with ~5 competitors over 7 days you
 // can easily clear the daily-cron default of 50. 200 keeps headroom for
 // chatty changelogs without doubling Haiku spend for a typical user.
@@ -77,11 +87,13 @@ export async function handleFastPathJob(
   const score = await runScoringForUser(userId, {
     lookbackHours: FAST_PATH_LOOKBACK_HOURS,
     maxItemsPerUser: FAST_PATH_SCORE_CAP,
+    maxPublishedAgeDays: FAST_PATH_MAX_PUBLISHED_AGE_DAYS,
   });
   const synthesize = await runSynthesisForUser(userId, {
     lookbackHours: FAST_PATH_LOOKBACK_HOURS,
     maxItemsPerDigest: FAST_PATH_MAX_ITEMS_PER_DIGEST,
     maxItemsPerCompetitor: FAST_PATH_MAX_ITEMS_PER_COMPETITOR,
+    maxPublishedAgeDays: FAST_PATH_MAX_PUBLISHED_AGE_DAYS,
   });
 
   // synthesize always upserts at most one digest per (user, UTC day). Re-read

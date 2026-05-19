@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, ne, sql } from "drizzle-orm";
 import {
   competitors as competitorsTable,
   digestItems,
@@ -22,6 +22,7 @@ import {
   type SynthesisUsage,
   type SynthesizedItem,
 } from "~/features/digest/server/synthesize";
+import { publishedAtCutoffFor } from "~/features/digest/server/jobs/score";
 
 // Daily synthesis job.
 //
@@ -119,6 +120,14 @@ export interface SynthesisOptions {
   // to MONDAY_LOOKBACK_HOURS on UTC Monday so the Monday digest covers
   // Fri+Sat+Sun. Off by default for manual/fast-path callers.
   useWeekendAwareDefaults?: boolean;
+  // Optional hard cap on item recency by `published_at`. When set, drops
+  // any pool item whose `published_at` is null or older than
+  // `now - maxPublishedAgeDays`. Daily cron leaves this unset (24h
+  // `ingested_at` already bounds the window). Fast-path (catch-up)
+  // passes 90 so an archive-heavy first ingest doesn't drown the first
+  // digest in items published years ago (PF-90). Mirrors score's cap;
+  // kept here as defense-in-depth for pre-existing scored-but-stale rows.
+  maxPublishedAgeDays?: number;
 }
 
 // On-demand variant used by the debug preview (#25) and the time-to-first
@@ -154,6 +163,7 @@ export async function runSynthesisForUser(
   const userName = user.name ?? user.email.split("@")[0];
   const reader = toReaderProfile(user);
   const dislikedExamples = await loadDislikedExamples(db, user.id, now);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
   const metrics = await runForUser(
     db,
     user.id,
@@ -161,6 +171,7 @@ export async function runSynthesisForUser(
     reader,
     dislikedExamples,
     cutoff,
+    publishedAtCutoff,
     now,
     dayStart,
     maxItems,
@@ -209,6 +220,7 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
   const maxItems = options.maxItemsPerDigest ?? MAX_ITEMS_PER_DIGEST;
   const maxPerCompetitor = options.maxItemsPerCompetitor ?? MAX_ITEMS_PER_COMPETITOR;
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
 
   const activeUsers = await db
     .select({
@@ -250,6 +262,7 @@ export async function runSynthesis(options: SynthesisOptions = {}): Promise<Synt
         reader,
         dislikedExamples,
         cutoff,
+        publishedAtCutoff,
         now,
         dayStart,
         maxItems,
@@ -294,6 +307,7 @@ async function runForUser(
   reader: ReaderProfile | null,
   dislikedExamples: DislikedExample[] | null,
   cutoff: Date,
+  publishedAtCutoff: Date | null,
   now: Date,
   dayStart: Date,
   maxItems: number,
@@ -320,6 +334,9 @@ async function runForUser(
         eq(itemScores.userId, userId),
         ne(itemScores.category, "noise"),
         gte(rawItems.ingestedAt, cutoff),
+        ...(publishedAtCutoff
+          ? [isNotNull(rawItems.publishedAt), gte(rawItems.publishedAt, publishedAtCutoff)]
+          : []),
       ),
     )
     .orderBy(desc(itemScores.score));

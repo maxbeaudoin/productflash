@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { itemScores, rawItems, userCompetitors, users as usersTable } from "~/db/schema";
 import type { NewItemScore } from "~/db/schema";
 import {
@@ -56,6 +56,13 @@ export interface ScoreOptions {
   maxItemsPerUser?: number;
   concurrency?: number;
   now?: Date;
+  // Optional hard cap on item recency by `published_at`. When set, drops
+  // any candidate whose `published_at` is null or older than
+  // `now - maxPublishedAgeDays`. Daily cron leaves this unset (the 24h
+  // `ingested_at` window already bounds it). Fast-path (catch-up) passes
+  // 90 — first-ingest of an archive-heavy RSS feed otherwise floods the
+  // first digest with items published years ago (PF-90).
+  maxPublishedAgeDays?: number;
 }
 
 // On-demand variant used by the debug preview (#25) and the time-to-first
@@ -71,7 +78,15 @@ export async function runScoringForUser(
   const concurrency = options.concurrency ?? CLASSIFY_CONCURRENCY;
   const now = options.now ?? new Date();
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
-  const metrics = await runForUser(db, userId, cutoff, maxItemsPerUser, concurrency);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
+  const metrics = await runForUser(
+    db,
+    userId,
+    cutoff,
+    publishedAtCutoff,
+    maxItemsPerUser,
+    concurrency,
+  );
   logger.info(metrics, "score: on-demand user run complete");
   return metrics;
 }
@@ -84,6 +99,7 @@ export async function runScoring(options: ScoreOptions = {}): Promise<ScoreMetri
   const concurrency = options.concurrency ?? CLASSIFY_CONCURRENCY;
   const now = options.now ?? new Date();
   const cutoff = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
+  const publishedAtCutoff = publishedAtCutoffFor(options.maxPublishedAgeDays, now);
 
   const activeUsers = await db
     .select({ id: usersTable.id, email: usersTable.email })
@@ -98,7 +114,14 @@ export async function runScoring(options: ScoreOptions = {}): Promise<ScoreMetri
   const perUser: UserScoreMetrics[] = [];
 
   for (const user of activeUsers) {
-    const metrics = await runForUser(db, user.id, cutoff, maxItemsPerUser, concurrency);
+    const metrics = await runForUser(
+      db,
+      user.id,
+      cutoff,
+      publishedAtCutoff,
+      maxItemsPerUser,
+      concurrency,
+    );
     perUser.push(metrics);
     logger.info({ ...metrics, email: user.email }, "score: user complete");
   }
@@ -122,6 +145,7 @@ async function runForUser(
   db: ReturnType<typeof getDb>,
   userId: string,
   cutoff: Date,
+  publishedAtCutoff: Date | null,
   maxItems: number,
   concurrency: number,
 ): Promise<UserScoreMetrics> {
@@ -138,7 +162,10 @@ async function runForUser(
   }
 
   // Pull last-24h items for this user's competitors, skip any already scored
-  // for this user (idempotent re-runs in the same window).
+  // for this user (idempotent re-runs in the same window). When the fast
+  // path (catch-up) passes `publishedAtCutoff`, drop items lacking a
+  // recent `published_at` so an archive-heavy first ingest doesn't pay
+  // Haiku to classify items from years ago (PF-90).
   const candidates = await db
     .select({
       rawItemId: rawItems.id,
@@ -156,7 +183,15 @@ async function runForUser(
       )`,
     })
     .from(rawItems)
-    .where(and(inArray(rawItems.competitorId, ids), gte(rawItems.ingestedAt, cutoff)))
+    .where(
+      and(
+        inArray(rawItems.competitorId, ids),
+        gte(rawItems.ingestedAt, cutoff),
+        ...(publishedAtCutoff
+          ? [isNotNull(rawItems.publishedAt), gte(rawItems.publishedAt, publishedAtCutoff)]
+          : []),
+      ),
+    )
     .orderBy(desc(rawItems.ingestedAt))
     .limit(maxItems);
 
@@ -269,6 +304,14 @@ export async function runWithConcurrency<T, R>(
 
 function sum<T>(arr: T[], pick: (t: T) => number): number {
   return arr.reduce((acc, x) => acc + pick(x), 0);
+}
+
+export function publishedAtCutoffFor(
+  maxPublishedAgeDays: number | undefined,
+  now: Date,
+): Date | null {
+  if (!maxPublishedAgeDays || maxPublishedAgeDays <= 0) return null;
+  return new Date(now.getTime() - maxPublishedAgeDays * 24 * 60 * 60 * 1000);
 }
 
 function emitPosthog(m: ScoreMetrics): void {

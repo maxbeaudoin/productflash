@@ -28,6 +28,7 @@ async function main() {
     lookbackHours: 24 * 7,
     maxItemsPerDigest: 10,
     maxItemsPerCompetitor: 3,
+    maxPublishedAgeDays: 90,
   });
   logger.info({ ...metrics, email: user.email }, "catch-up synthesis done");
 }
