@@ -97,7 +97,7 @@ Unit tests are colocated next to the code (`foo.ts` + `foo.test.ts`).
 
 ## Commands
 
-To authenticate locally: `http://localhost:3000/api/debug/login-as`
+To authenticate locally: GET `/api/debug/login-as` → JSON list of users, then navigate to `/api/debug/login-as?userId=<id>` to sign in as that user.
 
 ```
 # Dev loop

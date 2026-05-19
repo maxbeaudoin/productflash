@@ -27,15 +27,7 @@ export const Route = createFileRoute("/api/debug/login-as")({
           .select({ id: users.id, email: users.email, role: users.role })
           .from(users)
           .orderBy(users.email);
-        const html = `<!doctype html><html><body>
-<table>
-<thead><tr><th>email</th><th>role</th><th></th></tr></thead>
-<tbody>
-${rows.map((u) => `<tr><td>${u.email}</td><td>${u.role ?? "user"}</td><td><a href="/api/debug/login-as?userId=${u.id}">sign in</a></td></tr>`).join("\n")}
-</tbody>
-</table>
-</body></html>`;
-        return new Response(html, { headers: { "Content-Type": "text/html" } });
+        return Response.json(rows);
       },
     },
   },
