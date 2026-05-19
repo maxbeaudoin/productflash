@@ -98,9 +98,6 @@ export function AddCompetitorForm({
             </>
           )}
         </form.Subscribe>
-        <span className="text-[11px] uppercase tracking-[0.1em] text-[#666]">
-          we'll auto-detect RSS
-        </span>
       </div>
     </form>
   );

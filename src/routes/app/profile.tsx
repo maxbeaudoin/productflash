@@ -152,7 +152,7 @@ function ProfilePage() {
     setAddingCompetitor(false);
     toast.success(
       res.competitor.rssUrl
-        ? `Added ${res.competitor.name} · RSS detected`
+        ? `Added ${res.competitor.name} · feed detected`
         : `Added ${res.competitor.name}`,
     );
   }
