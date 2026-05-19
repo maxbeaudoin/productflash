@@ -137,6 +137,15 @@ const baseSchema = z.object({
     .enum(["0", "1", "true", "false", ""])
     .optional()
     .transform((v) => v === "1" || v === "true"),
+
+  // Inject each user's recent 👎'd items into the synthesis prompt as
+  // "avoid items in the same vein" examples. Off by default so we can A/B
+  // by hand against a clean baseline before flipping on for the cohort.
+  // Cold-start users (< 3 ratings) are skipped regardless of this flag.
+  SYNTHESIS_FEEDBACK_SIGNAL_ENABLED: z
+    .enum(["0", "1", "true", "false", ""])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
 });
 
 // Drift guard — if a key is added/removed from the Zod schema above without
