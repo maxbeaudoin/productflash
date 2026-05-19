@@ -40,6 +40,10 @@ export async function handleFeedbackRating(
     return new Response("not found", { status: 404 });
   }
 
+  // When a user flips 👎 → 👍 we drop any "what was wrong?" comment they had
+  // left, so the admin feed doesn't show a complaint attached to a like. We
+  // detect the flip with `excluded.rating = 'up' AND feedback.rating = 'down'`
+  // — `feedback.*` refers to the existing row, `excluded.*` to the new one.
   await db
     .insert(feedback)
     .values({ digestItemId, userId: item.userId, rating })
@@ -48,6 +52,8 @@ export async function handleFeedbackRating(
       set: {
         rating: sql`excluded.rating`,
         createdAt: sql`now()`,
+        comment: sql`case when excluded.rating = 'up' and ${feedback.rating} = 'down' then null else ${feedback.comment} end`,
+        commentedAt: sql`case when excluded.rating = 'up' and ${feedback.rating} = 'down' then null else ${feedback.commentedAt} end`,
       },
     });
 
@@ -58,8 +64,15 @@ export async function handleFeedbackRating(
 
   logger.info({ digestItemId, userId: item.userId, rating }, "feedback recorded");
 
+  // On 👎 we forward the digestItemId + token so the thanks page can host
+  // the optional "what was wrong?" comment form (#PF-62) without re-signing.
+  // 👍 has no follow-up so we skip the extra query params.
+  const location =
+    rating === "down"
+      ? `/r/thanks?rating=down&digestItemId=${digestItemId}&t=${encodeURIComponent(token)}`
+      : `/r/thanks?rating=${rating}`;
   return new Response(null, {
     status: 302,
-    headers: { Location: `/r/thanks?rating=${rating}` },
+    headers: { Location: location },
   });
 }

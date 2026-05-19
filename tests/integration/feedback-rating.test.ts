@@ -156,4 +156,62 @@ describe("handleFeedbackRating — F-010", () => {
     expect(after[0]!.rating).toBe("down");
     expect(after[0]!.createdAt.getTime()).toBeGreaterThan(first!.createdAt.getTime());
   });
+
+  test("👎 redirect carries digestItemId + token so the thanks page can host the comment form", async () => {
+    const { digestItemId } = await seedDigestItem();
+    const downToken = signFeedbackToken(digestItemId, "down");
+
+    const res = await handleFeedbackRating(digestItemId, "down", downToken);
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location");
+    expect(location).toContain(`rating=down`);
+    expect(location).toContain(`digestItemId=${digestItemId}`);
+    expect(location).toContain(`t=${encodeURIComponent(downToken)}`);
+  });
+
+  test("flipping 👎 → 👍 clears any saved comment", async () => {
+    const { userId, digestItemId } = await seedDigestItem();
+
+    // Rate down and attach a comment directly via SQL (mirrors what
+    // `handleFeedbackComment` would do).
+    const downToken = signFeedbackToken(digestItemId, "down");
+    await handleFeedbackRating(digestItemId, "down", downToken);
+    await h.db
+      .update(feedback)
+      .set({ comment: "Pricing detail was wrong", commentedAt: new Date() })
+      .where(eq(feedback.userId, userId));
+
+    const before = await h.db.select().from(feedback).where(eq(feedback.userId, userId));
+    expect(before[0]!.comment).toBe("Pricing detail was wrong");
+
+    // Now flip to 👍 — comment must be cleared.
+    const upToken = signFeedbackToken(digestItemId, "up");
+    await handleFeedbackRating(digestItemId, "up", upToken);
+
+    const after = await h.db.select().from(feedback).where(eq(feedback.userId, userId));
+    expect(after).toHaveLength(1);
+    expect(after[0]!.rating).toBe("up");
+    expect(after[0]!.comment).toBeNull();
+    expect(after[0]!.commentedAt).toBeNull();
+  });
+
+  test("re-rating 👎 → 👎 preserves an existing comment (no-op conflict path)", async () => {
+    const { userId, digestItemId } = await seedDigestItem();
+
+    const downToken = signFeedbackToken(digestItemId, "down");
+    await handleFeedbackRating(digestItemId, "down", downToken);
+    await h.db
+      .update(feedback)
+      .set({ comment: "keep me", commentedAt: new Date() })
+      .where(eq(feedback.userId, userId));
+
+    // Click 👎 again — conflict path runs but rating stays 'down', so the
+    // comment must survive.
+    await handleFeedbackRating(digestItemId, "down", downToken);
+
+    const after = await h.db.select().from(feedback).where(eq(feedback.userId, userId));
+    expect(after[0]!.comment).toBe("keep me");
+    expect(after[0]!.commentedAt).not.toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
+import { useState } from "react";
 import { z } from "zod";
 import { FilterChipRow } from "~/components/admin/FilterChipRow";
 import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
@@ -35,6 +36,8 @@ type FeedbackRow = {
   sourceUrl: string;
   userId: string;
   userEmail: string;
+  comment: string | null;
+  commentedAt: string | null;
 };
 
 type LoaderData = { rows: FeedbackRow[] };
@@ -84,6 +87,8 @@ const listFeedback = createServerFn({ method: "GET" }).handler(async (): Promise
       sourceUrl: rawItems.url,
       userId: users.id,
       userEmail: users.email,
+      comment: feedback.comment,
+      commentedAt: feedback.commentedAt,
     })
     .from(feedback)
     .innerJoin(digestItems, eq(digestItems.id, feedback.digestItemId))
@@ -108,6 +113,8 @@ const listFeedback = createServerFn({ method: "GET" }).handler(async (): Promise
       sourceUrl: r.sourceUrl,
       userId: r.userId,
       userEmail: r.userEmail,
+      comment: r.comment,
+      commentedAt: r.commentedAt ? r.commentedAt.toISOString() : null,
     })),
   };
 });
@@ -260,45 +267,57 @@ function FeedbackRowItem({ row }: { row: FeedbackRow }) {
     month: "short",
     day: "numeric",
   });
+  const [expanded, setExpanded] = useState(false);
+  const hasComment = Boolean(row.comment);
+
   return (
-    <li>
-      <Link
-        to="/admin/users/$userId"
-        params={{ userId: row.userId }}
-        className="group flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-paper"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <RatingChip rating={row.rating} />
-              <span className="font-mono text-text">{row.userEmail}</span>
-              <span aria-hidden>·</span>
-              <span>
-                {ratedDate}
-                {ratedAgo ? ` · ${ratedAgo}` : ""}
-              </span>
-            </div>
-            <div className="mt-1 truncate text-sm font-medium text-text">{row.headline}</div>
-            <div className="mt-1 line-clamp-2 text-xs text-text-muted">{row.snippet}</div>
+    <li className="flex flex-col gap-2 px-5 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <RatingChip rating={row.rating} />
+            <Link
+              to="/admin/users/$userId"
+              params={{ userId: row.userId }}
+              className="font-mono text-text hover:underline"
+            >
+              {row.userEmail}
+            </Link>
+            <span aria-hidden>·</span>
+            <span>
+              {ratedDate}
+              {ratedAgo ? ` · ${ratedAgo}` : ""}
+            </span>
           </div>
-          <span
-            aria-hidden
-            className="hidden text-text-muted transition-transform group-hover:translate-x-[2px] group-hover:text-text sm:inline"
-          >
-            →
-          </span>
+          <div className="mt-1 truncate text-sm font-medium text-text">{row.headline}</div>
+          <div className="mt-1 line-clamp-2 text-xs text-text-muted">{row.snippet}</div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.1em]">
-          <span
-            className={`inline-flex items-center rounded-[4px] px-2 py-0.5 font-semibold ${CATEGORY_TONE[row.category]}`}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.1em]">
+        <span
+          className={`inline-flex items-center rounded-[4px] px-2 py-0.5 font-semibold ${CATEGORY_TONE[row.category]}`}
+        >
+          {CATEGORY_LABEL[row.category]}
+        </span>
+        <span className="inline-flex items-center rounded-pill border border-ink-line bg-paper px-2 py-0.5 text-text-muted">
+          {SOURCE_LABEL[row.source]}
+        </span>
+        {hasComment ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            aria-expanded={expanded}
+            className="inline-flex items-center gap-1 rounded-pill border border-coral/40 bg-coral/10 px-2 py-0.5 text-coral hover:bg-coral/20"
           >
-            {CATEGORY_LABEL[row.category]}
-          </span>
-          <span className="inline-flex items-center rounded-pill border border-ink-line bg-paper px-2 py-0.5 text-text-muted">
-            {SOURCE_LABEL[row.source]}
-          </span>
-        </div>
-      </Link>
+            💬 {expanded ? "Hide" : "Comment"}
+          </button>
+        ) : null}
+      </div>
+      {hasComment && expanded ? (
+        <blockquote className="mt-1 whitespace-pre-wrap rounded-md border border-ink-line bg-paper px-3 py-2 text-sm text-text">
+          {row.comment}
+        </blockquote>
+      ) : null}
     </li>
   );
 }

@@ -58,11 +58,17 @@ const loadDigest = createServerFn({ method: "GET" })
 
     const feedbackRows = rows.length
       ? await db
-          .select({ digestItemId: feedback.digestItemId, rating: feedback.rating })
+          .select({
+            digestItemId: feedback.digestItemId,
+            rating: feedback.rating,
+            comment: feedback.comment,
+          })
           .from(feedback)
           .where(eq(feedback.userId, session.user.id))
       : [];
-    const feedbackByItem = new Map(feedbackRows.map((f) => [f.digestItemId, f.rating] as const));
+    const feedbackByItem = new Map(
+      feedbackRows.map((f) => [f.digestItemId, { rating: f.rating, comment: f.comment }] as const),
+    );
 
     captureServerEvent(session.user.id, "digest_rendered_in_app", {
       digest_id: digest.id,
@@ -84,7 +90,8 @@ const loadDigest = createServerFn({ method: "GET" })
         impactNote: r.impactNote,
         sourceUrl: r.sourceUrl,
         occurredAt: r.occurredAt ? r.occurredAt.toISOString() : null,
-        feedback: feedbackByItem.get(r.id) ?? null,
+        feedback: feedbackByItem.get(r.id)?.rating ?? null,
+        feedbackComment: feedbackByItem.get(r.id)?.comment ?? null,
         feedbackUrls: buildFeedbackUrls(r.id),
       })),
     };

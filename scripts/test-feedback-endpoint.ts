@@ -93,19 +93,78 @@ async function main() {
       });
     }
 
-    // 2. Idempotent flip: same user re-rates down → row updates, no duplicate
+    // 2. Idempotent flip: same user re-rates down → row updates, no duplicate.
+    //    Down redirect now carries digestItemId + token so the thanks page
+    //    can host the optional "what was wrong?" comment form (#PF-62).
     {
       const res = await fetch(`${BASE}/r/${item.id}/down?t=${downToken}`, { redirect: "manual" });
+      const loc = res.headers.get("location") ?? "";
       cases.push({
-        name: "down (re-rate) → 302",
-        ok: res.status === 302,
-        detail: `status=${res.status}`,
+        name: "down (re-rate) → 302 with digestItemId + token for the comment form",
+        ok:
+          res.status === 302 &&
+          loc.includes("rating=down") &&
+          loc.includes(`digestItemId=${item.id}`) &&
+          loc.includes(`t=${encodeURIComponent(downToken)}`),
+        detail: `status=${res.status} location=${loc}`,
       });
       const rows = await db.select().from(feedback).where(eq(feedback.userId, user.id));
       cases.push({
         name: "still one feedback row, rating flipped to down",
         ok: rows.length === 1 && rows[0].rating === "down",
         detail: `count=${rows.length} rating=${rows[0]?.rating}`,
+      });
+    }
+
+    // 2b. Comment endpoint (#PF-62): POST /r/:id/comment attaches a
+    //     "what was wrong?" follow-up to the existing 👎 row.
+    {
+      const res = await fetch(`${BASE}/r/${item.id}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: "Pricing detail was off", token: downToken }),
+      });
+      cases.push({
+        name: "comment + down token + existing 👎 row → 204",
+        ok: res.status === 204,
+        detail: `status=${res.status}`,
+      });
+      const [row] = await db.select().from(feedback).where(eq(feedback.userId, user.id));
+      cases.push({
+        name: "feedback row updated with comment + commented_at",
+        ok: row?.comment === "Pricing detail was off" && row?.commentedAt instanceof Date,
+        detail: `comment=${row?.comment ?? "null"} commentedAt=${row?.commentedAt ?? "null"}`,
+      });
+    }
+
+    // 2c. Up token cannot authorize a comment (token binds to "down").
+    {
+      const res = await fetch(`${BASE}/r/${item.id}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: "should fail", token: upToken }),
+      });
+      cases.push({
+        name: "comment + up token → 400 invalid signature",
+        ok: res.status === 400,
+        detail: `status=${res.status}`,
+      });
+    }
+
+    // 2d. Flipping back to 👍 clears any saved comment (admin shouldn't
+    //     see a complaint attached to a like).
+    {
+      const res = await fetch(`${BASE}/r/${item.id}/up?t=${upToken}`, { redirect: "manual" });
+      cases.push({
+        name: "flip 👎 → 👍 → 302",
+        ok: res.status === 302,
+        detail: `status=${res.status}`,
+      });
+      const [row] = await db.select().from(feedback).where(eq(feedback.userId, user.id));
+      cases.push({
+        name: "comment + commented_at cleared after flip to up",
+        ok: row?.rating === "up" && row?.comment === null && row?.commentedAt === null,
+        detail: `rating=${row?.rating} comment=${row?.comment} commentedAt=${row?.commentedAt}`,
       });
     }
 

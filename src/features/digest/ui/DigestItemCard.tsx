@@ -12,6 +12,7 @@ export type DigestItemView = {
   // No fabricated "today" / "recently" — see [[feedback_rtfm]] and #41.
   occurredAt: string | null;
   feedback?: "up" | "down" | null;
+  feedbackComment?: string | null;
   feedbackUrls?: { up: string; down: string };
 };
 
@@ -84,6 +85,7 @@ export function DigestItemCard({ item, isLast }: { item: DigestItemView; isLast:
           <FeedbackButtons
             digestItemId={item.id}
             initialRating={item.feedback ?? null}
+            initialComment={item.feedbackComment ?? null}
             signedUrls={item.feedbackUrls}
           />
         ) : null}
