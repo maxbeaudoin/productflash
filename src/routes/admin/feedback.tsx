@@ -1,6 +1,7 @@
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { z } from "zod";
 import { FilterChipRow } from "~/components/admin/FilterChipRow";
@@ -40,7 +41,23 @@ type FeedbackRow = {
   commentedAt: string | null;
 };
 
-type LoaderData = { rows: FeedbackRow[] };
+type RollupRow<K extends string> = {
+  key: K;
+  up: number;
+  total: number;
+};
+
+type LoaderData = {
+  rows: FeedbackRow[];
+  rollups: {
+    bySource: RollupRow<SourceType>[];
+    byCategory: RollupRow<DigestTag>[];
+  };
+};
+
+// PoC scale — one or two ratings on a source/tag tells us nothing. Hide
+// rollup rows below this threshold so the card doesn't read like signal.
+const ROLLUP_MIN_N = 5;
 
 const RANGE_DAYS: Record<"7d" | "30d", number> = { "7d": 7, "30d": 30 };
 
@@ -98,6 +115,49 @@ const listFeedback = createServerFn({ method: "GET" }).handler(async (): Promise
     .orderBy(desc(feedback.createdAt))
     .limit(ROW_LIMIT);
 
+  // PF-61. Cross-cohort rollups: "which input produces signal vs noise?" —
+  // grouped over the same join topology as the feed so rates line up with
+  // what you see when you filter the list. Aggregated in SQL (not from
+  // `rows`) so the 500-row cap on the feed doesn't quietly truncate counts.
+  const sourceAgg = await db
+    .select({
+      source: rawItems.source,
+      up: sql<number>`COUNT(*) FILTER (WHERE ${feedback.rating} = 'up')::int`,
+      total: sql<number>`COUNT(*)::int`,
+    })
+    .from(feedback)
+    .innerJoin(digestItems, eq(digestItems.id, feedback.digestItemId))
+    .innerJoin(rawItems, eq(rawItems.id, digestItems.rawItemId))
+    .groupBy(rawItems.source);
+
+  const categoryAgg = await db
+    .select({
+      category: digestItems.category,
+      up: sql<number>`COUNT(*) FILTER (WHERE ${feedback.rating} = 'up')::int`,
+      total: sql<number>`COUNT(*)::int`,
+    })
+    .from(feedback)
+    .innerJoin(digestItems, eq(digestItems.id, feedback.digestItemId))
+    .groupBy(digestItems.category);
+
+  const bySource = sourceAgg
+    .filter((r) => r.total >= ROLLUP_MIN_N)
+    .map<RollupRow<SourceType>>((r) => ({
+      key: r.source as SourceType,
+      up: r.up,
+      total: r.total,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const byCategory = categoryAgg
+    .filter((r) => r.total >= ROLLUP_MIN_N)
+    .map<RollupRow<DigestTag>>((r) => ({
+      key: r.category as DigestTag,
+      up: r.up,
+      total: r.total,
+    }))
+    .sort((a, b) => b.total - a.total);
+
   return {
     rows: rows.map<FeedbackRow>((r) => ({
       id: r.id,
@@ -116,6 +176,7 @@ const listFeedback = createServerFn({ method: "GET" }).handler(async (): Promise
       comment: r.comment,
       commentedAt: r.commentedAt ? r.commentedAt.toISOString() : null,
     })),
+    rollups: { bySource, byCategory },
   };
 });
 
@@ -165,7 +226,7 @@ const CATEGORY_TONE: Record<DigestTag, string> = {
 };
 
 function AdminFeedbackPage() {
-  const { rows } = Route.useLoaderData();
+  const { rows, rollups } = Route.useLoaderData();
   const filters = Route.useSearch();
   const router = useRouter();
 
@@ -195,6 +256,8 @@ function AdminFeedbackPage() {
             </p>
           </div>
         </header>
+
+        <RollupCards bySource={rollups.bySource} byCategory={rollups.byCategory} />
 
         <div className="mb-6 space-y-3">
           <FilterChipRow
@@ -345,6 +408,87 @@ function applyFilters(rows: FeedbackRow[], filters: Filters): FeedbackRow[] {
     if (needle && !r.userEmail.toLowerCase().includes(needle)) return false;
     return true;
   });
+}
+
+function RollupCards({
+  bySource,
+  byCategory,
+}: {
+  bySource: RollupRow<SourceType>[];
+  byCategory: RollupRow<DigestTag>[];
+}) {
+  return (
+    <section className="mb-6 grid gap-4 md:grid-cols-2">
+      <RollupCard title="By source" rows={bySource} renderKey={(k) => SOURCE_LABEL[k]} />
+      <RollupCard
+        title="By category"
+        rows={byCategory}
+        renderKey={(k) => (
+          <span
+            className={`inline-flex items-center rounded-[4px] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${CATEGORY_TONE[k]}`}
+          >
+            {CATEGORY_LABEL[k]}
+          </span>
+        )}
+      />
+    </section>
+  );
+}
+
+function RollupCard<K extends string>({
+  title,
+  rows,
+  renderKey,
+}: {
+  title: string;
+  rows: RollupRow<K>[];
+  renderKey: (key: K) => ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-ink-line bg-paper-warm p-5">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-text-muted">
+          {title}
+        </h2>
+        <span
+          className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted"
+          title={`Rows with fewer than ${ROLLUP_MIN_N} ratings are hidden — not enough signal at PoC scale.`}
+        >
+          n ≥ {ROLLUP_MIN_N}
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-muted">
+          Not enough ratings yet. Need ≥ {ROLLUP_MIN_N} per group.
+        </p>
+      ) : (
+        <ul className="divide-y divide-ink-line overflow-hidden rounded-md border border-ink-line bg-paper">
+          {rows.map((r) => (
+            <RollupCardRow key={r.key} row={r} renderKey={renderKey} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function RollupCardRow<K extends string>({
+  row,
+  renderKey,
+}: {
+  row: RollupRow<K>;
+  renderKey: (key: K) => ReactNode;
+}) {
+  const ratio = row.total > 0 ? row.up / row.total : 0;
+  return (
+    <li className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+      <div className="min-w-0 flex-1">{renderKey(row.key)}</div>
+      <div className="flex items-center gap-3 font-mono tabular-nums text-text-muted">
+        <span title="ratings in group">n {row.total}</span>
+        <span className="text-text">{Math.round(ratio * 100)}% 👍</span>
+      </div>
+    </li>
+  );
 }
 
 function relativeLabel(occurred: Date, now: Date): string | null {
