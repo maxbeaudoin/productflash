@@ -52,6 +52,7 @@ export async function startTestDb(): Promise<TestDb> {
 // Names match `src/db/schema.ts` exactly. Order is irrelevant when using
 // `TRUNCATE ... CASCADE` since Postgres handles the FK dependency graph.
 const ALL_TABLES = [
+  "admin_audit",
   "feedback",
   "llm_usage",
   "fte_events",

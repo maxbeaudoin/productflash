@@ -18,6 +18,10 @@ import {
   users,
 } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
+import { writeAudit } from "~/features/admin-audit/server/audit";
+import { loadAuditForTarget } from "~/features/admin-audit/server/fns";
+import type { AdminAuditRow } from "~/features/admin-audit/shared/types";
+import { AdminAuditList } from "~/features/admin-audit/ui/AdminAuditList";
 import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
 import { requireAdminSession } from "~/features/auth/server/session";
 import { getBoss } from "~/shared/server/boss";
@@ -97,6 +101,7 @@ type DetailLoaderData = {
   // run_id = fteRunId). Null when there are no runs yet.
   fteRunCostMicroUsd: number | null;
   lifetimeCostMicroUsd: number;
+  auditRows: AdminAuditRow[];
 };
 
 const loadUserDetail = createServerFn({ method: "GET" })
@@ -271,6 +276,8 @@ const loadUserDetail = createServerFn({ method: "GET" })
         }))
       : [];
 
+    const auditRows = await loadAuditForTarget("user", user.id);
+
     return {
       profile: {
         id: user.id,
@@ -302,6 +309,7 @@ const loadUserDetail = createServerFn({ method: "GET" })
       fteEvents: eventRows,
       fteRunCostMicroUsd,
       lifetimeCostMicroUsd,
+      auditRows,
     };
   });
 
@@ -338,6 +346,13 @@ const triggerFte = createServerFn({ method: "POST" })
       { admin: session.user.email, target: user.email, runId, enqueued },
       "admin: fte re-run enqueued",
     );
+    await writeAudit({
+      actorId: session.user.id,
+      targetKind: "user",
+      targetId: user.id,
+      action: "fte_rerun_enqueued",
+      payload: { runId, enqueued },
+    });
     return { runId, enqueued };
   });
 
@@ -351,6 +366,13 @@ const triggerFastPath = createServerFn({ method: "POST" })
       { admin: session.user.email, target: data.userId, enqueued },
       "admin: fast-path re-run enqueued",
     );
+    await writeAudit({
+      actorId: session.user.id,
+      targetKind: "user",
+      targetId: data.userId,
+      action: "fast_path_enqueued",
+      payload: { enqueued },
+    });
     return { enqueued };
   });
 
@@ -432,8 +454,28 @@ function AdminUserDetailPage() {
           events={data.fteEvents}
           costMicroUsd={data.fteRunCostMicroUsd}
         />
+
+        <AuditBlock rows={data.auditRows} />
       </div>
     </main>
+  );
+}
+
+function AuditBlock({ rows }: { rows: AdminAuditRow[] }) {
+  return (
+    <section className="mt-8">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-lg font-semibold tracking-tight">Recent admin activity</h2>
+        <span className="font-mono text-xs text-text-muted">
+          {rows.length} {rows.length === 1 ? "event" : "events"}
+        </span>
+      </div>
+      <AdminAuditList
+        rows={rows}
+        hideTarget
+        emptyMessage="No admin actions on this user yet. Re-running the FTE or re-triggering the digest above will log here."
+      />
+    </section>
   );
 }
 
