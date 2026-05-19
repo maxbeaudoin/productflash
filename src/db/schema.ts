@@ -13,7 +13,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const userStatus = pgEnum("user_status", ["pending", "onboarding", "active", "paused"]);
-export const sourceType = pgEnum("source_type", ["rss", "ph", "firehose", "firecrawl"]);
+// `webpage` is the multi-source watcher (PF-97). Distinct from `firecrawl`,
+// which remains the legacy `competitors.pricing_url` scraper — same vendor,
+// different ingestion contract: pricing-page diffs vs. competitor_sources
+// rows. Items carry `competitor_source_id` for the new path.
+export const sourceType = pgEnum("source_type", ["rss", "ph", "firehose", "firecrawl", "webpage"]);
 // User-facing identity for a competitor source (PF-93). Distinct from
 // `sourceType` above, which is the internal adapter/transport that produced a
 // raw_item. Discovery records all five from day 1; ingestion ships for
@@ -225,6 +229,10 @@ export const rawItems = pgTable(
   (t) => [
     unique("raw_items_source_source_id_unique").on(t.source, t.sourceId),
     index("raw_items_competitor_ingested_idx").on(t.competitorId, t.ingestedAt),
+    // PF-97: list_extract watcher dedupes new URLs against existing items
+    // filtered by competitor_source_id, so this needs a covering index. Also
+    // used by the admin per-source list (PF-96) to count items-in-30d.
+    index("raw_items_competitor_source_idx").on(t.competitorSourceId),
   ],
 );
 

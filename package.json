@@ -35,6 +35,7 @@
     "synthesize:run": "tsx scripts/run-synthesize.ts",
     "fte:run": "tsx scripts/run-fte.ts",
     "discovery:run": "tsx scripts/run-discovery.ts",
+    "webpage:run": "tsx scripts/run-webpage-watcher.ts",
     "send:run": "tsx scripts/run-send.ts",
     "send:dispatch": "tsx scripts/run-send-dispatch.ts",
     "email:preview": "tsx scripts/preview-email.tsx"

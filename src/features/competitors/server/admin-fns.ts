@@ -146,7 +146,7 @@ export type CompetitorSourcesRollup = {
 export type CompetitorRawItemRow = {
   id: string;
   title: string;
-  source: "rss" | "ph" | "firehose" | "firecrawl";
+  source: "rss" | "ph" | "firehose" | "firecrawl" | "webpage";
   publishedAt: string | null;
   ingestedAt: string;
   url: string;
