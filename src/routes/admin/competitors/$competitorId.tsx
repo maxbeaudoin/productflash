@@ -537,6 +537,7 @@ const RAW_ITEM_SOURCE_LABEL: Record<CompetitorDetailData["recentItems"][number][
     ph: "Product Hunt",
     firecrawl: "Firecrawl",
     firehose: "Firehose",
+    webpage: "Webpage",
   };
 
 function ActivityTab({

@@ -1,6 +1,6 @@
 import type { Competitor } from "~/db/schema";
 
-export type SourceName = "rss" | "ph" | "firehose" | "firecrawl";
+export type SourceName = "rss" | "ph" | "firehose" | "firecrawl" | "webpage";
 
 export interface NormalizedItem {
   source: SourceName;

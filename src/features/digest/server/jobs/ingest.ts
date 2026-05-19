@@ -1,5 +1,10 @@
-import { eq, inArray } from "drizzle-orm";
-import { competitors as competitorsTable, rawItems, userCompetitors } from "~/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  competitors as competitorsTable,
+  competitorSources,
+  rawItems,
+  userCompetitors,
+} from "~/db/schema";
 import type { NewRawItem } from "~/db/schema";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
@@ -10,6 +15,11 @@ import { fetchFirehoseForCompetitors } from "~/sources/firehose";
 import { fetchPHForCompetitors } from "~/sources/ph";
 import { fetchRSSForCompetitors } from "~/sources/rss";
 import type { CompetitorRef, NormalizedItem, SourceName } from "~/sources/types";
+import {
+  fetchWebpageForSources,
+  type WebpageFetchOptions,
+  type WebpageSourceRef,
+} from "~/sources/webpage";
 
 // Daily ingestion orchestrator.
 //
@@ -43,17 +53,20 @@ export interface IngestionMetrics {
   totalInserted: number;
 }
 
-export async function runIngestion(): Promise<IngestionMetrics> {
+export async function runIngestion(options: WebpageFetchOptions = {}): Promise<IngestionMetrics> {
   const db = getDb();
   const rows = await db.select().from(competitorsTable);
   const refs: CompetitorRef[] = rows.map(rowToRef);
-  return runIngestionForRefs(refs, "ingest: starting run");
+  return runIngestionForRefs(refs, "ingest: starting run", {}, options);
 }
 
 // On-demand variant used by the time-to-first-digest fast path (#30). Scopes
 // adapters to a single user's competitors so we don't pay for the full
 // global crawl when a brand-new user finishes onboarding.
-export async function runIngestionForUser(userId: string): Promise<IngestionMetrics> {
+export async function runIngestionForUser(
+  userId: string,
+  options: WebpageFetchOptions = {},
+): Promise<IngestionMetrics> {
   const db = getDb();
   const ids = (
     await db
@@ -67,13 +80,19 @@ export async function runIngestionForUser(userId: string): Promise<IngestionMetr
     return metrics;
   }
   const rows = await db.select().from(competitorsTable).where(inArray(competitorsTable.id, ids));
-  return runIngestionForRefs(rows.map(rowToRef), "ingest: starting per-user run", { userId });
+  return runIngestionForRefs(
+    rows.map(rowToRef),
+    "ingest: starting per-user run",
+    { userId },
+    options,
+  );
 }
 
 async function runIngestionForRefs(
   refs: CompetitorRef[],
   startLog: string,
   context: Record<string, unknown> = {},
+  webpageOptions: WebpageFetchOptions = {},
 ): Promise<IngestionMetrics> {
   const started = Date.now();
   const db = getDb();
@@ -87,23 +106,28 @@ async function runIngestionForRefs(
     return metrics;
   }
 
-  const prevSnapshots = await loadLatestPricingSnapshots(
-    db,
-    refs.map((c) => c.id),
-  );
+  const competitorIds = refs.map((c) => c.id);
 
-  const [rssResult, phResult, firehoseResult, firecrawlResult] = await Promise.allSettled([
-    fetchRSSForCompetitors(refs),
-    fetchPHForCompetitors(refs),
-    fetchFirehoseForCompetitors(refs),
-    scrapePricingPagesForCompetitors(refs, prevSnapshots),
+  const [prevSnapshots, webpageRefs] = await Promise.all([
+    loadLatestPricingSnapshots(db, competitorIds),
+    loadActiveWebpageSources(competitorIds, refs),
   ]);
+
+  const [rssResult, phResult, firehoseResult, firecrawlResult, webpageResult] =
+    await Promise.allSettled([
+      fetchRSSForCompetitors(refs),
+      fetchPHForCompetitors(refs),
+      fetchFirehoseForCompetitors(refs),
+      scrapePricingPagesForCompetitors(refs, prevSnapshots),
+      fetchWebpageForSources(webpageRefs, webpageOptions),
+    ]);
 
   const perSource: Record<SourceName, SourceMetrics> = {
     rss: settleToFanoutMetrics(rssResult, "rss"),
     ph: settleToFanoutMetrics(phResult, "ph"),
     firehose: settleToFanoutMetrics(firehoseResult, "firehose"),
     firecrawl: { fetched: 0, inserted: 0, errored: firecrawlResult.status === "rejected" },
+    webpage: { fetched: 0, inserted: 0, errored: webpageResult.status === "rejected" },
   };
 
   const inserts: NewRawItem[] = [];
@@ -127,6 +151,28 @@ async function runIngestionForRefs(
     logger.warn({ err: firecrawlResult.reason }, "ingest: firecrawl batch rejected");
   }
 
+  if (webpageResult.status === "fulfilled") {
+    for (const [sourceId, result] of webpageResult.value) {
+      // Persist the watcher's bookkeeping before we insert items so the
+      // admin per-source list (PF-96) reflects the run even when no item
+      // is emitted (snapshot unchanged, list with no new posts, etc.).
+      try {
+        await persistWebpageSourceState(sourceId, result);
+      } catch (err) {
+        logger.warn({ err, sourceId }, "ingest: failed to persist webpage source state");
+      }
+      for (const item of result.items) {
+        inserts.push(toNewRawItem(result.competitorId, item, sourceId));
+        perSource.webpage.fetched++;
+      }
+      if (result.errored) {
+        perSource.webpage.errored = true;
+      }
+    }
+  } else {
+    logger.warn({ err: webpageResult.reason }, "ingest: webpage batch rejected");
+  }
+
   let insertedRows: Array<{ source: SourceName }> = [];
   if (inserts.length > 0) {
     insertedRows = await db
@@ -143,12 +189,14 @@ async function runIngestionForRefs(
     perSource.rss.fetched +
     perSource.ph.fetched +
     perSource.firehose.fetched +
-    perSource.firecrawl.fetched;
+    perSource.firecrawl.fetched +
+    perSource.webpage.fetched;
   const totalInserted =
     perSource.rss.inserted +
     perSource.ph.inserted +
     perSource.firehose.inserted +
-    perSource.firecrawl.inserted;
+    perSource.firecrawl.inserted +
+    perSource.webpage.inserted;
 
   const metrics: IngestionMetrics = {
     competitors: refs.length,
@@ -161,6 +209,58 @@ async function runIngestionForRefs(
   logger.info(metrics, "ingest: run complete");
   emitPosthog(metrics);
   return metrics;
+}
+
+async function loadActiveWebpageSources(
+  competitorIds: string[],
+  refs: CompetitorRef[],
+): Promise<WebpageSourceRef[]> {
+  if (competitorIds.length === 0) return [];
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(competitorSources)
+    .where(
+      and(
+        inArray(competitorSources.competitorId, competitorIds),
+        eq(competitorSources.sourceType, "webpage"),
+        eq(competitorSources.status, "active"),
+      ),
+    );
+  const nameById = new Map(refs.map((c) => [c.id, c.name]));
+  return rows.map((r) => ({
+    id: r.id,
+    competitorId: r.competitorId,
+    competitorName: nameById.get(r.competitorId) ?? "(unknown)",
+    url: r.urlOrHandle,
+    extractionMode:
+      r.extractionMode === "snapshot_diff" || r.extractionMode === "list_extract"
+        ? r.extractionMode
+        : null,
+    lastContentHash: r.lastContentHash,
+  }));
+}
+
+async function persistWebpageSourceState(
+  sourceId: string,
+  result: {
+    inferredMode: "snapshot_diff" | "list_extract" | null;
+    newContentHash: string | null;
+    fetchedAt: Date;
+    errored: boolean;
+  },
+): Promise<void> {
+  // Skip writes when the fetch errored — preserves last_content_hash so the
+  // next successful fetch can still diff. last_fetched_at stays stale on
+  // purpose: a missing update is the signal that the source is broken.
+  if (result.errored) return;
+  const db = getDb();
+  const update: Partial<typeof competitorSources.$inferInsert> = {
+    lastFetchedAt: result.fetchedAt,
+  };
+  if (result.inferredMode) update.extractionMode = result.inferredMode;
+  if (result.newContentHash !== null) update.lastContentHash = result.newContentHash;
+  await db.update(competitorSources).set(update).where(eq(competitorSources.id, sourceId));
 }
 
 function rowToRef(r: typeof competitorsTable.$inferSelect): CompetitorRef {
@@ -199,11 +299,16 @@ export function collectFanout(
   }
 }
 
-function toNewRawItem(competitorId: string, item: NormalizedItem): NewRawItem {
+function toNewRawItem(
+  competitorId: string,
+  item: NormalizedItem,
+  competitorSourceId?: string,
+): NewRawItem {
   return {
     competitorId,
     source: item.source,
     sourceId: item.sourceId,
+    competitorSourceId: competitorSourceId ?? null,
     url: item.url,
     title: item.title,
     body: item.body,
@@ -220,6 +325,7 @@ function emptyMetrics(competitors: number, durationMs: number): IngestionMetrics
       ph: { fetched: 0, inserted: 0, errored: false },
       firehose: { fetched: 0, inserted: 0, errored: false },
       firecrawl: { fetched: 0, inserted: 0, errored: false },
+      webpage: { fetched: 0, inserted: 0, errored: false },
     },
     totalFetched: 0,
     totalInserted: 0,
@@ -244,5 +350,8 @@ function emitPosthog(m: IngestionMetrics): void {
     firecrawl_fetched: m.perSource.firecrawl.fetched,
     firecrawl_inserted: m.perSource.firecrawl.inserted,
     firecrawl_errored: m.perSource.firecrawl.errored,
+    webpage_fetched: m.perSource.webpage.fetched,
+    webpage_inserted: m.perSource.webpage.inserted,
+    webpage_errored: m.perSource.webpage.errored,
   });
 }
