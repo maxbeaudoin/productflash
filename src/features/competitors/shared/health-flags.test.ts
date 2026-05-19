@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompetitorAdminRow } from "~/features/competitors/server/admin-fns";
+import type { CompetitorAdminRow } from "./types";
 import { STALE_THRESHOLD_DAYS, classifyHealthFlags } from "./health-flags";
 
 const NOW = Date.parse("2026-05-18T00:00:00Z");

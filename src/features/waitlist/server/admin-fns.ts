@@ -1,9 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { users, waitlist } from "~/db/schema";
+import { adminAudit, users, waitlist } from "~/db/schema";
 import type { WaitlistRow, WaitlistState } from "~/features/waitlist/shared/types";
-import { writeAudit } from "~/features/admin-audit/server/audit";
 import { requireAdminSession } from "~/features/auth/server/session";
 import { getDb } from "~/shared/server/db";
 import { env } from "~/shared/server/env";
@@ -102,13 +101,20 @@ export const issueInvite = createServerFn({ method: "POST" })
     const url = `${env.BETTER_AUTH_URL}/signup?invite=${token}`;
     logger.info({ admin: session.user.email, target: row.email, reissue }, "invite_issued");
     if (userRow) {
-      await writeAudit({
-        actorId: session.user.id,
-        targetKind: "user",
-        targetId: userRow.id,
-        action: "invite_issued",
-        payload: { email: row.email, reissue, waitlistId: row.id },
-      });
+      // Inlined audit insert — a shared helper that imports `getDb` /
+      // schema leaks pg into the client bundle (see comment in
+      // routes/admin/users/$userId.tsx for the full reasoning).
+      try {
+        await db.insert(adminAudit).values({
+          actorId: session.user.id,
+          targetKind: "user",
+          targetId: userRow.id,
+          action: "invite_issued",
+          payload: { email: row.email, reissue, waitlistId: row.id },
+        });
+      } catch (err) {
+        logger.error({ err, target: userRow.id }, "admin_audit_write_failed");
+      }
     }
     return { url, invitedAt: invitedAt.toISOString() };
   });

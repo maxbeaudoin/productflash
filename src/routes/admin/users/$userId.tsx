@@ -7,6 +7,7 @@ import { enqueueFteRun } from "~/agents/fte/job";
 import { Button } from "~/components/ui/button";
 import { DigestItemCard, type DigestItemView } from "~/features/digest/ui/DigestItemCard";
 import {
+  adminAudit,
   competitors as competitorsTable,
   digestItems,
   digests,
@@ -18,9 +19,7 @@ import {
   users,
 } from "~/db/schema";
 import type { DigestTag } from "~/design/tokens";
-import { writeAudit } from "~/features/admin-audit/server/audit";
-import { loadAuditForTarget } from "~/features/admin-audit/server/fns";
-import type { AdminAuditRow } from "~/features/admin-audit/shared/types";
+import type { AdminAuditPayload, AdminAuditRow } from "~/features/admin-audit/shared/types";
 import { AdminAuditList } from "~/features/admin-audit/ui/AdminAuditList";
 import { enqueueFastPath } from "~/features/digest/server/jobs/fast-path";
 import { requireAdminSession } from "~/features/auth/server/session";
@@ -276,7 +275,41 @@ const loadUserDetail = createServerFn({ method: "GET" })
         }))
       : [];
 
-    const auditRows = await loadAuditForTarget("user", user.id);
+    // PF-60. Recent admin activity scoped to this user. Inlined (not in a
+    // shared helper) on purpose — a plain-function export from a file with
+    // server-only imports leaks pg into the client bundle because
+    // TanStack Start's Vite plugin only strips bodies it knows are
+    // server-only (createServerFn handlers, route loaders).
+    const PER_TARGET_LIMIT = 50;
+    const auditRaw = await db
+      .select({
+        id: adminAudit.id,
+        actorId: adminAudit.actorId,
+        actorEmail: users.email,
+        targetKind: adminAudit.targetKind,
+        targetId: adminAudit.targetId,
+        action: adminAudit.action,
+        payload: adminAudit.payload,
+        createdAt: adminAudit.createdAt,
+      })
+      .from(adminAudit)
+      .leftJoin(users, eq(users.id, adminAudit.actorId))
+      .where(and(eq(adminAudit.targetKind, "user"), eq(adminAudit.targetId, user.id)))
+      .orderBy(desc(adminAudit.createdAt))
+      .limit(PER_TARGET_LIMIT);
+    const auditRows: AdminAuditRow[] = auditRaw.map((r) => ({
+      id: r.id,
+      actorId: r.actorId,
+      actorEmail: r.actorEmail,
+      targetKind: r.targetKind,
+      targetId: r.targetId,
+      // Every row targets this same user — the per-user surface hides the
+      // target column, so a label resolution round-trip would be wasted.
+      targetLabel: user.email,
+      action: r.action,
+      payload: (r.payload ?? {}) as AdminAuditPayload,
+      createdAt: r.createdAt.toISOString(),
+    }));
 
     return {
       profile: {
@@ -346,13 +379,17 @@ const triggerFte = createServerFn({ method: "POST" })
       { admin: session.user.email, target: user.email, runId, enqueued },
       "admin: fte re-run enqueued",
     );
-    await writeAudit({
-      actorId: session.user.id,
-      targetKind: "user",
-      targetId: user.id,
-      action: "fte_rerun_enqueued",
-      payload: { runId, enqueued },
-    });
+    try {
+      await db.insert(adminAudit).values({
+        actorId: session.user.id,
+        targetKind: "user",
+        targetId: user.id,
+        action: "fte_rerun_enqueued",
+        payload: { runId, enqueued },
+      });
+    } catch (err) {
+      logger.error({ err, target: user.id }, "admin_audit_write_failed");
+    }
     return { runId, enqueued };
   });
 
@@ -360,19 +397,24 @@ const triggerFastPath = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => userIdInput.parse(data))
   .handler(async ({ data }) => {
     const session = await requireAdminSession();
+    const db = getDb();
     const boss = await getBoss();
     const { enqueued } = await enqueueFastPath(boss, data.userId);
     logger.info(
       { admin: session.user.email, target: data.userId, enqueued },
       "admin: fast-path re-run enqueued",
     );
-    await writeAudit({
-      actorId: session.user.id,
-      targetKind: "user",
-      targetId: data.userId,
-      action: "fast_path_enqueued",
-      payload: { enqueued },
-    });
+    try {
+      await db.insert(adminAudit).values({
+        actorId: session.user.id,
+        targetKind: "user",
+        targetId: data.userId,
+        action: "fast_path_enqueued",
+        payload: { enqueued },
+      });
+    } catch (err) {
+      logger.error({ err, target: data.userId }, "admin_audit_write_failed");
+    }
     return { enqueued };
   });
 

@@ -9,18 +9,7 @@ import { getDb } from "~/shared/server/db";
 // subqueries collapse user_competitors + raw_items into per-competitor
 // rollups in one round trip — same shape as /admin/users (PF-26).
 
-export type CompetitorAdminRow = {
-  id: string;
-  name: string;
-  homepageUrl: string;
-  rssUrl: string | null;
-  phSlug: string | null;
-  pricingUrl: string | null;
-  createdAt: string;
-  trackedBy: number;
-  rawItems7d: number;
-  lastIngestedAt: string | null;
-};
+import type { CompetitorAdminRow } from "../shared/types";
 
 export const listCompetitorsForAdmin = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ rows: CompetitorAdminRow[] }> => {
