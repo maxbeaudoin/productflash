@@ -317,7 +317,11 @@ describe("runSynthesisForUser — PF-90 maxPublishedAgeDays cap", () => {
     expect(items).toHaveLength(2);
   });
 
-  test("publishedAt=null is dropped when the cap is set (can't verify age)", async () => {
+  test("publishedAt=null is kept even when the cap is set (adapter contract is loose)", async () => {
+    // Policy: adapters SHOULD populate published_at, but a missing date
+    // is not grounds to silently drop the item. The outer ingested_at
+    // window already bounds it. RSS is the only adapter that could
+    // realistically return null today (and 0% do in dev).
     const now = new Date("2026-05-17T10:00:00Z");
     const [user] = await h.db
       .insert(users)
@@ -350,7 +354,73 @@ describe("runSynthesisForUser — PF-90 maxPublishedAgeDays cap", () => {
 
     const metrics = await runSynthesisForUser(user!.id, { now, maxPublishedAgeDays: 90 });
 
-    expect(metrics).toMatchObject({ candidates: 0, synthesized: 0, empty: true });
+    expect(metrics).toMatchObject({ candidates: 1, synthesized: 1, empty: false });
+  });
+});
+
+describe("runSynthesis cron — PF-90 daily published_at cap", () => {
+  // The cron path (`useWeekendAwareDefaults: true`) defaults
+  // maxPublishedAgeDays to 1 (Mon: 3). Tue–Fri = 1d, so an item with
+  // published_at = 2 days ago should be filtered out even though
+  // ingested_at = now passes the 24h ingested window. Defense against a
+  // future source that backfills with old published_at values (the
+  // PF-90 mechanism, applied to daily not just first-ingest).
+  test("Tue–Fri daily cron drops items whose published_at is >24h old", async () => {
+    const now = new Date("2026-05-19T05:30:00Z"); // Tuesday
+    const recent = new Date(now.getTime() - 6 * 60 * 60 * 1000); // 6h ago
+    const stale = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48h ago
+
+    const [user] = await h.db
+      .insert(users)
+      .values({
+        email: "tue@test.local",
+        name: "Tue",
+        tz: "UTC",
+        status: "active",
+      })
+      .returning();
+    const [comp] = await h.db
+      .insert(competitors)
+      .values({ name: "Acme-tue", homepageUrl: "https://acme-tue.test" })
+      .returning();
+    await h.db.insert(userCompetitors).values({ userId: user!.id, competitorId: comp!.id });
+    const [recentRaw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: "tue-recent",
+        url: "https://acme-tue.test/recent",
+        title: "Recent",
+        body: "body",
+        publishedAt: recent,
+      })
+      .returning();
+    const [staleRaw] = await h.db
+      .insert(rawItems)
+      .values({
+        competitorId: comp!.id,
+        source: "rss",
+        sourceId: "tue-stale",
+        url: "https://acme-tue.test/stale",
+        title: "Backfilled stale",
+        body: "body",
+        publishedAt: stale,
+      })
+      .returning();
+    await h.db.insert(itemScores).values([
+      { userId: user!.id, rawItemId: recentRaw!.id, category: "launch", score: 80, why: "r" },
+      { userId: user!.id, rawItemId: staleRaw!.id, category: "launch", score: 95, why: "s" },
+    ]);
+
+    const { runSynthesis } = await import("~/features/digest/server/jobs/synthesize");
+    await runSynthesis({ now, useWeekendAwareDefaults: true });
+
+    const items = await h.db.select().from(digestItems).where(eq(digestItems.userId, user!.id));
+    // Only the recent one — stale (48h old published_at) is dropped
+    // by the daily cap even though it out-scores recent.
+    expect(items).toHaveLength(1);
+    expect(items[0]!.headline).toBe("H: Recent");
   });
 });
 

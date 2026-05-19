@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { itemScores, rawItems, userCompetitors, users as usersTable } from "~/db/schema";
 import type { NewItemScore } from "~/db/schema";
 import {
@@ -57,11 +57,16 @@ export interface ScoreOptions {
   concurrency?: number;
   now?: Date;
   // Optional hard cap on item recency by `published_at`. When set, drops
-  // any candidate whose `published_at` is null or older than
-  // `now - maxPublishedAgeDays`. Daily cron leaves this unset (the 24h
-  // `ingested_at` window already bounds it). Fast-path (catch-up) passes
-  // 90 — first-ingest of an archive-heavy RSS feed otherwise floods the
-  // first digest with items published years ago (PF-90).
+  // any candidate whose `published_at` is older than
+  // `now - maxPublishedAgeDays`. Null `published_at` is kept — adapters
+  // SHOULD populate it but we don't punish missing dates by dropping the
+  // item; `ingested_at` recency is the freshness proxy for those. Daily
+  // cron leaves this unset (score everything that lands in the window —
+  // the published_at cap belongs on synthesize, the selection step;
+  // capping here would permanently strand items whose publish date is
+  // older than the cap from ever being classified). Fast-path
+  // (catch-up) passes 90 so Haiku doesn't classify archive items on the
+  // FTE first ingest (PF-90).
   maxPublishedAgeDays?: number;
 }
 
@@ -161,11 +166,14 @@ async function runForUser(
     return { userId, candidates: 0, classified: 0, skipped: 0, errored: 0 };
   }
 
-  // Pull last-24h items for this user's competitors, skip any already scored
-  // for this user (idempotent re-runs in the same window). When the fast
-  // path (catch-up) passes `publishedAtCutoff`, drop items lacking a
-  // recent `published_at` so an archive-heavy first ingest doesn't pay
-  // Haiku to classify items from years ago (PF-90).
+  // Pull recent items for this user's competitors, skip any already scored
+  // for this user (idempotent re-runs in the same window). When
+  // `publishedAtCutoff` is set, drop items whose `published_at` is older
+  // than the cutoff so an archive-heavy ingest doesn't pay Haiku to
+  // classify items from years ago (PF-90). Null `published_at` is
+  // tolerated — adapters SHOULD populate it, but a missing date is not
+  // grounds to silently disappear an item from the digest. Today only
+  // RSS could realistically return null (and 0% do in practice).
   const candidates = await db
     .select({
       rawItemId: rawItems.id,
@@ -188,7 +196,7 @@ async function runForUser(
         inArray(rawItems.competitorId, ids),
         gte(rawItems.ingestedAt, cutoff),
         ...(publishedAtCutoff
-          ? [isNotNull(rawItems.publishedAt), gte(rawItems.publishedAt, publishedAtCutoff)]
+          ? [or(isNull(rawItems.publishedAt), gte(rawItems.publishedAt, publishedAtCutoff))]
           : []),
       ),
     )
