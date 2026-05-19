@@ -10,6 +10,7 @@ import {
   competitors as competitorsTable,
   digestItems,
   digests,
+  feedback,
   fteEvents,
   llmUsage,
   rawItems,
@@ -81,10 +82,15 @@ type FteEventRow = {
   ts: string;
 };
 
+// (digest_item.id) → user's rating on that item. Items absent from the map
+// have no rating. Powers PF-57's inline 👍/👎 pill on the admin preview.
+type RatingByItemId = Record<string, "up" | "down">;
+
 type DetailLoaderData = {
   profile: ProfileView;
   competitors: CompetitorView[];
   digests: DigestView[];
+  ratingByItemId: RatingByItemId;
   fteRunId: string | null;
   fteEvents: FteEventRow[];
   // Cost of the latest FTE run (sum of llm_usage rows where kind='fte' and
@@ -160,6 +166,27 @@ const loadUserDetail = createServerFn({ method: "GET" })
         occurredAt: row.occurredAt ? row.occurredAt.toISOString() : null,
       });
       itemsByDigest.set(row.digestId, list);
+    }
+
+    // PF-57. Map (digest_item.id) → user's rating. Scoped to this user so we
+    // never bleed another tenant's feedback into the admin preview. Items
+    // missing from the map have no rating; the wrapper renders a neutral
+    // "no rating" pill in that case.
+    const renderedItemIds = itemRows.map((r) => r.id);
+    const feedbackRows = renderedItemIds.length
+      ? await db
+          .select({ digestItemId: feedback.digestItemId, rating: feedback.rating })
+          .from(feedback)
+          .where(
+            and(
+              eq(feedback.userId, user.id),
+              inArray(feedback.digestItemId, renderedItemIds as [string, ...string[]]),
+            ),
+          )
+      : [];
+    const ratingByItemId: RatingByItemId = {};
+    for (const r of feedbackRows) {
+      ratingByItemId[r.digestItemId] = r.rating;
     }
 
     const [latestRun] = await db
@@ -270,6 +297,7 @@ const loadUserDetail = createServerFn({ method: "GET" })
         items: itemsByDigest.get(d.id) ?? [],
         costMicroUsd: digestCostById.get(d.id) ?? 0,
       })),
+      ratingByItemId,
       fteRunId: runId,
       fteEvents: eventRows,
       fteRunCostMicroUsd,
@@ -397,7 +425,7 @@ function AdminUserDetailPage() {
 
         <CompetitorsBlock competitors={data.competitors} />
 
-        <DigestsBlock digests={data.digests} />
+        <DigestsBlock digests={data.digests} ratingByItemId={data.ratingByItemId} />
 
         <FteTimelineBlock
           runId={data.fteRunId}
@@ -589,7 +617,13 @@ function CompetitorsBlock({ competitors }: { competitors: CompetitorView[] }) {
   );
 }
 
-function DigestsBlock({ digests }: { digests: DigestView[] }) {
+function DigestsBlock({
+  digests,
+  ratingByItemId,
+}: {
+  digests: DigestView[];
+  ratingByItemId: RatingByItemId;
+}) {
   return (
     <section className="mt-6">
       <div className="mb-3 flex items-baseline justify-between">
@@ -605,7 +639,7 @@ function DigestsBlock({ digests }: { digests: DigestView[] }) {
       ) : (
         <div className="grid gap-6">
           {digests.map((d) => (
-            <DigestPreviewCard key={d.id} digest={d} />
+            <DigestPreviewCard key={d.id} digest={d} ratingByItemId={ratingByItemId} />
           ))}
         </div>
       )}
@@ -617,7 +651,13 @@ function DigestsBlock({ digests }: { digests: DigestView[] }) {
 // uses. We render the dark frame on a light admin background by design — it
 // makes the embedded preview visually distinct from admin chrome and
 // matches what the user actually sees.
-function DigestPreviewCard({ digest }: { digest: DigestView }) {
+function DigestPreviewCard({
+  digest,
+  ratingByItemId,
+}: {
+  digest: DigestView;
+  ratingByItemId: RatingByItemId;
+}) {
   const period = deriveDigestPeriod({
     periodStart: digest.periodStart,
     periodEnd: digest.periodEnd,
@@ -664,11 +704,61 @@ function DigestPreviewCard({ digest }: { digest: DigestView }) {
           </p>
         ) : (
           digest.items.map((item, idx) => (
-            <DigestItemCard key={item.id} item={item} isLast={idx === digest.items.length - 1} />
+            <AdminDigestItem
+              key={item.id}
+              item={item}
+              rating={ratingByItemId[item.id] ?? null}
+              isLast={idx === digest.items.length - 1}
+            />
           ))
         )}
       </div>
     </div>
+  );
+}
+
+// PF-57. Admin-only thin wrapper over DigestItemCard. Renders a small pill
+// in the top-right corner showing the user's 👍 / 👎 / no-rating state.
+// Lives here (not next to DigestItemCard) so the user-facing card stays
+// neutral — admin context bleeds nothing into /app/digests/:id.
+function AdminDigestItem({
+  item,
+  rating,
+  isLast,
+}: {
+  item: DigestItemView;
+  rating: "up" | "down" | null;
+  isLast: boolean;
+}) {
+  return (
+    <div className="relative">
+      <div className="absolute right-0 top-6 z-10">
+        <RatingPill rating={rating} />
+      </div>
+      <DigestItemCard item={item} isLast={isLast} />
+    </div>
+  );
+}
+
+function RatingPill({ rating }: { rating: "up" | "down" | null }) {
+  if (rating === "up") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-pill bg-accent/25 px-2 py-[2px] text-[10px] font-semibold uppercase tracking-[0.1em] text-accent">
+        👍 Liked
+      </span>
+    );
+  }
+  if (rating === "down") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-pill bg-coral/25 px-2 py-[2px] text-[10px] font-semibold uppercase tracking-[0.1em] text-coral">
+        👎 Disliked
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-pill border border-[#3a3a48] bg-transparent px-2 py-[2px] font-mono text-[10px] uppercase tracking-[0.1em] text-[#666]">
+      no rating
+    </span>
   );
 }
 
