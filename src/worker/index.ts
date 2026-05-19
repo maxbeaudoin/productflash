@@ -1,11 +1,28 @@
 import PgBoss from "pg-boss";
 import { type FteJobData, FTE_QUEUE, handleFteJob } from "~/agents/fte/job";
-import { type FastPathJobData, FAST_PATH_QUEUE, handleFastPathJob } from "~/features/digest/server/jobs/fast-path";
+import {
+  type DailyRegenJobData,
+  DAILY_REGEN_QUEUE,
+  handleDailyRegenJob,
+} from "~/features/digest/server/jobs/daily-regen";
+import {
+  type FastPathJobData,
+  FAST_PATH_QUEUE,
+  handleFastPathJob,
+} from "~/features/digest/server/jobs/fast-path";
 import { INGEST_CRON, INGEST_QUEUE, runIngestion } from "~/features/digest/server/jobs/ingest";
 import { runScoring, SCORE_CRON, SCORE_QUEUE } from "~/features/digest/server/jobs/score";
 import { runSendForDigest, SEND_QUEUE, type SendJobData } from "~/features/digest/server/jobs/send";
-import { runSendDispatch, SEND_DISPATCH_CRON, SEND_DISPATCH_QUEUE } from "~/features/digest/server/jobs/send-dispatch";
-import { runSynthesis, SYNTHESIZE_CRON, SYNTHESIZE_QUEUE } from "~/features/digest/server/jobs/synthesize";
+import {
+  runSendDispatch,
+  SEND_DISPATCH_CRON,
+  SEND_DISPATCH_QUEUE,
+} from "~/features/digest/server/jobs/send-dispatch";
+import {
+  runSynthesis,
+  SYNTHESIZE_CRON,
+  SYNTHESIZE_QUEUE,
+} from "~/features/digest/server/jobs/synthesize";
 import { env, requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";
 import { captureServerException, shutdownPosthog } from "~/shared/server/posthog";
@@ -67,6 +84,14 @@ async function main() {
   // the worker's batchSize below.
   await boss.createQueue(FAST_PATH_QUEUE, {
     name: FAST_PATH_QUEUE,
+    retryLimit: 1,
+    retryDelay: 60,
+  });
+  // Daily-regen is the admin-triggered sibling of fast-path (PF-91). Same
+  // per-user singleton + parallel-across-users shape; the handler runs
+  // score + synthesize with daily params instead of catch-up params.
+  await boss.createQueue(DAILY_REGEN_QUEUE, {
+    name: DAILY_REGEN_QUEUE,
     retryLimit: 1,
     retryDelay: 60,
   });
@@ -172,6 +197,15 @@ async function main() {
       jobs.map(async (job) => {
         logger.info({ jobId: job.id, userId: job.data.userId }, "fast-path: job started");
         await handleFastPathJob(job);
+      }),
+    );
+  });
+
+  await boss.work<DailyRegenJobData>(DAILY_REGEN_QUEUE, { batchSize: 5 }, async (jobs) => {
+    await Promise.all(
+      jobs.map(async (job) => {
+        logger.info({ jobId: job.id, userId: job.data.userId }, "daily-regen: job started");
+        await handleDailyRegenJob(job);
       }),
     );
   });

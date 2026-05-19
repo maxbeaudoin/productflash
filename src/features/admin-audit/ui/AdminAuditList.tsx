@@ -66,7 +66,8 @@ function AdminAuditRowItem({ row, hideTarget }: { row: AdminAuditRow; hideTarget
 const ACTION_LABEL: Record<string, string> = {
   invite_issued: "Invite issued",
   fte_rerun_enqueued: "FTE re-run enqueued",
-  fast_path_enqueued: "Fast-path enqueued",
+  fast_path_enqueued: "Catch-up re-gen enqueued",
+  daily_regen_enqueued: "Daily re-gen enqueued",
   competitor_edit: "Competitor edited",
 };
 
