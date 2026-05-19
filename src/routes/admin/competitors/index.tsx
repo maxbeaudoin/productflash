@@ -1,4 +1,5 @@
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { z } from "zod";
 import { FilterChipRow } from "~/components/admin/FilterChipRow";
 import { FilterSearchInput } from "~/components/admin/FilterSearchInput";
@@ -93,6 +94,8 @@ function AdminCompetitorsPage() {
           </div>
         </header>
 
+        <StatsPanel rows={rows} />
+
         <HealthFlagsPanel flags={flags} />
 
         <div className="mb-6 space-y-3">
@@ -144,6 +147,173 @@ function AdminCompetitorsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+const RECENT_ADDITIONS_DAYS = 7;
+const RECENT_ADDITIONS_PREVIEW = 8;
+const TOP_TRACKED_LIMIT = 10;
+
+function StatsPanel({ rows }: { rows: CompetitorAdminRow[] }) {
+  if (rows.length === 0) return null;
+  const total = rows.length;
+  const rss = rows.filter((r) => r.rssUrl !== null).length;
+  const ph = rows.filter((r) => r.phSlug !== null).length;
+  const neither = rows.filter((r) => r.rssUrl === null && r.phSlug === null).length;
+
+  const cutoffMs = Date.now() - RECENT_ADDITIONS_DAYS * 24 * 60 * 60 * 1000;
+  const recent = rows
+    .filter((r) => new Date(r.createdAt).getTime() >= cutoffMs)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const topTracked = rows.filter((r) => r.trackedBy > 0).slice(0, TOP_TRACKED_LIMIT);
+
+  return (
+    <section className="mb-6 rounded-2xl border border-ink-line bg-paper-warm p-5">
+      <header className="mb-4 flex items-baseline justify-between gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-text">
+          Cohort signal
+        </h2>
+        <p className="text-[10px] uppercase tracking-[0.1em] text-text-muted">
+          {total} {total === 1 ? "competitor" : "competitors"}
+        </p>
+      </header>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SourceCoverageCard total={total} rss={rss} ph={ph} neither={neither} />
+        <RecentAdditionsCard rows={recent} />
+        <MostTrackedCard rows={topTracked} />
+      </div>
+    </section>
+  );
+}
+
+function StatsCard({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  meta?: string;
+  children: ReactNode;
+}) {
+  return (
+    <article className="flex min-h-0 flex-col rounded-xl border border-ink-line bg-paper p-4">
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-text">{title}</h3>
+        {meta ? (
+          <span className="text-[10px] uppercase tracking-[0.1em] text-text-muted">{meta}</span>
+        ) : null}
+      </div>
+      {children}
+    </article>
+  );
+}
+
+function SourceCoverageCard({
+  total,
+  rss,
+  ph,
+  neither,
+}: {
+  total: number;
+  rss: number;
+  ph: number;
+  neither: number;
+}) {
+  return (
+    <StatsCard title="Source coverage">
+      <ul className="space-y-2 text-xs">
+        <CoverageRow label="RSS" value={rss} total={total} />
+        <CoverageRow label="Product Hunt" value={ph} total={total} />
+        <CoverageRow label="Neither" value={neither} total={total} muted={neither === 0} />
+      </ul>
+    </StatsCard>
+  );
+}
+
+function CoverageRow({
+  label,
+  value,
+  total,
+  muted,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  muted?: boolean;
+}) {
+  return (
+    <li className="flex items-baseline justify-between gap-3">
+      <span className={muted ? "text-text-muted" : "text-text"}>{label}</span>
+      <span className="font-mono text-sm tabular-nums text-text">
+        {value} <span className="text-text-muted">/ {total}</span>
+      </span>
+    </li>
+  );
+}
+
+function RecentAdditionsCard({ rows }: { rows: CompetitorAdminRow[] }) {
+  const shown = rows.slice(0, RECENT_ADDITIONS_PREVIEW);
+  const overflow = rows.length - shown.length;
+  return (
+    <StatsCard title={`Recently added (${RECENT_ADDITIONS_DAYS}d)`} meta={String(rows.length)}>
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-muted">No competitors added in the last week.</p>
+      ) : (
+        <>
+          <ul className="space-y-1.5">
+            {shown.map((row) => (
+              <li key={row.id} className="flex items-baseline justify-between gap-3 text-xs">
+                <Link
+                  to="/admin/competitors/$competitorId"
+                  params={{ competitorId: row.id }}
+                  search={{ tab: "activity" }}
+                  className="truncate font-medium text-text hover:underline"
+                >
+                  {row.name}
+                </Link>
+                <span className="shrink-0 text-[10px] uppercase tracking-[0.05em] text-text-muted">
+                  {relativeLabel(new Date(row.createdAt))}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {overflow > 0 ? (
+            <p className="mt-3 text-[10px] uppercase tracking-[0.1em] text-text-muted">
+              +{overflow} more
+            </p>
+          ) : null}
+        </>
+      )}
+    </StatsCard>
+  );
+}
+
+function MostTrackedCard({ rows }: { rows: CompetitorAdminRow[] }) {
+  return (
+    <StatsCard title="Most tracked" meta={`top ${TOP_TRACKED_LIMIT}`}>
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-muted">No competitor is tracked by any user yet.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {rows.map((row) => (
+            <li key={row.id} className="flex items-baseline justify-between gap-3 text-xs">
+              <Link
+                to="/admin/competitors/$competitorId"
+                params={{ competitorId: row.id }}
+                search={{ tab: "activity" }}
+                className="truncate font-medium text-text hover:underline"
+              >
+                {row.name}
+              </Link>
+              <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
+                {row.trackedBy} {row.trackedBy === 1 ? "user" : "users"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </StatsCard>
   );
 }
 
