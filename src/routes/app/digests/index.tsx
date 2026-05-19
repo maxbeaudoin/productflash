@@ -292,8 +292,8 @@ function BrewingState() {
         Reading your competitors right now.
       </h2>
       <p className="mx-auto mt-3 max-w-[480px] text-[15px] text-[#a8a8b8]">
-        Pulling RSS, scanning launches, scoring what matters. Usually 1–3 minutes. We'll jump you
-        straight into the brief the moment it lands.
+        Pulling fresh signals, scanning launches, scoring what matters. Usually 1–3 minutes. We'll
+        jump you straight into the brief the moment it lands.
       </p>
       <div className="mt-6 inline-flex items-center gap-[8px] rounded-pill border border-[#2a2a38] bg-ink/40 px-3 py-[6px] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a8a8b8]">
         <span className="font-mono text-xs tracking-normal text-accent">{elapsed}</span>

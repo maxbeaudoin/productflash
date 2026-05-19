@@ -53,7 +53,7 @@ export const HERO = {
 export const PROBLEM = {
   label: "The problem",
   title: "Your competitor shipped last quarter. You found out from a customer.",
-  lede: "Product leaders are drowning in tabs — changelogs, G2, Reddit, LinkedIn, Product Hunt, niche Slack groups. The signal is out there. The time to find it isn't.",
+  lede: "Product leaders are drowning in tabs — changelogs, G2, Reddit, LinkedIn, launch boards, niche Slack groups. The signal is out there. The time to find it isn't.",
   stats: [
     {
       num: "4.2",

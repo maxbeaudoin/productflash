@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { CompetitorView } from "~/features/competitors/shared/types";
 
-// Single competitor row. Homepage URL and RSS feed are clickable so the
-// user can sanity-check what the agent (or they) added — opens in a new
-// tab to avoid hijacking the page they were just on.
+// Single competitor row. The homepage URL is clickable so the user can
+// sanity-check what the agent (or they) added — opens in a new tab to
+// avoid hijacking the page they were just on.
 export function CompetitorRow({
   competitor,
   onRemove,
@@ -26,17 +26,6 @@ export function CompetitorRow({
         </a>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        {competitor.rssUrl ? (
-          <a
-            href={competitor.rssUrl}
-            target="_blank"
-            rel="noreferrer"
-            title={competitor.rssUrl}
-            className="rounded-pill bg-accent/15 px-2 py-[2px] font-mono text-[10px] uppercase tracking-[0.08em] text-accent hover:bg-accent/25"
-          >
-            rss
-          </a>
-        ) : null}
         <button
           type="button"
           onClick={async () => {
