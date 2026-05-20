@@ -96,16 +96,26 @@ Using the `gh` CLI:
   ```bash
   set -u
   PR=<n>
+  INTERVAL=30
   DEADLINE=$(( $(date +%s) + 25 * 60 ))
+  # `gh pr checks` encodes state in its exit code:
+  #   0 = all pass · 1 = at least one failed · 8 = pending · other = gh error.
+  # Output is TSV: name<TAB>state<TAB>duration<TAB>url — we only print it,
+  # never branch on parsed state, so the script is portable across gh versions.
   while :; do
-    raw=$(gh pr checks "$PR" --json name,bucket 2>&1) || { echo "gh failed: $raw"; exit 2; }
-    if jq -e 'length>0 and all(.bucket!="pending")' <<<"$raw" >/dev/null; then
-      echo "PR #$PR checks complete:"
-      jq -r '.[] | "  \(.bucket) \(.name)"' <<<"$raw"
-      jq -e 'all(.bucket=="pass")' <<<"$raw" >/dev/null && exit 0 || exit 1
+    raw=$(gh pr checks "$PR" 2>&1); rc=$?
+    case "$rc" in
+      0) echo "PR #$PR checks complete (all pass):";   awk -F'\t' '{ printf "  %s %s\n", $2, $1 }' <<<"$raw"; exit 0 ;;
+      1) echo "PR #$PR checks complete (failures):";   awk -F'\t' '{ printf "  %s %s\n", $2, $1 }' <<<"$raw"; exit 1 ;;
+      8) ;;  # pending — keep polling
+      *) echo "gh failed (exit $rc): $raw"; exit 2 ;;
+    esac
+    if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+      echo "timed out after 25m, last state:"
+      awk -F'\t' '{ printf "  %s %s\n", $2, $1 }' <<<"$raw"
+      exit 3
     fi
-    [ "$(date +%s)" -ge "$DEADLINE" ] && { echo "timed out after 25m"; exit 3; }
-    sleep 30
+    sleep "$INTERVAL"
   done
   ```
 
