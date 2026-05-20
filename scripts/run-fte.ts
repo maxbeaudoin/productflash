@@ -1,10 +1,15 @@
+// OTEL bootstrap must come first — see src/shared/server/otel.ts (PF-103).
+import "~/shared/server/otel";
+
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { runFteAgent, type FteSignupHints } from "~/agents/fte/agent";
 import { users as usersTable } from "~/db/schema";
 import { getDb, getPool } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
+import { shutdownOtel } from "~/shared/server/otel";
 import { shutdownPosthog } from "~/shared/server/posthog";
+import { withSpan } from "~/shared/server/tracer";
 
 // Manual trigger for the FTE agent. Bypasses pg-boss so we can iterate on the
 // agent loop and prompt without the queue in the way.
@@ -41,7 +46,11 @@ async function main() {
 
   const runId = randomUUID();
   logger.info({ userId: user.id, runId, signup }, "fte: starting manual run");
-  const result = await runFteAgent({ userId: user.id, runId, signup });
+  const result = await withSpan("fte-run", () => runFteAgent({ userId: user.id, runId, signup }), {
+    "trigger.source": "manual",
+    "fte.user_id": user.id,
+    "fte.run_id": runId,
+  });
   logger.info(result, "fte: manual run complete");
 }
 
@@ -51,6 +60,7 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    await shutdownOtel();
     await shutdownPosthog();
     await getPool().end();
   });

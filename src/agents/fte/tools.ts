@@ -10,6 +10,7 @@ import {
 import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
+import { withToolSpan } from "~/shared/server/tracer";
 import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // Tool definitions + executors for the FTE agent (#28).
@@ -134,6 +135,14 @@ export interface ToolExecutionResult {
 }
 
 export async function executeTool(
+  ctx: ToolContext,
+  name: string,
+  input: unknown,
+): Promise<ToolExecutionResult> {
+  return withToolSpan(name, input, () => dispatchTool(ctx, name, input));
+}
+
+async function dispatchTool(
   ctx: ToolContext,
   name: string,
   input: unknown,

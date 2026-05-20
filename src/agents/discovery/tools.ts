@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { competitorSources, type NewCompetitorSource } from "~/db/schema";
 import { getDb } from "~/shared/server/db";
 import { safeFetch, safeFetchText, SafeFetchError } from "~/shared/server/safe-fetch";
+import { withToolSpan } from "~/shared/server/tracer";
 
 // Tools for the per-competitor source-discovery agent (PF-95 / PF-93 phase 2).
 //
@@ -144,6 +145,14 @@ export interface DiscoveryToolExecutionResult {
 }
 
 export async function executeTool(
+  ctx: DiscoveryToolContext,
+  name: string,
+  input: unknown,
+): Promise<DiscoveryToolExecutionResult> {
+  return withToolSpan(name, input, () => dispatchTool(ctx, name, input));
+}
+
+async function dispatchTool(
   ctx: DiscoveryToolContext,
   name: string,
   input: unknown,

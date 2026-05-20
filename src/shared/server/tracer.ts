@@ -19,6 +19,7 @@ import {
   setActiveTraceIO,
   startActiveObservation,
   type LangfuseSpan,
+  type LangfuseTool,
 } from "@langfuse/tracing";
 
 type SpanMetadata = Record<string, string | number | boolean | undefined>;
@@ -63,6 +64,38 @@ export async function withSpan<T>(
     return propagateAttributes({ traceName: name }, run);
   }
   return run();
+}
+
+/**
+ * Wrap an agent tool execution as a Langfuse `tool` observation. Renders with
+ * the tool icon in the trace tree and pairs input ↔ output side-by-side in the
+ * detail panel. Used by FTE + discovery agent tool dispatchers.
+ */
+export async function withToolSpan<T>(
+  name: string,
+  input: unknown,
+  fn: (span: LangfuseTool) => Promise<T>,
+): Promise<T> {
+  return startActiveObservation(
+    `tool: ${name}`,
+    async (tool) => {
+      tool.update({ input });
+      try {
+        const result = await fn(tool);
+        if (result !== undefined && isPlainSerializable(result)) {
+          tool.update({ output: result });
+        }
+        return result;
+      } catch (err) {
+        tool.update({
+          level: "ERROR",
+          statusMessage: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+    { asType: "tool" },
+  );
 }
 
 function isPlainSerializable(value: unknown): boolean {
