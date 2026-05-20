@@ -63,7 +63,7 @@ Commit incrementally with explicit file paths (never `git add .` / `-A`). Use HE
 
 ## Step 5 — Validate your own work
 
-Using `mcp__chrome-devtools__`, and the `psql` and `curl` CLIs:
+Using `mcp__chrome-devtools__`, and the `pnpm db:psql` and `curl` CLIs:
 
 1. Write tests for your code and make sure they pass.
 2. Start the development server and test your changes in the browser.

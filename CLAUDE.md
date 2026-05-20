@@ -114,6 +114,10 @@ pnpm test:integration    # Vitest integration (needs Docker)
 pnpm test:e2e            # Playwright e2e (needs Docker + chromium)
 
 # DB
+pnpm db:psql             # psql against local .env DATABASE_URL
+pnpm db:psql staging     # psql against staging (Railway-injected), read-only
+pnpm db:psql prod        # psql against prod (Railway-injected), read-only
+pnpm db:psql prod --write  # prod writable (confirm prompt)
 pnpm db:push             # Drizzle schema push (dev branch on Neon)
 pnpm db:generate         # Generate migration
 pnpm db:migrate          # Apply migrations
