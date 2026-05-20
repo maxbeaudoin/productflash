@@ -113,7 +113,7 @@ function DigestsListPage() {
     <main className="mx-auto max-w-[1100px] px-6 py-12">
       <header className="mb-10">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-accent">
-          Your digests
+          Your briefs
         </div>
         <h1 className="text-[clamp(28px,3vw,40px)] font-extrabold leading-[1.1] tracking-[-0.02em] text-white">
           What your competitors did, day by day.

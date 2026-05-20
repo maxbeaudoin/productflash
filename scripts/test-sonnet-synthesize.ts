@@ -40,7 +40,7 @@ const FIXTURES: SynthesisInputItem[] = [
   {
     rawItemId: "00000000-0000-0000-0000-000000000003",
     competitorName: "Retool",
-    source: "firehose",
+    source: "rss",
     url: "https://retool.com/blog/agents-platform",
     title: "Retool is now an AI agent platform",
     body: "After five years of helping companies build internal tools, Retool is repositioning as the leading platform for building, deploying, and monitoring AI agents in production. The founders' letter explains why traditional internal-tool builders need to evolve into agent orchestrators.",

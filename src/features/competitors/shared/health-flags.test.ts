@@ -11,8 +11,6 @@ function row(overrides: Partial<CompetitorAdminRow>): CompetitorAdminRow {
     name: "Acme",
     homepageUrl: "https://acme.test",
     rssUrl: "https://acme.test/rss",
-    phSlug: null,
-    pricingUrl: null,
     createdAt: new Date(NOW - 5 * DAY).toISOString(),
     trackedBy: 1,
     rawItems7d: 3,
@@ -29,17 +27,16 @@ describe("classifyHealthFlags", () => {
     expect(result.orphans.rows.map((r) => r.id)).toEqual(["orphan"]);
   });
 
-  it("flags sourceless when both rssUrl and phSlug are null", () => {
-    const sourceless = row({ id: "sourceless", rssUrl: null, phSlug: null });
-    const hasRss = row({ id: "has-rss", rssUrl: "https://x/rss", phSlug: null });
-    const hasPh = row({ id: "has-ph", rssUrl: null, phSlug: "ph-slug" });
-    const result = classifyHealthFlags([sourceless, hasRss, hasPh], NOW);
+  it("flags sourceless when rssUrl is null", () => {
+    const sourceless = row({ id: "sourceless", rssUrl: null });
+    const hasRss = row({ id: "has-rss", rssUrl: "https://x/rss" });
+    const result = classifyHealthFlags([sourceless, hasRss], NOW);
     expect(result.sourceless.rows.map((r) => r.id)).toEqual(["sourceless"]);
   });
 
   it("does not double-flag sourceless rows as stale", () => {
     // A sourceless row trivially has no ingestion — surfacing it twice is noise.
-    const sourceless = row({ id: "sourceless", rssUrl: null, phSlug: null, lastIngestedAt: null });
+    const sourceless = row({ id: "sourceless", rssUrl: null, lastIngestedAt: null });
     const result = classifyHealthFlags([sourceless], NOW);
     expect(result.sourceless.rows).toHaveLength(1);
     expect(result.stale.rows).toHaveLength(0);

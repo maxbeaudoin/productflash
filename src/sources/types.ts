@@ -1,6 +1,6 @@
 import type { Competitor } from "~/db/schema";
 
-export type SourceName = "rss" | "ph" | "firehose" | "firecrawl" | "webpage";
+export type SourceName = "rss" | "firecrawl" | "webpage";
 
 export interface NormalizedItem {
   source: SourceName;
@@ -13,5 +13,5 @@ export interface NormalizedItem {
 
 export type CompetitorRef = Pick<
   Competitor,
-  "id" | "name" | "homepageUrl" | "rssUrl" | "phSlug" | "pricingUrl"
+  "id" | "name" | "homepageUrl" | "rssUrl" | "pricingUrl"
 >;

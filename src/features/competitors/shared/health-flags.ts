@@ -26,7 +26,7 @@ export function classifyHealthFlags(
   for (const row of rows) {
     if (row.trackedBy === 0) orphans.push(row);
 
-    const hasSource = row.rssUrl !== null || row.phSlug !== null;
+    const hasSource = row.rssUrl !== null;
     if (!hasSource) {
       sourceless.push(row);
       continue;

@@ -17,7 +17,7 @@ export const userStatus = pgEnum("user_status", ["pending", "onboarding", "activ
 // which remains the legacy `competitors.pricing_url` scraper — same vendor,
 // different ingestion contract: pricing-page diffs vs. competitor_sources
 // rows. Items carry `competitor_source_id` for the new path.
-export const sourceType = pgEnum("source_type", ["rss", "ph", "firehose", "firecrawl", "webpage"]);
+export const sourceType = pgEnum("source_type", ["rss", "firecrawl", "webpage"]);
 // User-facing identity for a competitor source (PF-93). Distinct from
 // `sourceType` above, which is the internal adapter/transport that produced a
 // raw_item. Discovery records all five from day 1; ingestion ships for
@@ -132,7 +132,7 @@ export const verifications = pgTable("verifications", {
 });
 
 // `competitors` is a globally-shared dedupe namespace by intent — the daily
-// ingestion cron fetches each row's RSS/PH/Firecrawl feeds ONCE regardless
+// ingestion cron fetches each row's RSS/Firecrawl feeds ONCE regardless
 // of how many users track it (see src/jobs/ingest.ts). The trade-off is that
 // the row is cross-tenant state: user-facing addCompetitor handlers
 // (src/routes/app/profile.tsx, src/routes/app/onboarding.tsx) therefore
@@ -147,7 +147,6 @@ export const competitors = pgTable(
     name: text("name").notNull(),
     homepageUrl: text("homepage_url").notNull(),
     rssUrl: text("rss_url"),
-    phSlug: text("ph_slug"),
     pricingUrl: text("pricing_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

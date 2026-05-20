@@ -298,7 +298,7 @@ function OnboardingPage() {
         </h1>
         <p className="mt-3 max-w-[640px] text-[15px] text-[#a8a8b8]">
           {finished
-            ? "Below is the map and profile it built. Tweak anything that looks off, then confirm to land your first digest."
+            ? "Below is the map and profile it built. Tweak anything that looks off, then confirm to land your first brief."
             : "Mapping your competitive space in real time — usually a minute or two. Feel free to keep this open and watch."}
         </p>
         <ProgressChips stats={stats} running={!finished} />
