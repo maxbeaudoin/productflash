@@ -1,44 +1,77 @@
-// Thin OTEL tracer helpers (PF-103).
+// Langfuse-aware span helper (PF-103).
 //
-// Used to wrap pg-boss job handlers and source-adapter fetches in top-level
-// spans so Langfuse shows a meaningful hierarchy:
+// Wraps `startActiveObservation` from @langfuse/tracing so our custom spans
+// (pg-boss job handlers, source-adapter fetches) are emitted under the
+// Langfuse tracer scope. That matters because LangfuseSpanProcessor's default
+// `isDefaultExportSpan` filter keeps only Langfuse-tracer / gen_ai-tagged /
+// known-LLM-scope spans — generic OTEL spans from `@opentelemetry/api`
+// would be dropped. (We also override `shouldExportSpan: () => true` in
+// otel.ts so pg/http auto-instrumented spans surface for full tracing, but
+// Langfuse-native spans render with proper input/output/asType in the UI.)
 //
-//   ingest-run                       (worker handler span)
-//     ingest.competitor              (per-competitor span)
-//       rss.fetch                    (source-adapter span)
-//       webpage.fetch                (source-adapter span)
-//       firecrawl.scrape             (source-adapter span)
-//   score-run
-//     anthropic.messages.create      (auto-added by OpenInference)
-//
-// All spans live on the `productflash` tracer. The OTEL SDK itself is
-// initialized in src/shared/server/otel.ts — importing this file alone
-// does NOT start tracing (it just grabs a tracer handle which is a no-op
-// when no SDK is registered).
+// API kept compatible with the previous OTEL-based `withSpan` so callers
+// don't need to change. The optional `input` argument maps to Langfuse's
+// observation input field (shown side-by-side with output in the UI).
 
-import { SpanStatusCode, trace, type Attributes, type Span } from "@opentelemetry/api";
+import { trace } from "@opentelemetry/api";
+import {
+  propagateAttributes,
+  setActiveTraceIO,
+  startActiveObservation,
+  type LangfuseSpan,
+} from "@langfuse/tracing";
 
-const tracer = trace.getTracer("productflash");
+type SpanMetadata = Record<string, string | number | boolean | undefined>;
 
 export async function withSpan<T>(
   name: string,
-  fn: (span: Span) => Promise<T>,
-  attributes?: Attributes,
+  fn: (span: LangfuseSpan) => Promise<T>,
+  metadata?: SpanMetadata,
 ): Promise<T> {
-  return tracer.startActiveSpan(name, { attributes }, async (span) => {
+  // When this is the FIRST withSpan in the call stack (no active span yet),
+  // we're starting a new trace — propagate `traceName` so Langfuse renders
+  // the top-level trace with a useful name instead of "<unnamed>". For
+  // nested withSpan calls we let the parent's trace name flow through.
+  const isRoot = trace.getActiveSpan() === undefined;
+
+  async function runObservation(span: LangfuseSpan): Promise<T> {
+    // Render metadata as the observation `input` (prominent top-of-detail
+    // panel) instead of nested `metadata` (which requires drilling). Same
+    // values, much faster to scan when triaging a trace. PF-103 #6.
+    if (metadata) span.update({ input: metadata, metadata });
+    // Mirror onto the trace itself so the Langfuse trace landing page shows
+    // the trigger/job context without opening the root observation.
+    if (isRoot && metadata) setActiveTraceIO({ input: metadata });
     try {
       const result = await fn(span);
-      span.setStatus({ code: SpanStatusCode.OK });
+      if (result !== undefined && isPlainSerializable(result)) {
+        span.update({ output: result });
+        if (isRoot) setActiveTraceIO({ output: result });
+      }
       return result;
     } catch (err) {
-      span.recordException(err as Error);
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: err instanceof Error ? err.message : String(err),
+      span.update({
+        level: "ERROR",
+        statusMessage: err instanceof Error ? err.message : String(err),
       });
       throw err;
-    } finally {
-      span.end();
     }
-  });
+  }
+
+  const run = () => startActiveObservation(name, runObservation);
+  if (isRoot) {
+    return propagateAttributes({ traceName: name }, run);
+  }
+  return run();
+}
+
+function isPlainSerializable(value: unknown): boolean {
+  if (value === null) return true;
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean") return true;
+  if (Array.isArray(value)) return true;
+  if (t === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype) {
+    return true;
+  }
+  return false;
 }
