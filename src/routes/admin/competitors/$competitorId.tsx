@@ -36,7 +36,7 @@ import { cn } from "~/shared/iso/utils";
 // `competitors` in db/schema.ts). The audit log (PF-60) covers the
 // blast-radius forensics.
 
-const TAB_VALUES = ["activity", "users", "pricing", "feedback", "audit"] as const;
+const TAB_VALUES = ["activity", "users", "feedback", "audit"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 const searchSchema = z.object({
@@ -86,7 +86,7 @@ function AdminCompetitorDetailPage() {
       });
       setActionNote(
         res.enqueued
-          ? "Ingest re-run enqueued. RSS/PH/webpage/pricing pulled for this competitor only. Refresh in ~30–60s."
+          ? "Ingest re-run enqueued. RSS/webpage/pricing pulled for this competitor only. Refresh in ~30–60s."
           : "Ingest already in flight for this competitor — no new job enqueued.",
       );
       setIngestState("idle");
@@ -157,7 +157,7 @@ function ActionsRow({
           variant="outline"
           onClick={onReIngest}
           disabled={ingestState === "running"}
-          title="Pull RSS / PH / webpage / pricing for this competitor only. raw_items dedupes on (source, external_id) so re-runs are safe."
+          title="Pull RSS / webpage / pricing for this competitor only. raw_items dedupes on (source, external_id) so re-runs are safe."
         >
           {ingestState === "running" ? "Enqueuing…" : "Re-ingest this competitor"}
         </Button>
@@ -180,29 +180,19 @@ function HeaderCard({ data }: { data: CompetitorDetailData }) {
   const domain = parseDomain(competitor.homepageUrl);
   return (
     <section className="rounded-2xl border border-ink-line bg-paper-warm p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{competitor.name}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <a
-              href={competitor.homepageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-text hover:underline"
-            >
-              {domain}
-            </a>
-            <span aria-hidden>·</span>
-            <span>Added {formatDate(competitor.createdAt)}</span>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <PresenceChip label="RSS" present={competitor.rssUrl !== null} />
-            <PresenceChip label="PH" present={competitor.phSlug !== null} />
-            <PresenceChip label="Pricing" present={competitor.pricingUrl !== null} />
-          </div>
-          <code className="font-mono text-xs text-text-muted">{competitor.id}</code>
+      <div className="min-w-0">
+        <h1 className="truncate text-2xl font-semibold tracking-tight">{competitor.name}</h1>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+          <a
+            href={competitor.homepageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-text hover:underline"
+          >
+            {domain}
+          </a>
+          <span aria-hidden>·</span>
+          <span>Added {formatDate(competitor.createdAt)}</span>
         </div>
       </div>
     </section>
@@ -291,8 +281,7 @@ function EditSection({
             Edit details
           </h2>
           <p className="mt-1 text-xs text-text-muted">
-            Name, homepage, RSS URL, PH slug, and pricing URL. Every change is logged to the admin
-            audit trail.
+            Name and homepage. Every change is logged to the admin audit trail.
           </p>
         </div>
         <Button type="button" variant={open ? "ghost" : "default"} onClick={() => setOpen(!open)}>
@@ -344,9 +333,6 @@ function CompetitorEditForm({
     defaultValues: {
       name: initial.name,
       homepageUrl: initial.homepageUrl,
-      rssUrl: initial.rssUrl ?? "",
-      phSlug: initial.phSlug ?? "",
-      pricingUrl: initial.pricingUrl ?? "",
     },
     validators: { onChange: competitorEditFormSchema },
     onSubmit: async ({ value, formApi }) => {
@@ -403,72 +389,7 @@ function CompetitorEditForm({
             </FieldShell>
           )}
         </form.Field>
-        <form.Field name="rssUrl">
-          {(field) => (
-            <FieldShell
-              field={field}
-              label="RSS URL"
-              labelClassName={labelClass}
-              hint="Leave blank to clear."
-            >
-              <input
-                id={field.name}
-                type="text"
-                inputMode="url"
-                placeholder="https://example.com/feed.xml"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-                aria-invalid={fieldHasError(field)}
-                className={inputClass}
-              />
-            </FieldShell>
-          )}
-        </form.Field>
-        <form.Field name="phSlug">
-          {(field) => (
-            <FieldShell
-              field={field}
-              label="Product Hunt slug"
-              labelClassName={labelClass}
-              hint="Lowercase a-z, 0-9, hyphens. Leave blank to clear."
-            >
-              <input
-                id={field.name}
-                type="text"
-                placeholder="notion"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-                aria-invalid={fieldHasError(field)}
-                className={inputClass}
-              />
-            </FieldShell>
-          )}
-        </form.Field>
       </div>
-      <form.Field name="pricingUrl">
-        {(field) => (
-          <FieldShell
-            field={field}
-            label="Pricing URL"
-            labelClassName={labelClass}
-            hint="Used by the Firecrawl pricing-snapshot job. Leave blank to clear."
-          >
-            <input
-              id={field.name}
-              type="text"
-              inputMode="url"
-              placeholder="https://example.com/pricing"
-              value={field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(e) => field.handleChange(e.target.value)}
-              aria-invalid={fieldHasError(field)}
-              className={inputClass}
-            />
-          </FieldShell>
-        )}
-      </form.Field>
       <div className="flex flex-wrap items-center gap-2">
         <form.Subscribe
           selector={(s) => ({ canSubmit: s.canSubmit, isSubmitting: s.isSubmitting })}
@@ -505,7 +426,6 @@ function TabBar({
   const items: { value: TabValue; label: string; count?: number }[] = [
     { value: "activity", label: "Activity", count: data.recentItems.length },
     { value: "users", label: "Users", count: data.trackedBy },
-    { value: "pricing", label: "Pricing" },
     {
       value: "feedback",
       label: "Feedback",
@@ -551,8 +471,6 @@ function TabContent({ tab, data }: { tab: TabValue; data: CompetitorDetailData }
   switch (tab) {
     case "users":
       return <UsersTab rows={data.usersTracking} />;
-    case "pricing":
-      return <PricingTab pricing={data.pricing} pricingUrl={data.competitor.pricingUrl} />;
     case "feedback":
       return <FeedbackTab feedback={data.feedback} />;
     case "audit":
@@ -636,9 +554,7 @@ const SOURCE_STATUS_META: Record<
 const RAW_ITEM_SOURCE_LABEL: Record<CompetitorDetailData["recentItems"][number]["source"], string> =
   {
     rss: "RSS",
-    ph: "Product Hunt",
     firecrawl: "Firecrawl",
-    firehose: "Firehose",
     webpage: "Webpage",
   };
 
@@ -966,38 +882,6 @@ function RawItemSourcePill({
   );
 }
 
-function PricingTab({
-  pricing,
-  pricingUrl,
-}: {
-  pricing: CompetitorDetailData["pricing"];
-  pricingUrl: string | null;
-}) {
-  if (!pricing) {
-    return (
-      <p className="rounded-2xl border border-ink-line bg-paper-warm p-6 text-sm text-text-muted">
-        No pricing snapshot yet.{" "}
-        {pricingUrl
-          ? "The Firecrawl job hasn't run for this URL — re-trigger ingestion or wait for the next cron."
-          : "Set a pricing URL above first."}
-      </p>
-    );
-  }
-  return (
-    <div className="rounded-2xl border border-ink-line bg-paper-warm p-6">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-xs text-text-muted">
-        <span>
-          Scraped {formatDateTime(pricing.scrapedAt)} · {relativeLabel(new Date(pricing.scrapedAt))}
-        </span>
-        <code className="font-mono text-[10px]">hash {pricing.contentHash.slice(0, 12)}…</code>
-      </div>
-      <pre className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-md border border-ink-line bg-paper p-4 font-mono text-xs text-text">
-        {pricing.content}
-      </pre>
-    </div>
-  );
-}
-
 function FeedbackTab({ feedback }: { feedback: CompetitorDetailData["feedback"] }) {
   const total = feedback.up + feedback.down;
   const upPct = total > 0 ? Math.round((feedback.up / total) * 100) : 0;
@@ -1039,19 +923,6 @@ function AuditTab({ rows }: { rows: CompetitorDetailData["auditRows"] }) {
   );
 }
 
-function PresenceChip({ label, present }: { label: string; present: boolean }) {
-  const tone = present
-    ? "border-ink-line bg-paper text-text"
-    : "border-ink-line/60 bg-paper-warm text-text-muted/60 line-through";
-  return (
-    <span
-      className={`inline-flex items-center rounded-pill border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${tone}`}
-    >
-      {label}
-    </span>
-  );
-}
-
 function parseDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -1062,16 +933,6 @@ function parseDomain(url: string): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function relativeLabel(occurred: Date): string {

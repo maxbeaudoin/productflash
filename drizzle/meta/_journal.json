@@ -106,6 +106,13 @@
       "when": 1779219918710,
       "tag": "0014_hard_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1779240030753,
+      "tag": "0015_tearful_the_renegades",
+      "breakpoints": true
     }
   ]
 }

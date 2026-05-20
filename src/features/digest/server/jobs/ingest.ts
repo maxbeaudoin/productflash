@@ -11,8 +11,6 @@ import { logger } from "~/shared/server/logger";
 import { captureServerEvent } from "~/shared/server/posthog";
 import { scrapePricingPagesForCompetitors } from "~/sources/firecrawl";
 import { loadLatestPricingSnapshots, saveLatestPricingSnapshot } from "~/sources/firecrawl-store";
-import { fetchFirehoseForCompetitors } from "~/sources/firehose";
-import { fetchPHForCompetitors } from "~/sources/ph";
 import { fetchRSSForCompetitors } from "~/sources/rss";
 import type { CompetitorRef, NormalizedItem, SourceName } from "~/sources/types";
 import {
@@ -24,13 +22,13 @@ import {
 // Daily ingestion orchestrator.
 //
 // One pg-boss cron schedule fires this at 04:00 UTC (see src/worker/index.ts).
-// We fan out across the 4 source adapters in parallel; each adapter is already
+// We fan out across the source adapters in parallel; each adapter is already
 // batched per-competitor internally, so the orchestrator just collects results
 // and bulk-inserts.
 //
-// Failure model: each adapter is wrapped in allSettled — one bad vendor
-// (e.g. Firehose 5xx) must not block items from the other three. The
-// per-source `errored` flag tells the next run / observer which axis failed.
+// Failure model: each adapter is wrapped in allSettled — one bad vendor must
+// not block items from the others. The per-source `errored` flag tells the
+// next run / observer which axis failed.
 //
 // Dedupe: raw_items has a unique (source, source_id) index. We insert with
 // ON CONFLICT DO NOTHING and use RETURNING to count actual inserts vs
@@ -140,27 +138,20 @@ async function runIngestionForRefs(
     loadActiveWebpageSources(competitorIds, refs),
   ]);
 
-  const [rssResult, phResult, firehoseResult, firecrawlResult, webpageResult] =
-    await Promise.allSettled([
-      fetchRSSForCompetitors(refs),
-      fetchPHForCompetitors(refs),
-      fetchFirehoseForCompetitors(refs),
-      scrapePricingPagesForCompetitors(refs, prevSnapshots),
-      fetchWebpageForSources(webpageRefs, webpageOptions),
-    ]);
+  const [rssResult, firecrawlResult, webpageResult] = await Promise.allSettled([
+    fetchRSSForCompetitors(refs),
+    scrapePricingPagesForCompetitors(refs, prevSnapshots),
+    fetchWebpageForSources(webpageRefs, webpageOptions),
+  ]);
 
   const perSource: Record<SourceName, SourceMetrics> = {
     rss: settleToFanoutMetrics(rssResult, "rss"),
-    ph: settleToFanoutMetrics(phResult, "ph"),
-    firehose: settleToFanoutMetrics(firehoseResult, "firehose"),
     firecrawl: { fetched: 0, inserted: 0, errored: firecrawlResult.status === "rejected" },
     webpage: { fetched: 0, inserted: 0, errored: webpageResult.status === "rejected" },
   };
 
   const inserts: NewRawItem[] = [];
   collectFanout(rssResult, inserts);
-  collectFanout(phResult, inserts);
-  collectFanout(firehoseResult, inserts);
 
   if (firecrawlResult.status === "fulfilled") {
     for (const [competitorId, result] of firecrawlResult.value) {
@@ -213,17 +204,9 @@ async function runIngestionForRefs(
   }
 
   const totalFetched =
-    perSource.rss.fetched +
-    perSource.ph.fetched +
-    perSource.firehose.fetched +
-    perSource.firecrawl.fetched +
-    perSource.webpage.fetched;
+    perSource.rss.fetched + perSource.firecrawl.fetched + perSource.webpage.fetched;
   const totalInserted =
-    perSource.rss.inserted +
-    perSource.ph.inserted +
-    perSource.firehose.inserted +
-    perSource.firecrawl.inserted +
-    perSource.webpage.inserted;
+    perSource.rss.inserted + perSource.firecrawl.inserted + perSource.webpage.inserted;
 
   const metrics: IngestionMetrics = {
     competitors: refs.length,
@@ -296,7 +279,6 @@ function rowToRef(r: typeof competitorsTable.$inferSelect): CompetitorRef {
     name: r.name,
     homepageUrl: r.homepageUrl,
     rssUrl: r.rssUrl,
-    phSlug: r.phSlug,
     pricingUrl: r.pricingUrl,
   };
 }
@@ -349,8 +331,6 @@ function emptyMetrics(competitors: number, durationMs: number): IngestionMetrics
     durationMs,
     perSource: {
       rss: { fetched: 0, inserted: 0, errored: false },
-      ph: { fetched: 0, inserted: 0, errored: false },
-      firehose: { fetched: 0, inserted: 0, errored: false },
       firecrawl: { fetched: 0, inserted: 0, errored: false },
       webpage: { fetched: 0, inserted: 0, errored: false },
     },
@@ -368,12 +348,6 @@ function emitPosthog(m: IngestionMetrics): void {
     rss_fetched: m.perSource.rss.fetched,
     rss_inserted: m.perSource.rss.inserted,
     rss_errored: m.perSource.rss.errored,
-    ph_fetched: m.perSource.ph.fetched,
-    ph_inserted: m.perSource.ph.inserted,
-    ph_errored: m.perSource.ph.errored,
-    firehose_fetched: m.perSource.firehose.fetched,
-    firehose_inserted: m.perSource.firehose.inserted,
-    firehose_errored: m.perSource.firehose.errored,
     firecrawl_fetched: m.perSource.firecrawl.fetched,
     firecrawl_inserted: m.perSource.firecrawl.inserted,
     firecrawl_errored: m.perSource.firecrawl.errored,

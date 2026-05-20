@@ -48,7 +48,7 @@ const FIXTURES: Fixture[] = [
   {
     label: "positioning shift",
     competitorName: "Retool",
-    source: "firehose",
+    source: "rss",
     title: "Retool is now an AI agent platform",
     body: "After five years of helping companies build internal tools, we are repositioning Retool as the leading platform for building, deploying, and monitoring AI agents in production. Read the founders' letter explaining why.",
     expectedCategoryOneOf: ["positioning", "launch"],

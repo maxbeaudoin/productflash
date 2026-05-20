@@ -181,7 +181,7 @@ function ProfilePage() {
         </h1>
         <p className="mt-3 max-w-[640px] text-[15px] text-[#a8a8b8]">
           Edit your role, goal, and focus areas; add or drop competitors. Changes land in tomorrow's
-          digest.
+          brief.
         </p>
       </header>
 

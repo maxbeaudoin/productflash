@@ -137,7 +137,7 @@ function DigestDetailPage() {
         to="/app/digests"
         className="mb-8 inline-flex items-center gap-2 text-xs uppercase tracking-[0.1em] text-[#8a8a98] hover:text-white"
       >
-        <span aria-hidden>←</span> All digests
+        <span aria-hidden>←</span> All briefs
       </Link>
 
       <div

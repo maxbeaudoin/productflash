@@ -21,7 +21,7 @@ import { getDb } from "~/shared/server/db";
 
 type FeedbackRating = "up" | "down";
 
-type SourceType = "rss" | "ph" | "firehose" | "firecrawl";
+type SourceType = "rss" | "firecrawl" | "webpage";
 
 type FeedbackRow = {
   id: string;
@@ -73,7 +73,7 @@ const CATEGORY_VALUES = [
   "noise",
 ] as const;
 
-const SOURCE_VALUES = ["rss", "ph", "firehose", "firecrawl"] as const;
+const SOURCE_VALUES = ["rss", "firecrawl", "webpage"] as const;
 
 const filterSchema = z.object({
   rating: z.enum(["all", "up", "down"]).catch("all"),
@@ -200,9 +200,8 @@ const RANGE_FILTERS: { value: Filters["range"]; label: string }[] = [
 
 const SOURCE_LABEL: Record<SourceType, string> = {
   rss: "RSS",
-  ph: "PH",
-  firehose: "Firehose",
   firecrawl: "Firecrawl",
+  webpage: "Webpage",
 };
 
 const CATEGORY_LABEL: Record<DigestTag, string> = {

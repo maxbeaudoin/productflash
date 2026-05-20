@@ -13,12 +13,12 @@ import {
 } from "~/features/competitors/shared/health-flags";
 
 // /admin/competitors (PF-59). Cohort-wide view of every competitor row so we
-// can spot sourceless feeds (no rss_url AND no ph_slug — ingestion is a no-op
-// for these) and popular targets at a glance. Filters live in URL search
-// params; the loader returns the full list and the page applies filters
-// client-side, same as /admin/feedback (PF-56).
+// can spot sourceless feeds (no rss_url — ingestion is a no-op for these)
+// and popular targets at a glance. Filters live in URL search params; the
+// loader returns the full list and the page applies filters client-side,
+// same as /admin/feedback (PF-56).
 
-const SOURCE_VALUES = ["all", "has-rss", "has-ph", "sourceless"] as const;
+const SOURCE_VALUES = ["all", "has-rss", "sourceless"] as const;
 const TRACKED_VALUES = ["any", "1", "2", "3"] as const;
 const RECENT_VALUES = ["all", "7d", "30d"] as const;
 
@@ -49,7 +49,6 @@ const RECENT_OPTIONS: { value: Filters["recent"]; label: string }[] = [
 const SOURCE_LABELS: Record<Filters["source"], string> = {
   all: "All",
   "has-rss": "Has RSS",
-  "has-ph": "Has PH",
   sourceless: "Sourceless",
 };
 
@@ -69,9 +68,7 @@ function AdminCompetitorsPage() {
   const sourceCounts: Record<Filters["source"], number> = {
     all: rows.length,
     "has-rss": rows.filter((r: CompetitorAdminRow) => r.rssUrl !== null).length,
-    "has-ph": rows.filter((r: CompetitorAdminRow) => r.phSlug !== null).length,
-    sourceless: rows.filter((r: CompetitorAdminRow) => r.rssUrl === null && r.phSlug === null)
-      .length,
+    sourceless: rows.filter((r: CompetitorAdminRow) => r.rssUrl === null).length,
   };
 
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -103,7 +100,7 @@ function AdminCompetitorsPage() {
             ariaLabel="Filter by source presence"
             active={filters.source}
             onChange={(v) => updateFilter("source", v)}
-            options={(["all", "has-rss", "has-ph", "sourceless"] as const).map((v) => ({
+            options={(["all", "has-rss", "sourceless"] as const).map((v) => ({
               value: v,
               label: SOURCE_LABELS[v],
               count: sourceCounts[v],
@@ -158,8 +155,7 @@ function StatsPanel({ rows }: { rows: CompetitorAdminRow[] }) {
   if (rows.length === 0) return null;
   const total = rows.length;
   const rss = rows.filter((r) => r.rssUrl !== null).length;
-  const ph = rows.filter((r) => r.phSlug !== null).length;
-  const neither = rows.filter((r) => r.rssUrl === null && r.phSlug === null).length;
+  const sourceless = rows.filter((r) => r.rssUrl === null).length;
 
   const cutoffMs = Date.now() - RECENT_ADDITIONS_DAYS * 24 * 60 * 60 * 1000;
   const recent = rows
@@ -179,7 +175,7 @@ function StatsPanel({ rows }: { rows: CompetitorAdminRow[] }) {
         </p>
       </header>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <SourceCoverageCard total={total} rss={rss} ph={ph} neither={neither} />
+        <SourceCoverageCard total={total} rss={rss} sourceless={sourceless} />
         <RecentAdditionsCard rows={recent} />
         <MostTrackedCard rows={topTracked} />
       </div>
@@ -212,20 +208,17 @@ function StatsCard({
 function SourceCoverageCard({
   total,
   rss,
-  ph,
-  neither,
+  sourceless,
 }: {
   total: number;
   rss: number;
-  ph: number;
-  neither: number;
+  sourceless: number;
 }) {
   return (
     <StatsCard title="Source coverage">
       <ul className="space-y-2 text-xs">
         <CoverageRow label="RSS" value={rss} total={total} />
-        <CoverageRow label="Product Hunt" value={ph} total={total} />
-        <CoverageRow label="Neither" value={neither} total={total} muted={neither === 0} />
+        <CoverageRow label="Sourceless" value={sourceless} total={total} muted={sourceless === 0} />
       </ul>
     </StatsCard>
   );
@@ -328,7 +321,7 @@ const HEALTH_FLAG_META: Record<
   },
   sourceless: {
     label: "Sourceless",
-    hint: "No RSS and no PH slug. Ingestion produces nothing for these.",
+    hint: "No RSS feed. Ingestion produces nothing for these.",
     emptyContext: (row) => `tracked by ${row.trackedBy}`,
   },
   stale: {
@@ -427,8 +420,6 @@ function CompetitorRowItem({ row }: { row: CompetitorAdminRow }) {
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PresenceChip label="RSS" present={row.rssUrl !== null} />
-          <PresenceChip label="PH" present={row.phSlug !== null} />
-          <PresenceChip label="Pricing" present={row.pricingUrl !== null} />
           <span className="ml-2 text-[10px] uppercase tracking-[0.1em] text-text-muted">
             added {added}
           </span>
@@ -475,8 +466,7 @@ function applyFilters(rows: CompetitorAdminRow[], filters: Filters): CompetitorA
 
   return rows.filter((r) => {
     if (filters.source === "has-rss" && r.rssUrl === null) return false;
-    if (filters.source === "has-ph" && r.phSlug === null) return false;
-    if (filters.source === "sourceless" && (r.rssUrl !== null || r.phSlug !== null)) return false;
+    if (filters.source === "sourceless" && r.rssUrl !== null) return false;
     if (r.trackedBy < minTracked) return false;
     if (cutoffMs !== null && new Date(r.createdAt).getTime() < cutoffMs) return false;
     if (needle) {

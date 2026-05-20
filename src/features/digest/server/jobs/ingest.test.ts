@@ -13,8 +13,6 @@ vi.mock("~/sources/firecrawl-store", () => ({
   loadLatestPricingSnapshots: vi.fn(),
   saveLatestPricingSnapshot: vi.fn(),
 }));
-vi.mock("~/sources/firehose", () => ({ fetchFirehoseForCompetitors: vi.fn() }));
-vi.mock("~/sources/ph", () => ({ fetchPHForCompetitors: vi.fn() }));
 vi.mock("~/sources/rss", () => ({ fetchRSSForCompetitors: vi.fn() }));
 
 const { collectFanout, settleToFanoutMetrics } = await import("./ingest");

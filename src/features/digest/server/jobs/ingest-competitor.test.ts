@@ -50,8 +50,6 @@ describe("handleIngestCompetitorJob — delegates to runIngestionForCompetitor",
       durationMs: 42,
       perSource: {
         rss: { fetched: 0, inserted: 0, errored: false },
-        ph: { fetched: 0, inserted: 0, errored: false },
-        firehose: { fetched: 0, inserted: 0, errored: false },
         firecrawl: { fetched: 0, inserted: 0, errored: false },
         webpage: { fetched: 0, inserted: 0, errored: false },
       },

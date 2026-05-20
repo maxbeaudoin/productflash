@@ -4,7 +4,6 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   adminAudit,
-  competitorPricingSnapshots,
   competitorSources,
   competitors,
   digestItems,
@@ -71,8 +70,6 @@ export const listCompetitorsForAdmin = createServerFn({ method: "GET" }).handler
         name: competitors.name,
         homepageUrl: competitors.homepageUrl,
         rssUrl: competitors.rssUrl,
-        phSlug: competitors.phSlug,
-        pricingUrl: competitors.pricingUrl,
         createdAt: competitors.createdAt,
         trackedBy: trackedBy.trackedBy,
         rawItems7d: rawStats.rawItems7d,
@@ -89,8 +86,6 @@ export const listCompetitorsForAdmin = createServerFn({ method: "GET" }).handler
         name: r.name,
         homepageUrl: r.homepageUrl,
         rssUrl: r.rssUrl,
-        phSlug: r.phSlug,
-        pricingUrl: r.pricingUrl,
         createdAt: r.createdAt.toISOString(),
         trackedBy: r.trackedBy ?? 0,
         rawItems7d: r.rawItems7d ?? 0,
@@ -109,9 +104,6 @@ export type CompetitorDetailRow = {
   id: string;
   name: string;
   homepageUrl: string;
-  rssUrl: string | null;
-  phSlug: string | null;
-  pricingUrl: string | null;
   createdAt: string;
 };
 
@@ -149,16 +141,10 @@ export type CompetitorSourcesRollup = {
 export type CompetitorRawItemRow = {
   id: string;
   title: string;
-  source: "rss" | "ph" | "firehose" | "firecrawl" | "webpage";
+  source: "rss" | "firecrawl" | "webpage";
   publishedAt: string | null;
   ingestedAt: string;
   url: string;
-};
-
-export type CompetitorPricingView = {
-  content: string;
-  contentHash: string;
-  scrapedAt: string;
 };
 
 export type CompetitorFeedbackRatio = {
@@ -178,7 +164,6 @@ export type CompetitorDetailData = {
   // the ingestion pool?" not "did one user see anything?".
   digestHitRate: { rawCount30d: number; digestCount30d: number };
   recentItems: CompetitorRawItemRow[];
-  pricing: CompetitorPricingView | null;
   feedback: CompetitorFeedbackRatio;
   auditRows: AdminAuditRow[];
 };
@@ -305,16 +290,6 @@ export const loadCompetitorDetail = createServerFn({ method: "GET" })
         ),
       );
 
-    const [pricingRow] = await db
-      .select({
-        content: competitorPricingSnapshots.content,
-        contentHash: competitorPricingSnapshots.contentHash,
-        scrapedAt: competitorPricingSnapshots.scrapedAt,
-      })
-      .from(competitorPricingSnapshots)
-      .where(eq(competitorPricingSnapshots.competitorId, competitor.id))
-      .limit(1);
-
     const feedbackAgg = await db
       .select({
         rating: feedback.rating,
@@ -370,9 +345,6 @@ export const loadCompetitorDetail = createServerFn({ method: "GET" })
         id: competitor.id,
         name: competitor.name,
         homepageUrl: competitor.homepageUrl,
-        rssUrl: competitor.rssUrl,
-        phSlug: competitor.phSlug,
-        pricingUrl: competitor.pricingUrl,
         createdAt: competitor.createdAt.toISOString(),
       },
       trackedBy: usersTrackingRows.length,
@@ -395,13 +367,6 @@ export const loadCompetitorDetail = createServerFn({ method: "GET" })
         ingestedAt: r.ingestedAt.toISOString(),
         url: r.url,
       })),
-      pricing: pricingRow
-        ? {
-            content: pricingRow.content,
-            contentHash: pricingRow.contentHash,
-            scrapedAt: pricingRow.scrapedAt.toISOString(),
-          }
-        : null,
       feedback: feedbackRatio,
       auditRows,
     };
@@ -430,19 +395,12 @@ export const updateCompetitorFields = createServerFn({ method: "POST" })
     const next = {
       name: data.values.name,
       homepageUrl: data.values.homepageUrl,
-      rssUrl: data.values.rssUrl ?? null,
-      phSlug: data.values.phSlug ?? null,
-      pricingUrl: data.values.pricingUrl ?? null,
     };
 
     const diff: { [field: string]: FieldDiff } = {};
     if (before.name !== next.name) diff.name = { before: before.name, after: next.name };
     if (before.homepageUrl !== next.homepageUrl)
       diff.homepageUrl = { before: before.homepageUrl, after: next.homepageUrl };
-    if (before.rssUrl !== next.rssUrl) diff.rssUrl = { before: before.rssUrl, after: next.rssUrl };
-    if (before.phSlug !== next.phSlug) diff.phSlug = { before: before.phSlug, after: next.phSlug };
-    if (before.pricingUrl !== next.pricingUrl)
-      diff.pricingUrl = { before: before.pricingUrl, after: next.pricingUrl };
 
     if (Object.keys(diff).length === 0) return { changed: false };
 

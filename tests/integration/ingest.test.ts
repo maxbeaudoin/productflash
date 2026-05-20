@@ -10,8 +10,6 @@ import { startTestDb, truncateAll, type TestDb } from "./setup";
 // covers real-API validation manually, per CLAUDE.md).
 const sourceMocks = vi.hoisted(() => ({
   rss: vi.fn(),
-  ph: vi.fn(),
-  firehose: vi.fn(),
   firecrawl: vi.fn(),
   loadSnaps: vi.fn(),
   saveSnap: vi.fn(),
@@ -21,13 +19,6 @@ vi.mock("~/sources/rss", () => ({
   fetchRSSForCompetitors: sourceMocks.rss,
   fetchRSS: vi.fn(),
   autodetectRSSForHomepage: vi.fn(),
-}));
-vi.mock("~/sources/ph", () => ({
-  fetchPHForCompetitors: sourceMocks.ph,
-  fetchPH: vi.fn(),
-}));
-vi.mock("~/sources/firehose", () => ({
-  fetchFirehoseForCompetitors: sourceMocks.firehose,
 }));
 vi.mock("~/sources/firecrawl", () => ({
   scrapePricingPagesForCompetitors: sourceMocks.firecrawl,
@@ -74,8 +65,6 @@ afterAll(async () => {
 beforeEach(async () => {
   await truncateAll(h.pool);
   sourceMocks.rss.mockReset();
-  sourceMocks.ph.mockReset();
-  sourceMocks.firehose.mockReset();
   sourceMocks.firecrawl.mockReset();
   sourceMocks.loadSnaps.mockReset();
   sourceMocks.saveSnap.mockReset();
@@ -83,8 +72,6 @@ beforeEach(async () => {
   // Default: every adapter returns an empty Map (no items, no error). Per-
   // test overrides set richer responses below.
   sourceMocks.rss.mockResolvedValue(new Map());
-  sourceMocks.ph.mockResolvedValue(new Map());
-  sourceMocks.firehose.mockResolvedValue(new Map());
   sourceMocks.firecrawl.mockResolvedValue(new Map());
   sourceMocks.loadSnaps.mockResolvedValue(new Map());
 });
@@ -171,12 +158,12 @@ describe("runIngestionForUser — F-003", () => {
   test("one source rejecting still inserts from the others", async () => {
     const { userId, competitorId } = await seedUserWithCompetitor();
     sourceMocks.rss.mockResolvedValueOnce(new Map([[competitorId, [rssItem("rss-only")]]]));
-    sourceMocks.ph.mockRejectedValueOnce(new Error("PH 5xx"));
+    sourceMocks.firecrawl.mockRejectedValueOnce(new Error("firecrawl 5xx"));
 
     const metrics = await runIngestionForUser(userId);
 
     expect(metrics.perSource.rss).toEqual({ fetched: 1, inserted: 1, errored: false });
-    expect(metrics.perSource.ph.errored).toBe(true);
+    expect(metrics.perSource.firecrawl.errored).toBe(true);
     expect(metrics.totalInserted).toBe(1);
     const rows = await h.db.select().from(rawItems);
     expect(rows).toHaveLength(1);

@@ -14,8 +14,6 @@ export type CompetitorAdminRow = {
   name: string;
   homepageUrl: string;
   rssUrl: string | null;
-  phSlug: string | null;
-  pricingUrl: string | null;
   createdAt: string;
   trackedBy: number;
   rawItems7d: number;

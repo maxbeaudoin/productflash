@@ -34,7 +34,6 @@ async function main() {
       name: r.name,
       homepageUrl: r.homepageUrl,
       rssUrl: r.rssUrl,
-      phSlug: r.phSlug,
       pricingUrl: r.pricingUrl,
     }));
 
