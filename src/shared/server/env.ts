@@ -139,6 +139,24 @@ const baseSchema = z.object({
     .enum(["0", "1", "true", "false", ""])
     .optional()
     .transform((v) => v === "1" || v === "true"),
+
+  // OTEL + OpenInference observability (PF-103). Off by default so a missing
+  // exporter endpoint can't crash boot; flip to "1" once Langfuse Cloud
+  // credentials are in Railway. When disabled, src/shared/server/otel.ts is
+  // a no-op import.
+  OTEL_ENABLED: z
+    .enum(["0", "1", "true", "false", ""])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+  // Service name attached to every span. Worker entry overrides this so
+  // web and worker traces are easy to filter; env var is the default.
+  OTEL_SERVICE_NAME: z.string().optional(),
+  // OTLP/HTTP collector URL. For Langfuse Cloud this is
+  // https://cloud.langfuse.com/api/public/otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  // Comma-separated key=value pairs (OTEL spec). Langfuse expects a single
+  // `Authorization=Basic <base64(public_key:secret_key)>` header.
+  OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
 });
 
 // Drift guard — if a key is added/removed from the Zod schema above without

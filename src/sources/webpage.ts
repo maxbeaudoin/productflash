@@ -4,6 +4,7 @@ import { createPatch } from "diff";
 import { getAnthropic, HAIKU_MODEL } from "~/shared/server/anthropic";
 import { requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";
+import { withSpan } from "~/shared/server/tracer";
 import type { NormalizedItem } from "./types";
 
 // Webpage watcher (PF-97). Companion to the per-competitor source-discovery
@@ -116,6 +117,19 @@ export async function fetchWebpageForSources(
 export async function fetchWebpageForSource(
   src: WebpageSourceRef,
   options: WebpageFetchOptions = {},
+): Promise<WebpageFetchResult> {
+  return withSpan("webpage.fetch", () => fetchWebpageForSourceImpl(src, options), {
+    "competitor.id": src.competitorId,
+    "competitor.name": src.competitorName,
+    "webpage.source_id": src.id,
+    "webpage.url": src.url,
+    "webpage.mode": src.extractionMode ?? "infer",
+  });
+}
+
+async function fetchWebpageForSourceImpl(
+  src: WebpageSourceRef,
+  options: WebpageFetchOptions,
 ): Promise<WebpageFetchResult> {
   const fetchedAt = new Date();
   const rawMarkdown = await firecrawlScrape(src.url, options);
