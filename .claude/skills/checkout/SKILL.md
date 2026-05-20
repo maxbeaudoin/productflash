@@ -66,7 +66,7 @@ Commit incrementally with explicit file paths (never `git add .` / `-A`). Use HE
 Using `mcp__chrome-devtools__`, and the `pnpm db:psql` and `curl` CLIs:
 
 1. Write tests for your code and make sure they pass.
-2. Start the development server and test your changes in the browser.
+2. Reuse the dev server on `localhost:3000` if it's already running (check via `ss -tlnp 'sport = :3000'` or `curl -sIo /dev/null -w "%{http_code}" http://localhost:3000/healthz`) — Vite hot-reloads, so a live server already has your changes. If it's broken, `kill` the PID and `pnpm dev` fresh in the background. Only start a new one if :3000 is free; never let it drift to :3001. Then test your changes in the browser.
 3. Query the database to verify that your changes are reflected correctly.
 4. Send requests to test your API endpoints if applicable.
 5. Check the console for any errors or warnings and address them.
@@ -91,9 +91,27 @@ Using the `gh` CLI:
 - [ ] All PR checks have passed
 - [ ] Code is merged into main
 
-* Use `Monitor` to watch for CI checks: 15s timeout.
+* Wait for CI with **Bash + `run_in_background`**, not `Monitor`. Monitor stays silent between events and reads as frozen; a backgrounded poll loop gives one completion notification with the final state. Pattern:
 
-PR title: short imperative, <70 chars. PR body must include `Closes PF-<n>` so Linear auto-transitions the issue to Done on merge. After squash-merge, verify the Linear issue moved to Done; if not, move it manually via `mcp__linear-server__save_issue`.
+  ```bash
+  set -u
+  PR=<n>
+  DEADLINE=$(( $(date +%s) + 25 * 60 ))
+  while :; do
+    raw=$(gh pr checks "$PR" --json name,bucket 2>&1) || { echo "gh failed: $raw"; exit 2; }
+    if jq -e 'length>0 and all(.bucket!="pending")' <<<"$raw" >/dev/null; then
+      echo "PR #$PR checks complete:"
+      jq -r '.[] | "  \(.bucket) \(.name)"' <<<"$raw"
+      jq -e 'all(.bucket=="pass")' <<<"$raw" >/dev/null && exit 0 || exit 1
+    fi
+    [ "$(date +%s)" -ge "$DEADLINE" ] && { echo "timed out after 25m"; exit 3; }
+    sleep 30
+  done
+  ```
+
+  Run it via `Bash` with `run_in_background: true` and a generous `timeout`. Exit non-zero on failure/timeout so the completion notification reads as a problem. Keep working (draft PR body, update memory) instead of idling for the notification.
+
+PR title: short imperative, <70 chars. PR body should reference the Linear ID (e.g. `Closes PF-<n>` / `Refs PF-<n>`) for traceability. Linear does **not** auto-transition on merge in this workspace — after squash-merge, move the issue to Done explicitly via `mcp__linear-server__save_issue` with `state: "Done"`. Don't wait for an auto-transition that won't come.
 
 Then stop. Do not auto-chain into another `/checkout`.
 
