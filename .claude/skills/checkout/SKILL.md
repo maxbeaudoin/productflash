@@ -89,7 +89,6 @@ Using the `gh` CLI:
 - [ ] Code is complete and you validated your own work
 - [ ] User has approved screenshots and feedback is incorporated (if applicable)
 - [ ] All PR checks have passed
-- [ ] Code is merged into main
 
 * Wait for CI with **Bash + `run_in_background`**, not `Monitor`. Monitor stays silent between events and reads as frozen; a backgrounded poll loop gives one completion notification with the final state. Pattern:
 

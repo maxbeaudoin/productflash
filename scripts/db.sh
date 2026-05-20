@@ -35,8 +35,15 @@ case "$env" in
            fi ;;
 esac
 
-ro="-c default_transaction_read_only=on"
-[[ "$write" == true ]] && ro=""
+# Neon's pooler rejects `default_transaction_read_only` as a startup option,
+# so we set it post-connect via PSQLRC. psql sources PSQLRC after connecting
+# but before -c queries / interactive input, which gives us the same guard.
+psqlrc=""
+if [[ "$write" != true ]]; then
+  psqlrc="$(mktemp)"
+  trap 'rm -f "$psqlrc"' EXIT
+  echo "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;" >"$psqlrc"
+fi
 
 exec railway run --environment="$rail_env" --service=worker \
-  -- bash -c 'PGOPTIONS="$1" exec psql "$DATABASE_URL" "${@:2}"' _ "$ro" "$@"
+  -- bash -c 'PSQLRC="$1" exec psql "$DATABASE_URL" "${@:2}"' _ "$psqlrc" "$@"
