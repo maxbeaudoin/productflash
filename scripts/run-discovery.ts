@@ -1,3 +1,6 @@
+// OTEL bootstrap must come first — see src/shared/server/otel.ts (PF-103).
+import "~/shared/server/otel";
+
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { eq, sql } from "drizzle-orm";
@@ -5,6 +8,8 @@ import { runDiscoveryAgent, type DiscoveryEvent } from "~/agents/discovery/agent
 import { competitors as competitorsTable, competitorSources } from "~/db/schema";
 import { getDb, getPool } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
+import { shutdownOtel } from "~/shared/server/otel";
+import { withSpan } from "~/shared/server/tracer";
 
 // Manual trigger for the source-discovery agent (PF-95 / PF-93 phase 2).
 // Bypasses pg-boss so we can iterate on the agent loop before phase 5 wires it
@@ -127,14 +132,24 @@ async function main() {
   const runId = randomUUID();
   console.log(`discovery run ${runId} — ${competitor.name} (${competitor.homepageUrl})`);
 
-  const result = await runDiscoveryAgent(
+  const result = await withSpan(
+    "discovery-run",
+    () =>
+      runDiscoveryAgent(
+        {
+          competitorId: competitor.id,
+          competitorName: competitor.name,
+          homepageUrl: competitor.homepageUrl,
+          runId,
+        },
+        (ev) => console.log(renderEvent(ev)),
+      ),
     {
-      competitorId: competitor.id,
-      competitorName: competitor.name,
-      homepageUrl: competitor.homepageUrl,
-      runId,
+      "trigger.source": "manual",
+      "discovery.competitor_id": competitor.id,
+      "discovery.competitor_name": competitor.name,
+      "discovery.run_id": runId,
     },
-    (ev) => console.log(renderEvent(ev)),
   );
 
   // Read back what's now in competitor_sources so the operator can see the
@@ -176,5 +191,6 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    await shutdownOtel();
     await getPool().end();
   });

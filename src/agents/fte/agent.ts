@@ -15,7 +15,7 @@ import { countUserCompetitors, executeTool, FTE_TOOLS, isProfileSaved } from "./
 //   1. Server tools (web_search_20250305) — the API handles these internally,
 //      we just see server_tool_use + web_search_tool_result blocks in the
 //      response stream and stream them out as events for the UI.
-//   2. Client tools (fetch_url, discover_rss, add_competitor, save_profile)
+//   2. Client tools (fetch_url, add_competitor, save_profile)
 //      — we resolve each tool_use block ourselves, post a tool_result, and
 //      let the loop continue.
 //
@@ -66,14 +66,13 @@ const SYSTEM_PROMPT = [
   "",
   "Your job: given the minimal signup info (email, company URL, role, goal), build the user a tight competitive map. Concretely, by the end of the run:",
   "  1. Identify 3–8 real, relevant competitors for the user. Prefer direct competitors over adjacent categories. Skip anyone too large/diffuse to be a real comparison.",
-  "  2. For each competitor, register them with add_competitor — supply a real homepage URL and a discovered RSS feed URL when possible.",
+  "  2. For each competitor, register them with add_competitor — supply a real homepage URL. Feeds and blog pages are discovered automatically afterward by a separate per-competitor agent; you don't need to enumerate sources here.",
   "  3. Call save_profile once at the end with a refined position, company name, ultimate goal, and 3–6 focus_areas tags.",
   "",
   "Method:",
   "  - Start by fetching the user's company homepage to understand what they do. If the company URL is missing, use the email domain.",
   '  - Use web_search to find competitor names (e.g. "Linear alternatives", "competitors of <product>").',
   "  - For each plausible competitor, fetch their homepage to verify positioning and confirm they're a real fit. Don't add a competitor you haven't verified.",
-  "  - Run discover_rss for each verified competitor BEFORE add_competitor, so the rss_url field is populated whenever a feed exists.",
   "",
   "Writing voice for text blocks:",
   "  - The user is watching every text block you emit render as a CARD on screen. Each text block = one card.",
@@ -402,7 +401,7 @@ function renderInitialUserMessage(signup: FteSignupHints): string {
     `  position: ${signup.position ?? "(not provided)"}`,
     `  ultimate_goal: ${signup.ultimateGoal ?? "(not provided)"}`,
     "",
-    "Start by fetching the company homepage. Then research competitors, verify each one with fetch_url, discover their RSS feeds, register them with add_competitor, and finish by calling save_profile.",
+    "Start by fetching the company homepage. Then research competitors, verify each one with fetch_url, register them with add_competitor, and finish by calling save_profile.",
   ].join("\n");
 }
 

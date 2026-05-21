@@ -10,6 +10,7 @@ import { nitro } from "nitro/vite";
 const securityHeadersMiddleware = fileURLToPath(
   new URL("./server/middleware/security-headers.ts", import.meta.url),
 );
+const otelPlugin = fileURLToPath(new URL("./server/plugins/otel.ts", import.meta.url));
 
 export default defineConfig({
   server: {
@@ -39,5 +40,10 @@ export default defineConfig({
         handler: securityHeadersMiddleware,
       },
     ],
+    // PF-103: OTEL + OpenInference bootstrap. Nitro runs plugins once at
+    // app init, before the first request, so the SDK is started before
+    // any handler imports @anthropic-ai/sdk (which is lazy-loaded via
+    // getAnthropic). The worker has its own first-line bootstrap.
+    plugins: [otelPlugin],
   },
 });

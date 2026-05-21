@@ -139,6 +139,23 @@ const baseSchema = z.object({
     .enum(["0", "1", "true", "false", ""])
     .optional()
     .transform((v) => v === "1" || v === "true"),
+
+  // OTEL + Langfuse v5 SDK observability (PF-103). Off by default so a missing
+  // exporter endpoint can't crash boot; flip to "1" once Langfuse credentials
+  // are in Railway. When disabled, src/shared/server/otel.ts is a no-op.
+  OTEL_ENABLED: z
+    .enum(["0", "1", "true", "false", ""])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+  // Service name attached to every span. Worker entry overrides this so
+  // web and worker traces are easy to filter; env var is the default.
+  OTEL_SERVICE_NAME: z.string().optional(),
+  // Langfuse v5 SDK config. baseUrl points at the self-hosted Langfuse
+  // service on Railway (or cloud.langfuse.com if we switch). The public/
+  // secret key pair comes from a Langfuse project's "Settings → API Keys".
+  LANGFUSE_BASE_URL: z.string().url().optional(),
+  LANGFUSE_PUBLIC_KEY: z.string().optional(),
+  LANGFUSE_SECRET_KEY: z.string().optional(),
 });
 
 // Drift guard — if a key is added/removed from the Zod schema above without

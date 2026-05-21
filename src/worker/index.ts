@@ -1,3 +1,10 @@
+// OTEL bootstrap MUST be the very first import — auto-instrumentation patches
+// http/pg/fetch + the Anthropic SDK via require/import hooks, so any module
+// loaded before this runs ends up uninstrumented. See PF-103.
+import { startOtel } from "~/shared/server/otel";
+
+startOtel({ serviceName: process.env.OTEL_SERVICE_NAME ?? "productflash-worker" });
+
 import PgBoss from "pg-boss";
 import { type DiscoveryJobData, DISCOVERY_QUEUE, handleDiscoveryJob } from "~/agents/discovery/job";
 import { type FteJobData, FTE_QUEUE, handleFteJob } from "~/agents/fte/job";
@@ -32,6 +39,7 @@ import {
 import { env, requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";
 import { captureServerException, shutdownPosthog } from "~/shared/server/posthog";
+import { withSpan } from "~/shared/server/tracer";
 
 // Long-running pg-boss host. Hosts the daily ingest → score → synthesize
 // crons and workers today; the send queue from #17 registers here too as it
@@ -183,15 +191,13 @@ async function main() {
   await boss.work(INGEST_QUEUE, async ([job]) => {
     if (!job) return;
     logger.info({ jobId: job.id }, "ingest: job started");
-    const metrics = await runIngestion();
-    return metrics;
+    return await withSpan("ingest-run", () => runIngestion(), { "pgboss.job_id": job.id });
   });
 
   await boss.work(SCORE_QUEUE, async ([job]) => {
     if (!job) return;
     logger.info({ jobId: job.id }, "score: job started");
-    const metrics = await runScoring();
-    return metrics;
+    return await withSpan("score-run", () => runScoring(), { "pgboss.job_id": job.id });
   });
 
   await boss.work(SYNTHESIZE_QUEUE, async ([job]) => {
@@ -201,11 +207,11 @@ async function main() {
     // lookback to cover the weekend (see synthesize.ts). Manual triggers
     // via `pnpm synthesize:run` leave both flags off so dev iterations
     // work on any day.
-    const metrics = await runSynthesis({
-      skipWeekends: true,
-      useWeekendAwareDefaults: true,
-    });
-    return metrics;
+    return await withSpan(
+      "synthesize-run",
+      () => runSynthesis({ skipWeekends: true, useWeekendAwareDefaults: true }),
+      { "pgboss.job_id": job.id },
+    );
   });
 
   // batchSize=5 → each poll cycle pulls up to 5 FTE jobs; we run them
@@ -220,7 +226,11 @@ async function main() {
           { jobId: job.id, userId: job.data.userId, runId: job.data.runId },
           "fte: job started",
         );
-        await handleFteJob(job);
+        await withSpan("fte-run", () => handleFteJob(job), {
+          "pgboss.job_id": job.id,
+          "fte.user_id": job.data.userId,
+          "fte.run_id": job.data.runId,
+        });
       }),
     );
   });
@@ -229,7 +239,10 @@ async function main() {
     await Promise.all(
       jobs.map(async (job) => {
         logger.info({ jobId: job.id, userId: job.data.userId }, "fast-path: job started");
-        await handleFastPathJob(job);
+        await withSpan("first-brief-run", () => handleFastPathJob(job), {
+          "pgboss.job_id": job.id,
+          "fast_path.user_id": job.data.userId,
+        });
       }),
     );
   });
@@ -238,7 +251,10 @@ async function main() {
     await Promise.all(
       jobs.map(async (job) => {
         logger.info({ jobId: job.id, userId: job.data.userId }, "daily-regen: job started");
-        await handleDailyRegenJob(job);
+        await withSpan("daily-regen-run", () => handleDailyRegenJob(job), {
+          "pgboss.job_id": job.id,
+          "daily_regen.user_id": job.data.userId,
+        });
       }),
     );
   });
@@ -257,7 +273,10 @@ async function main() {
             { jobId: job.id, competitorId: job.data.competitorId },
             "ingest-competitor: job started",
           );
-          await handleIngestCompetitorJob(job);
+          await withSpan("ingest-competitor-run", () => handleIngestCompetitorJob(job), {
+            "pgboss.job_id": job.id,
+            "ingest.competitor_id": job.data.competitorId,
+          });
         }),
       );
     },
@@ -274,7 +293,11 @@ async function main() {
           { jobId: job.id, competitorId: job.data.competitorId, runId: job.data.runId },
           "discovery: job started",
         );
-        await handleDiscoveryJob(job);
+        await withSpan("discovery-run", () => handleDiscoveryJob(job), {
+          "pgboss.job_id": job.id,
+          "discovery.competitor_id": job.data.competitorId,
+          "discovery.run_id": job.data.runId,
+        });
       }),
     );
   });
@@ -283,7 +306,10 @@ async function main() {
     await Promise.all(
       jobs.map(async (job) => {
         logger.info({ jobId: job.id, digestId: job.data.digestId }, "send: job started");
-        await runSendForDigest(job.data.digestId);
+        await withSpan("send-run", () => runSendForDigest(job.data.digestId), {
+          "pgboss.job_id": job.id,
+          "send.digest_id": job.data.digestId,
+        });
       }),
     );
   });
@@ -291,7 +317,9 @@ async function main() {
   await boss.work(SEND_DISPATCH_QUEUE, async ([job]) => {
     if (!job) return;
     logger.info({ jobId: job.id }, "send-dispatch: job started");
-    return await runSendDispatch(boss);
+    return await withSpan("send-dispatch-run", () => runSendDispatch(boss), {
+      "pgboss.job_id": job.id,
+    });
   });
 
   const shutdown = async (signal: string) => {

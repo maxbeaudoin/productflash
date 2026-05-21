@@ -23,11 +23,6 @@ export function humanizeToolUse(e: FteEventRow): string {
       const host = prettyHost(url);
       return host ? `Reading ${host}` : "Reading a page";
     }
-    case "discover_rss": {
-      const url = typeof input.homepage_url === "string" ? input.homepage_url : "";
-      const host = prettyHost(url);
-      return host ? `Looking for RSS on ${host}` : "Looking for an RSS feed";
-    }
     case "add_competitor": {
       const n = typeof input.name === "string" ? input.name : "";
       return n ? `Adding ${n}` : "Adding a competitor";

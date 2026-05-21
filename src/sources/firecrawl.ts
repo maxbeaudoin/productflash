@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createPatch } from "diff";
 import { requireEnv } from "~/shared/server/env";
 import { logger } from "~/shared/server/logger";
+import { withSpan } from "~/shared/server/tracer";
 import type { CompetitorRef, NormalizedItem } from "./types";
 
 // Firecrawl pricing-page scraper.
@@ -65,6 +66,24 @@ export async function scrapePricingPage(
   competitor: CompetitorRef,
   previousSnapshot: PricingSnapshot | null,
   options: FirecrawlScrapeOptions = {},
+): Promise<PricingScrapeResult | null> {
+  if (!competitor.pricingUrl) return null;
+
+  return withSpan(
+    "firecrawl.scrape",
+    () => scrapePricingPageImpl(competitor, previousSnapshot, options),
+    {
+      "competitor.id": competitor.id,
+      "competitor.name": competitor.name,
+      "firecrawl.url": competitor.pricingUrl,
+    },
+  );
+}
+
+async function scrapePricingPageImpl(
+  competitor: CompetitorRef,
+  previousSnapshot: PricingSnapshot | null,
+  options: FirecrawlScrapeOptions,
 ): Promise<PricingScrapeResult | null> {
   if (!competitor.pricingUrl) return null;
 

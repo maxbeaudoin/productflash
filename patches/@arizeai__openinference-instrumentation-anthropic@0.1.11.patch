@@ -1,0 +1,88 @@
+diff --git a/dist/esm/instrumentation.js b/dist/esm/instrumentation.js
+index 76fce60588fc10dcbb4ec6cd2af71ec536ff3190..06bb29687cd3fe45e47c4e363f95bdfc87c4bbab 100644
+--- a/dist/esm/instrumentation.js
++++ b/dist/esm/instrumentation.js
+@@ -152,15 +152,15 @@ export class AnthropicInstrumentation extends InstrumentationBase {
+                     }
+                     return result;
+                 };
+-                const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error) => {
+-                    span.recordException(error);
+-                    span.setStatus({
+-                        code: SpanStatusCode.ERROR,
+-                        message: error.message,
++                // PF-103 patch (upstream Arize-ai/openinference#3061): preserve APIPromise contract.
++                const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
++                if (wrappedPromise && typeof wrappedPromise.then === "function") {
++                    wrappedPromise.then(undefined, (error) => {
++                        span.recordException(error);
++                        span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
++                        span.end();
+                     });
+-                    span.end();
+-                    throw error;
+-                });
++                }
+                 return context.bind(execContext, wrappedPromise);
+             };
+         });
+@@ -193,6 +193,15 @@ export class AnthropicInstrumentation extends InstrumentationBase {
+ /**
+  * type-guard that checks if the response is an Anthropic message response
+  */
++function invokeMaybeAPIPromise(promise, then) {
++    if (promise && typeof promise._thenUnwrap === "function") {
++        return promise._thenUnwrap(then);
++    }
++    if (promise instanceof Promise) {
++        return promise.then(then);
++    }
++    return promise;
++}
+ function isAnthropicMessageResponse(response) {
+     return (response != null && typeof response === "object" && "content" in response && "role" in response);
+ }
+diff --git a/dist/src/instrumentation.js b/dist/src/instrumentation.js
+index 1d17c49e5fd1bcaec3af43c39ce30066c07ac05c..f7039e2d37656cdc0e96e10a276dbd24f51927e2 100644
+--- a/dist/src/instrumentation.js
++++ b/dist/src/instrumentation.js
+@@ -170,15 +170,15 @@ class AnthropicInstrumentation extends instrumentation_1.InstrumentationBase {
+                     }
+                     return result;
+                 };
+-                const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error) => {
+-                    span.recordException(error);
+-                    span.setStatus({
+-                        code: api_1.SpanStatusCode.ERROR,
+-                        message: error.message,
++                // PF-103 patch (upstream Arize-ai/openinference#3061): preserve APIPromise contract.
++                const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
++                if (wrappedPromise && typeof wrappedPromise.then === "function") {
++                    wrappedPromise.then(undefined, (error) => {
++                        span.recordException(error);
++                        span.setStatus({ code: api_1.SpanStatusCode.ERROR, message: error.message });
++                        span.end();
+                     });
+-                    span.end();
+-                    throw error;
+-                });
++                }
+                 return api_1.context.bind(execContext, wrappedPromise);
+             };
+         });
+@@ -212,6 +212,15 @@ exports.AnthropicInstrumentation = AnthropicInstrumentation;
+ /**
+  * type-guard that checks if the response is an Anthropic message response
+  */
++function invokeMaybeAPIPromise(promise, then) {
++    if (promise && typeof promise._thenUnwrap === "function") {
++        return promise._thenUnwrap(then);
++    }
++    if (promise instanceof Promise) {
++        return promise.then(then);
++    }
++    return promise;
++}
+ function isAnthropicMessageResponse(response) {
+     return (response != null && typeof response === "object" && "content" in response && "role" in response);
+ }

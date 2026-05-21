@@ -1,6 +1,7 @@
 import RSSParser from "rss-parser";
 import { logger } from "~/shared/server/logger";
 import { safeFetchText, SafeFetchError } from "~/shared/server/safe-fetch";
+import { withSpan } from "~/shared/server/tracer";
 import type { CompetitorRef, NormalizedItem } from "./types";
 
 // RSS / Atom source adapter.
@@ -36,6 +37,17 @@ export interface RSSFetchOptions {
 export async function fetchRSS(
   competitor: CompetitorRef,
   options: RSSFetchOptions = {},
+): Promise<NormalizedItem[]> {
+  return withSpan("rss.fetch", () => fetchRSSImpl(competitor, options), {
+    "competitor.id": competitor.id,
+    "competitor.name": competitor.name,
+    "rss.url": competitor.rssUrl ?? "",
+  });
+}
+
+async function fetchRSSImpl(
+  competitor: CompetitorRef,
+  options: RSSFetchOptions,
 ): Promise<NormalizedItem[]> {
   if (!competitor.rssUrl) {
     logger.warn(
