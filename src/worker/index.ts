@@ -239,7 +239,7 @@ async function main() {
     await Promise.all(
       jobs.map(async (job) => {
         logger.info({ jobId: job.id, userId: job.data.userId }, "fast-path: job started");
-        await withSpan("fast-path-run", () => handleFastPathJob(job), {
+        await withSpan("first-brief-run", () => handleFastPathJob(job), {
           "pgboss.job_id": job.id,
           "fast_path.user_id": job.data.userId,
         });
