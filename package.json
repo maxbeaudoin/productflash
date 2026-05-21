@@ -118,6 +118,9 @@
       "postcss": "^8.5.10",
       "prismjs": "^1.30.0",
       "esbuild": "^0.25.0"
+    },
+    "patchedDependencies": {
+      "@arizeai/openinference-instrumentation-anthropic@0.1.11": "patches/@arizeai__openinference-instrumentation-anthropic@0.1.11.patch"
     }
   }
 }

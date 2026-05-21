@@ -41,8 +41,13 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const flag = process.env.OTEL_ENABLED;
 const enabled = flag === "1" || flag === "true";
+// Anthropic tracing on by default. Used to be gated because OpenInference's
+// patch broke messages.stream() (FTE agent), but we now ship the upstream
+// fix (Arize-ai/openinference#3061) as a pnpm patch — see
+// patches/@arizeai__openinference-instrumentation-anthropic@0.1.11.patch.
+// Opt out via OTEL_TRACE_ANTHROPIC=0 if a future SDK regression resurfaces.
 const traceAnthropic =
-  process.env.OTEL_TRACE_ANTHROPIC === "1" || process.env.OTEL_TRACE_ANTHROPIC === "true";
+  process.env.OTEL_TRACE_ANTHROPIC !== "0" && process.env.OTEL_TRACE_ANTHROPIC !== "false";
 
 let sdk: NodeSDK | undefined;
 
@@ -72,16 +77,24 @@ export function startOtel(opts: { serviceName?: string } = {}): void {
 
   const serviceName = opts.serviceName ?? process.env.OTEL_SERVICE_NAME ?? "productflash";
 
-  // LangfuseSpanProcessor's default `isDefaultExportSpan` keeps only
-  // Langfuse-tracer / GenAI / known-LLM-scope spans. That's exactly what we
-  // want: our explicit `withSpan` roots (langfuse tracer scope) + OpenInference
-  // Anthropic generation spans pass through, everything else is dropped at
-  // source. No filter override needed.
+  // Filter (PF-103). Langfuse's default `isDefaultExportSpan` keeps spans
+  // whose scope starts with `openinference` — but OpenInference's actual
+  // scope name is `@arizeai/openinference-instrumentation-*`, which doesn't
+  // match. Without this override, every Anthropic generation span gets
+  // dropped at the door and Langfuse shows zero LLM observations. We accept
+  // anything from a langfuse-tracer scope (our explicit withSpan roots) or
+  // the @arizeai/openinference family (the rich LLM spans we actually want).
   const processor = new LangfuseSpanProcessor({
     publicKey,
     secretKey,
     baseUrl,
     environment: process.env.NODE_ENV ?? "development",
+    shouldExportSpan: ({ otelSpan }) => {
+      const scope = otelSpan.instrumentationScope.name;
+      // @langfuse/tracing publishes under `langfuse-sdk`; OpenInference's
+      // Anthropic instrumentation under `@arizeai/openinference-*`.
+      return scope === "langfuse-sdk" || scope.startsWith("@arizeai/openinference");
+    },
   });
 
   // OpenInference Anthropic instrumentation. The Langfuse canonical pattern
