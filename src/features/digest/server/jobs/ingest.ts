@@ -133,13 +133,32 @@ async function runIngestionForRefs(
 
   const competitorIds = refs.map((c) => c.id);
 
-  const [prevSnapshots, webpageRefs] = await Promise.all([
+  const [prevSnapshots, webpageRefs, rssSourceRows] = await Promise.all([
     loadLatestPricingSnapshots(db, competitorIds),
     loadActiveWebpageSources(competitorIds, refs),
+    db
+      .select({ competitorId: competitorSources.competitorId, url: competitorSources.urlOrHandle })
+      .from(competitorSources)
+      .where(
+        and(
+          inArray(competitorSources.competitorId, competitorIds),
+          eq(competitorSources.sourceType, "rss"),
+          eq(competitorSources.status, "active"),
+        ),
+      ),
   ]);
 
+  // competitor_sources is the authoritative home for RSS feeds (replaces
+  // competitors.rss_url). Merge discovered feeds into refs so fetchRSSForCompetitors
+  // sees them — competitor_sources wins over the legacy column if both exist.
+  const rssUrlByCompetitor = new Map(rssSourceRows.map((r) => [r.competitorId, r.url]));
+  const refsWithRss = refs.map((r) => ({
+    ...r,
+    rssUrl: rssUrlByCompetitor.get(r.id) ?? r.rssUrl,
+  }));
+
   const [rssResult, firecrawlResult, webpageResult] = await Promise.allSettled([
-    fetchRSSForCompetitors(refs),
+    fetchRSSForCompetitors(refsWithRss),
     scrapePricingPagesForCompetitors(refs, prevSnapshots),
     fetchWebpageForSources(webpageRefs, webpageOptions),
   ]);
