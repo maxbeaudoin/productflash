@@ -11,15 +11,17 @@ import { getBoss } from "~/shared/server/boss";
 import { getDb } from "~/shared/server/db";
 import { logger } from "~/shared/server/logger";
 import { withToolSpan } from "~/shared/server/tracer";
-import { autodetectRSSForHomepage } from "~/sources/rss";
 
 // Tool definitions + executors for the FTE agent (#28).
 //
 // Tools advertised to Sonnet:
 //   - fetch_url(url)                      — plain-text extraction (Firecrawl)
-//   - discover_rss(homepage_url)          — RSS autodetect (shipped in #5)
 //   - add_competitor({...})               — upsert competitors + user_competitors
 //   - save_profile({...})                 — write back to users
+//
+// Source enumeration (RSS feeds, blog pages, etc.) is the per-competitor
+// discovery agent's job — fired automatically when add_competitor inserts a
+// new competitor row (PF-93 / PF-105). FTE no longer touches it.
 //
 // The server-side web_search tool (web_search_20250305) is wired in agent.ts
 // — it's handled by the API, not by us.
@@ -45,24 +47,9 @@ export const FTE_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
-    name: "discover_rss",
-    description:
-      "Given a company homepage URL, attempt to discover its RSS/Atom feed. Tries the homepage's <link rel='alternate'> declarations first, then probes common paths (/feed, /rss, /changelog.rss, …). Returns the absolute feed URL or null if none was found. Use this before add_competitor to populate the rss_url field when possible.",
-    input_schema: {
-      type: "object",
-      properties: {
-        homepage_url: {
-          type: "string",
-          description: "The company homepage URL (e.g. https://linear.app).",
-        },
-      },
-      required: ["homepage_url"],
-    },
-  },
-  {
     name: "add_competitor",
     description:
-      "Register a competitor for the current user. Upserts the competitor in the shared competitors table (keyed by homepage_url) and links it to the user. Safe to call multiple times — duplicate entries are ignored. Call once per competitor you identify; do not batch.",
+      "Register a competitor for the current user. Upserts the competitor in the shared competitors table (keyed by homepage_url) and links it to the user. Safe to call multiple times — duplicate entries are ignored. Call once per competitor you identify; do not batch. The per-competitor discovery agent runs automatically afterward to enumerate feeds and blog pages — you don't supply those here.",
     input_schema: {
       type: "object",
       properties: {
@@ -74,10 +61,6 @@ export const FTE_TOOLS: Anthropic.Tool[] = [
           type: "string",
           description:
             "Canonical homepage URL of the competitor (e.g. https://linear.app). Lowercase scheme + host; no trailing slash.",
-        },
-        rss_url: {
-          type: "string",
-          description: "Optional RSS/Atom feed URL discovered via discover_rss. Omit if unknown.",
         },
       },
       required: ["name", "homepage_url"],
@@ -150,8 +133,6 @@ async function dispatchTool(
   switch (name) {
     case "fetch_url":
       return runFetchUrl(ctx, input);
-    case "discover_rss":
-      return runDiscoverRss(ctx, input);
     case "add_competitor":
       return runAddCompetitor(ctx, input);
     case "save_profile":
@@ -232,45 +213,11 @@ async function runFetchUrl(ctx: ToolContext, input: unknown): Promise<ToolExecut
   }
 }
 
-// --- discover_rss ------------------------------------------------------
-
-async function runDiscoverRss(_ctx: ToolContext, input: unknown): Promise<ToolExecutionResult> {
-  const homepageUrl = pickString(input, "homepage_url");
-  if (!homepageUrl) {
-    return errorResult("discover_rss requires a homepage_url string", { input });
-  }
-  if (!/^https?:\/\//i.test(homepageUrl)) {
-    return errorResult("discover_rss requires a fully-qualified http(s) URL", {
-      homepage_url: homepageUrl,
-    });
-  }
-
-  try {
-    const feedUrl = await autodetectRSSForHomepage(homepageUrl);
-    if (!feedUrl) {
-      return {
-        content: `No RSS/Atom feed found for ${homepageUrl}.`,
-        isError: false,
-        payload: { homepage_url: homepageUrl, feed_url: null },
-      };
-    }
-    return {
-      content: `Discovered feed: ${feedUrl}`,
-      isError: false,
-      payload: { homepage_url: homepageUrl, feed_url: feedUrl },
-    };
-  } catch (err) {
-    return errorResult(`discover_rss threw: ${describeError(err)}`, { homepageUrl });
-  }
-}
-
 // --- add_competitor ----------------------------------------------------
 
 async function runAddCompetitor(ctx: ToolContext, input: unknown): Promise<ToolExecutionResult> {
   const name = pickString(input, "name");
   const homepageUrl = pickString(input, "homepage_url");
-  const rssUrlRaw = pickString(input, "rss_url");
-  const rssUrl = rssUrlRaw === "" ? null : rssUrlRaw;
 
   if (!name || !homepageUrl) {
     return errorResult("add_competitor requires name and homepage_url", { input });
@@ -278,41 +225,34 @@ async function runAddCompetitor(ctx: ToolContext, input: unknown): Promise<ToolE
   if (!/^https?:\/\//i.test(homepageUrl)) {
     return errorResult("add_competitor: homepage_url must be http(s)", { homepageUrl });
   }
-  if (rssUrl && !/^https?:\/\//i.test(rssUrl)) {
-    return errorResult("add_competitor: rss_url must be http(s)", { rssUrl });
-  }
 
   const db = getDb();
 
   try {
-    // Upsert competitor on (homepage_url unique). Update name + rss_url only
-    // when the new caller provided a non-null value — letting earlier writes
-    // win for missing fields would mean a later good name overrides an
-    // earlier "Co." style placeholder.
+    // Upsert competitor on (homepage_url unique). Only the name is
+    // sourced from FTE — feeds/blogs/sources are populated by the
+    // per-competitor discovery agent (PF-93) fired when xmax = 0.
     //
     // `xmax = 0` on the returned row is the Postgres signal for "this row
     // was inserted, not updated" — we use it to fire source-discovery
-    // (PF-93 phase 5) exactly once per shared competitor row across all
-    // users + agents that touch it.
+    // exactly once per shared competitor row across all users + agents
+    // that touch it.
     const competitor = await db
       .insert(competitorsTable)
       .values({
         name,
         homepageUrl,
-        rssUrl: rssUrl ?? null,
       })
       .onConflictDoUpdate({
         target: competitorsTable.homepageUrl,
         set: {
           name: sql`excluded.name`,
-          rssUrl: sql`coalesce(excluded.rss_url, ${competitorsTable.rssUrl})`,
         },
       })
       .returning({
         id: competitorsTable.id,
         name: competitorsTable.name,
         homepageUrl: competitorsTable.homepageUrl,
-        rssUrl: competitorsTable.rssUrl,
         wasInserted: sql<boolean>`(xmax = 0)`.as("was_inserted"),
       });
 
@@ -345,13 +285,12 @@ async function runAddCompetitor(ctx: ToolContext, input: unknown): Promise<ToolE
     }
 
     return {
-      content: `Added ${c.name} (${c.homepageUrl})${c.rssUrl ? ` rss=${c.rssUrl}` : ""}.`,
+      content: `Added ${c.name} (${c.homepageUrl}).`,
       isError: false,
       payload: {
         competitor_id: c.id,
         name: c.name,
         homepage_url: c.homepageUrl,
-        rss_url: c.rssUrl,
       },
     };
   } catch (err) {
